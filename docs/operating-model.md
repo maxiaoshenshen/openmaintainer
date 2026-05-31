@@ -20,6 +20,7 @@ AI agents may:
 - Run validation commands
 - Update documentation
 - Draft release notes
+- Keep CI green before publishing releases
 
 Human maintainers should approve:
 

@@ -74,9 +74,29 @@ export type RepositoryHealth = {
   nextActions: string[];
 };
 
+export type SimilarIssueCluster = {
+  issueNumbers: number[];
+  reason: string;
+  suggestedAction: string;
+};
+
+export type ReadinessCheck = {
+  id: "license" | "description" | "default-branch" | "issue-load" | "review-queue";
+  label: string;
+  status: "pass" | "warn" | "fail";
+  detail: string;
+};
+
+export type RepositoryReadiness = {
+  score: number;
+  checks: ReadinessCheck[];
+};
+
 export type MaintainerAnalysis = {
   health: RepositoryHealth;
+  readiness: RepositoryReadiness;
   triage: IssueTriage[];
   reviews: PullRequestReview[];
+  similarIssues: SimilarIssueCluster[];
   releaseNotes: string;
 };

@@ -23,6 +23,31 @@ const analysisSchema = {
       },
       required: ["score", "status", "strengths", "risks", "nextActions"],
     },
+    readiness: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        score: { type: "number" },
+        checks: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              id: {
+                type: "string",
+                enum: ["license", "description", "default-branch", "issue-load", "review-queue"],
+              },
+              label: { type: "string" },
+              status: { type: "string", enum: ["pass", "warn", "fail"] },
+              detail: { type: "string" },
+            },
+            required: ["id", "label", "status", "detail"],
+          },
+        },
+      },
+      required: ["score", "checks"],
+    },
     triage: {
       type: "array",
       items: {
@@ -64,9 +89,22 @@ const analysisSchema = {
         required: ["pullRequestNumber", "summary", "risk", "focusAreas", "suggestedTests"],
       },
     },
+    similarIssues: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          issueNumbers: { type: "array", items: { type: "number" } },
+          reason: { type: "string" },
+          suggestedAction: { type: "string" },
+        },
+        required: ["issueNumbers", "reason", "suggestedAction"],
+      },
+    },
     releaseNotes: { type: "string" },
   },
-  required: ["health", "triage", "reviews", "releaseNotes"],
+  required: ["health", "readiness", "triage", "reviews", "similarIssues", "releaseNotes"],
 };
 
 function extractOutputText(response: unknown): string | null {

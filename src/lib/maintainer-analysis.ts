@@ -5,7 +5,10 @@ import type {
   MaintainerPullRequest,
   MaintainerRepository,
   PullRequestReview,
+  ReadinessCheck,
+  RepositoryReadiness,
   RepositoryHealth,
+  SimilarIssueCluster,
 } from "./types";
 
 const BUG_TERMS = ["bug", "fail", "error", "crash", "broken", "regression", "exception"];
@@ -139,6 +142,113 @@ function computeHealth(repository: MaintainerRepository, triage: IssueTriage[]):
   return { score, status, strengths, risks, nextActions };
 }
 
+const STOP_WORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "when",
+  "that",
+  "this",
+  "from",
+  "because",
+  "already",
+  "available",
+  "running",
+]);
+
+function keywords(issue: MaintainerIssue) {
+  return new Set(
+    `${issue.title} ${issue.body}`
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, " ")
+      .split(/\s+/)
+      .filter((word) => word.length >= 4 && !STOP_WORDS.has(word)),
+  );
+}
+
+function detectSimilarIssues(issues: MaintainerIssue[]): SimilarIssueCluster[] {
+  const clusters: SimilarIssueCluster[] = [];
+
+  for (let leftIndex = 0; leftIndex < issues.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < issues.length; rightIndex += 1) {
+      const left = issues[leftIndex];
+      const right = issues[rightIndex];
+      const leftKeywords = keywords(left);
+      const rightKeywords = keywords(right);
+      const shared = Array.from(leftKeywords).filter((word) => rightKeywords.has(word));
+      const installSignal =
+        shared.includes("install") || (leftKeywords.has("pnpm") && rightKeywords.has("pnpm"));
+
+      if (shared.length >= 3 || installSignal) {
+        clusters.push({
+          issueNumbers: [left.number, right.number].sort((a, b) => a - b),
+          reason: `Shared maintainer context: ${shared.slice(0, 4).join(", ") || "install workflow"}`,
+          suggestedAction: "Review together before asking contributors for duplicate reproduction details",
+        });
+      }
+    }
+  }
+
+  return clusters;
+}
+
+function computeReadiness(repository: MaintainerRepository): RepositoryReadiness {
+  const checks: ReadinessCheck[] = [
+    {
+      id: "license",
+      label: "License",
+      status: repository.license ? "pass" : "fail",
+      detail: repository.license
+        ? `${repository.license} is visible to contributors`
+        : "Add a license before inviting external contributors",
+    },
+    {
+      id: "description",
+      label: "Repository description",
+      status: repository.description.trim().length >= 20 ? "pass" : "warn",
+      detail:
+        repository.description.trim().length >= 20
+          ? "Description explains the project purpose"
+          : "Add a clearer repository description",
+    },
+    {
+      id: "default-branch",
+      label: "Default branch",
+      status: repository.defaultBranch ? "pass" : "fail",
+      detail: repository.defaultBranch
+        ? `Default branch is ${repository.defaultBranch}`
+        : "Default branch metadata is missing",
+    },
+    {
+      id: "issue-load",
+      label: "Issue load",
+      status: repository.openIssues > 25 ? "warn" : "pass",
+      detail:
+        repository.openIssues > 25
+          ? "Open issue count is high enough to need active triage"
+          : "Open issue load is currently manageable",
+    },
+    {
+      id: "review-queue",
+      label: "Review queue",
+      status: repository.pullRequests.length > 8 ? "warn" : "pass",
+      detail:
+        repository.pullRequests.length > 8
+          ? "Pull request queue may need maintainer assignment"
+          : "Pull request queue is reviewable",
+    },
+  ];
+
+  const score = checks.reduce((total, check) => {
+    if (check.status === "pass") return total + 20;
+    if (check.status === "warn") return total + 10;
+    return total;
+  }, 0);
+
+  return { score, checks };
+}
+
 function draftReleaseNotes(repository: MaintainerRepository, reviews: PullRequestReview[]) {
   const lines = [
     `## Release draft for ${repository.identity.fullName}`,
@@ -162,8 +272,10 @@ export function analyzeRepository(repository: MaintainerRepository): MaintainerA
 
   return {
     health: computeHealth(repository, triage),
+    readiness: computeReadiness(repository),
     triage,
     reviews,
+    similarIssues: detectSimilarIssues(repository.issues),
     releaseNotes: draftReleaseNotes(repository, reviews),
   };
 }

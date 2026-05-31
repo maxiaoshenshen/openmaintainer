@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   CircleAlert,
   ClipboardList,
+  Copy,
+  Download,
   ExternalLink,
   Gauge,
   GitPullRequest,
@@ -48,9 +50,13 @@ const copy = {
     release: "Release draft",
     ai: "AI copilot",
     health: "Project health",
+    readiness: "OSS readiness",
+    similar: "Similar issues",
     repoPlaceholder: "owner/repo or GitHub URL",
     inspect: "Inspect",
     analyze: "Run AI analysis",
+    copyRelease: "Copy",
+    downloadRelease: "Download",
     demo: "Demo mode",
     github: "GitHub live",
     fallback: "Deterministic fallback",
@@ -61,9 +67,13 @@ const copy = {
     release: "发布草稿",
     ai: "AI 副驾驶",
     health: "项目健康",
+    readiness: "开源就绪度",
+    similar: "相似 issue",
     repoPlaceholder: "owner/repo 或 GitHub 链接",
     inspect: "检查",
     analyze: "运行 AI 分析",
+    copyRelease: "复制",
+    downloadRelease: "下载",
     demo: "演示模式",
     github: "GitHub 实时",
     fallback: "规则兜底",
@@ -88,6 +98,16 @@ function priorityColor(priority: string) {
   return "border-stone-300 bg-stone-50 text-stone-700";
 }
 
+function readinessColor(status: "pass" | "warn" | "fail") {
+  if (status === "pass") return "bg-emerald-100 text-emerald-800";
+  if (status === "warn") return "bg-amber-100 text-amber-900";
+  return "bg-rose-100 text-rose-800";
+}
+
+function releaseFileName(repository: MaintainerRepository) {
+  return `${repository.identity.owner}-${repository.identity.name}-release-draft.md`;
+}
+
 export function Dashboard({
   initialRepository,
   initialAnalysis,
@@ -101,6 +121,7 @@ export function Dashboard({
   const [warning, setWarning] = useState<string | null>(null);
   const [loadingRepo, setLoadingRepo] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [copiedRelease, setCopiedRelease] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const text = copy[locale];
 
@@ -110,8 +131,9 @@ export function Dashboard({
       { label: "Open issues", value: repository.openIssues.toLocaleString(), icon: CircleAlert },
       { label: "Pull requests", value: repository.pullRequests.length.toString(), icon: GitPullRequest },
       { label: "Health", value: `${analysis.health.score}/100`, icon: Gauge },
+      { label: "Readiness", value: `${analysis.readiness.score}/100`, icon: ShieldCheck },
     ],
-    [analysis.health.score, repository],
+    [analysis.health.score, analysis.readiness.score, repository],
   );
 
   async function inspectRepository(event: FormEvent<HTMLFormElement>) {
@@ -153,6 +175,22 @@ export function Dashboard({
     } finally {
       setLoadingAi(false);
     }
+  }
+
+  async function copyReleaseDraft() {
+    await navigator.clipboard.writeText(analysis.releaseNotes);
+    setCopiedRelease(true);
+    window.setTimeout(() => setCopiedRelease(false), 1600);
+  }
+
+  function downloadReleaseDraft() {
+    const blob = new Blob([analysis.releaseNotes], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = releaseFileName(repository);
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -268,7 +306,7 @@ export function Dashboard({
               </a>
             </div>
 
-            <div className="grid grid-cols-2 border-b border-stone-200 md:grid-cols-4">
+            <div className="grid grid-cols-2 border-b border-stone-200 md:grid-cols-5">
               {stats.map((stat) => (
                 <div key={stat.label} className="min-h-28 border-r border-stone-200 p-4 last:border-r-0">
                   <stat.icon className="mb-4 size-5 text-stone-500" />
@@ -320,6 +358,32 @@ export function Dashboard({
           <section className="rounded-lg border border-stone-300 bg-white">
             <div className="flex items-center justify-between border-b border-stone-200 p-4">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                <ShieldCheck className="size-5 text-emerald-700" />
+                {text.readiness}
+              </h2>
+              <span className="text-sm font-semibold text-stone-500">
+                {analysis.readiness.score}/100
+              </span>
+            </div>
+            <div className="grid gap-0 md:grid-cols-5">
+              {analysis.readiness.checks.map((check) => (
+                <article
+                  key={check.id}
+                  className="min-h-32 border-b border-stone-200 p-4 md:border-b-0 md:border-r md:last:border-r-0"
+                >
+                  <span className={`rounded px-2 py-1 text-xs font-bold uppercase ${readinessColor(check.status)}`}>
+                    {check.status}
+                  </span>
+                  <h3 className="mt-3 text-sm font-semibold text-stone-950">{check.label}</h3>
+                  <p className="mt-2 text-sm leading-5 text-stone-600">{check.detail}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-200 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
                 <MessageSquareText className="size-5 text-blue-700" />
                 {text.queue}
               </h2>
@@ -361,6 +425,42 @@ export function Dashboard({
                   </article>
                 );
               })}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-200 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                <ClipboardList className="size-5 text-amber-700" />
+                {text.similar}
+              </h2>
+              <span className="text-sm font-semibold text-stone-500">
+                {analysis.similarIssues.length} clusters
+              </span>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {(analysis.similarIssues.length
+                ? analysis.similarIssues
+                : [
+                    {
+                      issueNumbers: [],
+                      reason: "No similar open issue clusters detected.",
+                      suggestedAction: "Keep watching new reports as the project grows.",
+                    },
+                  ]
+              ).map((cluster) => (
+                <article key={`${cluster.issueNumbers.join("-") || "none"}`} className="p-4">
+                  <div className="flex flex-wrap gap-2">
+                    {cluster.issueNumbers.map((issueNumber) => (
+                      <span key={issueNumber} className="rounded bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900">
+                        #{issueNumber}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-stone-700">{cluster.reason}</p>
+                  <p className="mt-1 text-sm leading-6 text-stone-500">{cluster.suggestedAction}</p>
+                </article>
+              ))}
             </div>
           </section>
         </div>
@@ -434,8 +534,26 @@ export function Dashboard({
           </section>
 
           <section className="rounded-lg border border-stone-300 bg-white">
-            <div className="border-b border-stone-200 p-4">
+            <div className="flex items-center justify-between gap-3 border-b border-stone-200 p-4">
               <h2 className="text-lg font-semibold text-stone-950">{text.release}</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={copyReleaseDraft}
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                  title={text.copyRelease}
+                >
+                  <Copy className="size-4" />
+                  <span className="hidden sm:inline">{copiedRelease ? "Copied" : text.copyRelease}</span>
+                </button>
+                <button
+                  onClick={downloadReleaseDraft}
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                  title={text.downloadRelease}
+                >
+                  <Download className="size-4" />
+                  <span className="hidden sm:inline">{text.downloadRelease}</span>
+                </button>
+              </div>
             </div>
             <pre className="max-h-[360px] overflow-auto whitespace-pre-wrap p-4 font-mono text-sm leading-6 text-stone-700">
               {analysis.releaseNotes}

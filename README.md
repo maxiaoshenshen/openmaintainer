@@ -25,7 +25,10 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Optional OpenAI-powered structured analysis
 - Pull request review summaries and risk indicators
 - Repository health score and next actions
+- OSS readiness checklist
+- Similar issue cluster detection
 - Release note draft generator
+- Release draft copy and Markdown download
 - English/Chinese UI switch
 
 ## Quick start
@@ -64,6 +67,8 @@ npm run typecheck
 npm run build
 npm run validate
 ```
+
+CI runs the same validation command on pushes to `main` and pull requests.
 
 ## Architecture
 

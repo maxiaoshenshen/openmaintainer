@@ -53,6 +53,18 @@ export const demoRepository: MaintainerRepository = {
       updatedAt: "2026-05-30T06:45:00Z",
       url: "https://github.com/openmaintainer/demo-repo/issues/286",
     },
+    {
+      id: 6,
+      number: 287,
+      title: "Install script fails on Windows when pnpm is missing",
+      body: "Fresh Windows machine, Node 22 installed. Running npm run setup fails because pnpm is not recognized.",
+      author: "windows-user",
+      labels: [],
+      comments: 1,
+      createdAt: "2026-05-30T07:10:00Z",
+      updatedAt: "2026-05-30T09:05:00Z",
+      url: "https://github.com/openmaintainer/demo-repo/issues/287",
+    },
   ],
   pullRequests: [
     {

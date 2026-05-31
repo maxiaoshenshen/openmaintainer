@@ -8,6 +8,8 @@ OpenMaintainer is an AI-native workbench for open-source maintainers.
 
 OpenMaintainer directly supports the workflows highlighted by the Codex for Open Source program: issue triage, pull request review, release workflow support, maintainer automation, and code quality. The project is built as public OSS, works in demo mode without credentials, and can use Codex or API credits to improve maintainer productivity while keeping humans in control.
 
+The MVP already includes tested deterministic maintainer logic, optional OpenAI analysis, OSS readiness scoring, similar issue detection, release draft export, and CI validation.
+
 ## Maintainer role
 
 Primary maintainer.

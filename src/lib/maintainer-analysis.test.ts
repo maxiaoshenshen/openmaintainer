@@ -39,4 +39,33 @@ describe("analyzeRepository", () => {
     expect(analysis.releaseNotes).toContain("Refactor GitHub adapter error handling");
     expect(analysis.releaseNotes).toContain("Add release notes generator");
   });
+
+  it("detects similar issues that should be reviewed together", () => {
+    const analysis = analyzeRepository(demoRepository);
+
+    expect(analysis.similarIssues).toContainEqual(
+      expect.objectContaining({
+        issueNumbers: [284, 287],
+        reason: expect.stringContaining("install"),
+      }),
+    );
+  });
+
+  it("scores OSS readiness with concrete checks", () => {
+    const analysis = analyzeRepository(demoRepository);
+
+    expect(analysis.readiness.score).toBeGreaterThanOrEqual(80);
+    expect(analysis.readiness.checks).toContainEqual(
+      expect.objectContaining({
+        id: "license",
+        status: "pass",
+      }),
+    );
+    expect(analysis.readiness.checks).toContainEqual(
+      expect.objectContaining({
+        id: "issue-load",
+        status: "warn",
+      }),
+    );
+  });
 });

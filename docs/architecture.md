@@ -21,6 +21,8 @@ OpenMaintainer is split into four layers.
 - Maintainer reply drafts
 - Pull request review summaries
 - Repository health score
+- OSS readiness checks
+- Similar issue clusters
 - Release note drafts
 
 This layer is tested with Vitest and must stay usable without network access.
@@ -30,6 +32,10 @@ This layer is tested with Vitest and must stay usable without network access.
 `src/lib/github.ts` parses repository inputs and fetches public GitHub repository data.
 
 `src/lib/openai-analyzer.ts` calls the OpenAI Responses API when `OPENAI_API_KEY` exists. It falls back to deterministic analysis on missing credentials or provider failure.
+
+## CI
+
+`.github/workflows/ci.yml` runs `npm run validate` on pull requests and pushes to `main`.
 
 ## Design constraints
 

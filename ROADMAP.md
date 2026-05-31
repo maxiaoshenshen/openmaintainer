@@ -8,6 +8,9 @@
 - Optional OpenAI analysis
 - PR review summaries
 - Release draft generation
+- Similar issue detection
+- OSS readiness scoring
+- CI validation
 - OSS documentation and contribution flow
 
 ## Phase 1: Maintainer Workflow Depth
@@ -17,6 +20,7 @@
 - Duplicate issue detection
 - Stale issue review
 - Release note export
+- Duplicate issue workflow actions
 - Per-repository settings
 
 ## Phase 2: Team Maintenance
