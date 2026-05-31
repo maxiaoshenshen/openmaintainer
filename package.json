@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/openmaintainer/openmaintainer.git"
+    "url": "https://github.com/maxiaoshenshen/openmaintainer.git"
   },
   "scripts": {
     "dev": "next dev",

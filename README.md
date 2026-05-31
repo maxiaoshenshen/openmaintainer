@@ -4,6 +4,13 @@ OpenMaintainer is an AI-native workbench for open-source maintainers. It helps m
 
 The product is English-first for global OSS maintainers and keeps a lightweight Chinese interface path for independent developers.
 
+![OpenMaintainer dashboard](public/screenshots/dashboard.png)
+
+## Links
+
+- Repository: https://github.com/maxiaoshenshen/openmaintainer
+- Live preview: pending deployment
+
 ## Why this exists
 
 Maintainers spend a large amount of time on work that is critical but repetitive:
@@ -39,6 +46,8 @@ npm run dev
 ```
 
 Open http://localhost:3000.
+
+Try `demo` or a public GitHub repository such as `vercel/next.js`.
 
 ## Optional credentials
 
