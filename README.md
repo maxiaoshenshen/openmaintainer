@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OpenMaintainer
 
-## Getting Started
+OpenMaintainer is an AI-native workbench for open-source maintainers. It helps maintainers inspect a public GitHub repository, triage issues, review pull requests, understand repository health, and draft release notes.
 
-First, run the development server:
+The product is English-first for global OSS maintainers and keeps a lightweight Chinese interface path for independent developers.
+
+## Why this exists
+
+Maintainers spend a large amount of time on work that is critical but repetitive:
+
+- Labeling and prioritizing issues
+- Asking for missing reproduction details
+- Reading large pull requests before review
+- Drafting release notes
+- Watching repository health and maintenance debt
+
+OpenMaintainer makes that work visible in one cockpit. AI output is treated as a draft. Maintainers remain responsible for every label, reply, review, and release decision.
+
+## Current MVP
+
+- Repository input for `owner/repo` or GitHub URLs
+- Demo mode that works without credentials
+- Public GitHub repository fetcher
+- Deterministic issue triage fallback
+- Optional OpenAI-powered structured analysis
+- Pull request review summaries and risk indicators
+- Repository health score and next actions
+- Release note draft generator
+- English/Chinese UI switch
+
+## Quick start
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Optional credentials
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` to `.env.local`:
 
-## Learn More
+```bash
+cp .env.example .env.local
+```
 
-To learn more about Next.js, take a look at the following resources:
+Then add credentials as needed:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+GITHUB_TOKEN=your_github_token
+OPENAI_API_KEY=your_openai_key
+OPENMAINTAINER_MODEL=gpt-5.4-mini
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The app works without credentials. `GITHUB_TOKEN` raises GitHub API limits. `OPENAI_API_KEY` enables model-backed analysis through the OpenAI Responses API.
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run test
+npm run lint
+npm run typecheck
+npm run build
+npm run validate
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Architecture
+
+- `src/app` contains the Next.js App Router UI and route handlers.
+- `src/components/dashboard.tsx` contains the interactive maintainer cockpit.
+- `src/lib/maintainer-analysis.ts` contains deterministic triage, PR review, health, and release-note logic.
+- `src/lib/github.ts` contains GitHub repository parsing and fetch logic.
+- `src/lib/openai-analyzer.ts` contains the optional OpenAI analysis path.
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).

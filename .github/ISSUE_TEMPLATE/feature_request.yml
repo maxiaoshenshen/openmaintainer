@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest an improvement for maintainer workflows
+title: "[Feature]: "
+labels: ["feature", "needs-triage"]
+body:
+  - type: textarea
+    id: maintainer-problem
+    attributes:
+      label: Maintainer problem
+      description: What maintainer workload would this reduce?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should OpenMaintainer do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What else did you consider?

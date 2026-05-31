@@ -1,0 +1,31 @@
+name: Bug report
+description: Report a reproducible problem in OpenMaintainer
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include exact commands and inputs.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "OS, Node version, browser"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Remove secrets before sharing.

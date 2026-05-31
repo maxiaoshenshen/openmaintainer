@@ -1,0 +1,42 @@
+import { describe, expect, it } from "vitest";
+import { analyzeRepository } from "./maintainer-analysis";
+import { demoRepository } from "./demo-data";
+
+describe("analyzeRepository", () => {
+  it("classifies installation failures as bugs with actionable missing information", () => {
+    const analysis = analyzeRepository(demoRepository);
+    const installIssue = analysis.triage.find((item) => item.issueNumber === 284);
+
+    expect(installIssue).toMatchObject({
+      category: "bug",
+      priority: "high",
+    });
+    expect(installIssue?.suggestedLabels).toContain("bug");
+    expect(installIssue?.missingInformation).toContain("Exact command output");
+  });
+
+  it("summarizes pull request risk using changed files and diff size", () => {
+    const analysis = analyzeRepository(demoRepository);
+    const adapterReview = analysis.reviews.find((item) => item.pullRequestNumber === 92);
+
+    expect(adapterReview?.risk).toBe("medium");
+    expect(adapterReview?.focusAreas).toContain("error handling");
+    expect(adapterReview?.suggestedTests.length).toBeGreaterThan(0);
+  });
+
+  it("computes a repository health score and next maintainer actions", () => {
+    const analysis = analyzeRepository(demoRepository);
+
+    expect(analysis.health.score).toBeGreaterThanOrEqual(70);
+    expect(analysis.health.status).toBe("stable");
+    expect(analysis.health.nextActions).toContain("Review high-priority triage items first");
+  });
+
+  it("drafts release notes from current pull requests", () => {
+    const analysis = analyzeRepository(demoRepository);
+
+    expect(analysis.releaseNotes).toContain("Release draft");
+    expect(analysis.releaseNotes).toContain("Refactor GitHub adapter error handling");
+    expect(analysis.releaseNotes).toContain("Add release notes generator");
+  });
+});
