@@ -23,6 +23,7 @@ Use this checklist before making a public release or submitting OpenMaintainer t
 - [ ] Deployment link added to README
 - [ ] Demo path works without credentials
 - [ ] Optional credentials are documented but not required
+- [ ] Vercel authentication has been completed locally or in CI
 
 ## Codex for OSS readiness
 

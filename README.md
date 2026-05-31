@@ -91,6 +91,10 @@ CI runs the same validation command on pushes to `main` and pull requests.
 
 See [ROADMAP.md](ROADMAP.md).
 
+## Deployment
+
+See [docs/deployment.md](docs/deployment.md).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
