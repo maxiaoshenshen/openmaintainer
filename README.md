@@ -9,7 +9,7 @@ The product is English-first for global OSS maintainers and keeps a lightweight 
 ## Links
 
 - Repository: https://github.com/maxiaoshenshen/openmaintainer
-- Live preview: pending deployment
+- Live preview: https://openmaintainer.vercel.app
 
 ## Why this exists
 

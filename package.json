@@ -4,6 +4,7 @@
   "description": "AI-native workbench for open-source maintainers.",
   "private": true,
   "license": "MIT",
+  "homepage": "https://openmaintainer.vercel.app",
   "repository": {
     "type": "git",
     "url": "https://github.com/maxiaoshenshen/openmaintainer.git"

@@ -4,6 +4,9 @@
 
 OpenMaintainer is an AI-native workbench for open-source maintainers.
 
+- GitHub: https://github.com/maxiaoshenshen/openmaintainer
+- Live preview: https://openmaintainer.vercel.app
+
 ## Why it qualifies
 
 OpenMaintainer directly supports the workflows highlighted by the Codex for Open Source program: issue triage, pull request review, release workflow support, maintainer automation, and code quality. The project is built as public OSS, works in demo mode without credentials, and can use Codex or API credits to improve maintainer productivity while keeping humans in control.

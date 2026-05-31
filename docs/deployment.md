@@ -2,6 +2,11 @@
 
 OpenMaintainer is a Next.js application. Vercel is the recommended host because the app uses Route Handlers for repository analysis and optional OpenAI analysis.
 
+Current deployment:
+
+- Live preview: https://openmaintainer.vercel.app
+- Vercel project: `meicun/openmaintainer`
+
 ## Preview deployment
 
 Run:
