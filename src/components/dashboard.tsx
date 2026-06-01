@@ -48,6 +48,7 @@ const copy = {
     queue: "Maintenance queue",
     reviews: "Review desk",
     release: "Release draft",
+    actions: "Action plan",
     ai: "AI copilot",
     health: "Project health",
     readiness: "OSS readiness",
@@ -65,6 +66,7 @@ const copy = {
     queue: "维护队列",
     reviews: "评审台",
     release: "发布草稿",
+    actions: "行动计划",
     ai: "AI 副驾驶",
     health: "项目健康",
     readiness: "开源就绪度",
@@ -108,6 +110,23 @@ function releaseFileName(repository: MaintainerRepository) {
   return `${repository.identity.owner}-${repository.identity.name}-release-draft.md`;
 }
 
+function actionMarkdown(action: MaintainerAnalysis["actions"][number]) {
+  return [
+    `## ${action.title}`,
+    "",
+    `Target: ${action.url}`,
+    `Priority: ${action.priority}`,
+    "",
+    action.summary,
+    "",
+    "### Commands",
+    ...action.commands.map((command) => `- ${command}`),
+    "",
+    "### Draft",
+    action.draft,
+  ].join("\n");
+}
+
 export function Dashboard({
   initialRepository,
   initialAnalysis,
@@ -122,6 +141,7 @@ export function Dashboard({
   const [loadingRepo, setLoadingRepo] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
   const [copiedRelease, setCopiedRelease] = useState(false);
+  const [copiedAction, setCopiedAction] = useState<string | null>(null);
   const [locale, setLocale] = useState<Locale>("en");
   const text = copy[locale];
 
@@ -191,6 +211,12 @@ export function Dashboard({
     anchor.download = releaseFileName(repository);
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function copyAction(action: MaintainerAnalysis["actions"][number]) {
+    await navigator.clipboard.writeText(actionMarkdown(action));
+    setCopiedAction(action.id);
+    window.setTimeout(() => setCopiedAction(null), 1600);
   }
 
   return (
@@ -466,6 +492,49 @@ export function Dashboard({
         </div>
 
         <aside className="space-y-4">
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-200 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                <ClipboardList className="size-5 text-blue-700" />
+                {text.actions}
+              </h2>
+              <span className="text-sm font-semibold text-stone-500">{analysis.actions.length}</span>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {analysis.actions.map((action) => (
+                <article key={action.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <a
+                      className="min-w-0 text-sm font-semibold leading-5 text-stone-950 hover:text-blue-700"
+                      href={action.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {action.title}
+                    </a>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${priorityColor(action.priority)}`}>
+                      {action.priority}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">{action.summary}</p>
+                  <ul className="mt-3 space-y-1.5 text-sm leading-5 text-stone-600">
+                    {action.commands.map((command) => (
+                      <li key={command}>{command}</li>
+                    ))}
+                  </ul>
+                  <button
+                    onClick={() => copyAction(action)}
+                    className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                    title="Copy action"
+                  >
+                    <Copy className="size-4" />
+                    {copiedAction === action.id ? "Copied" : "Copy action"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section className="rounded-lg border border-stone-300 bg-white">
             <div className="flex items-center justify-between border-b border-stone-200 p-4">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">

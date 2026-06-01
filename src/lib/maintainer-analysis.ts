@@ -1,6 +1,7 @@
 import type {
   IssueTriage,
   MaintainerAnalysis,
+  MaintainerAction,
   MaintainerIssue,
   MaintainerPullRequest,
   MaintainerRepository,
@@ -266,9 +267,77 @@ function draftReleaseNotes(repository: MaintainerRepository, reviews: PullReques
   return lines.join("\n");
 }
 
+function buildMaintainerActions(
+  repository: MaintainerRepository,
+  triage: IssueTriage[],
+  reviews: PullRequestReview[],
+  releaseNotes: string,
+): MaintainerAction[] {
+  const issueActions = triage
+    .filter((item) => item.priority === "urgent" || item.priority === "high")
+    .map((item) => {
+      const issue = repository.issues.find((candidate) => candidate.number === item.issueNumber);
+      const workflowLabels = item.suggestedLabels.filter((label) => label !== "good-first-response");
+      const contributorLabels = item.suggestedLabels.filter((label) => label === "good-first-response");
+
+      return {
+        id: `issue-${item.issueNumber}-triage`,
+        title: `Triage issue #${item.issueNumber}`,
+        target: "issue" as const,
+        priority: item.priority,
+        url: issue?.url ?? `${repository.identity.url}/issues/${item.issueNumber}`,
+        summary: issue?.title ?? "High-priority issue needs maintainer review",
+        draft: item.maintainerReply,
+        commands: [
+          `Apply labels: ${workflowLabels.join(", ") || "needs-triage"}`,
+          ...contributorLabels.map((label) => `Consider contributor label: ${label}`),
+          item.missingInformation.length > 0
+            ? `Request missing information: ${item.missingInformation.join(", ")}`
+            : "Post maintainer response draft",
+        ],
+      };
+    });
+
+  const reviewActions = reviews
+    .filter((review) => review.risk === "high" || review.risk === "medium")
+    .map((review) => {
+      const pullRequest = repository.pullRequests.find(
+        (candidate) => candidate.number === review.pullRequestNumber,
+      );
+
+      return {
+        id: `pr-${review.pullRequestNumber}-review`,
+        title: `Review PR #${review.pullRequestNumber}`,
+        target: "pull-request" as const,
+        priority: review.risk === "high" ? ("high" as const) : ("normal" as const),
+        url: pullRequest?.url ?? `${repository.identity.url}/pull/${review.pullRequestNumber}`,
+        summary: review.summary,
+        draft: `Focus review on ${review.focusAreas.join(", ")}. Suggested tests: ${review.suggestedTests.join("; ")}.`,
+        commands: [
+          `Check focus areas: ${review.focusAreas.join(", ")}`,
+          `Run tests: ${review.suggestedTests.join("; ")}`,
+        ],
+      };
+    });
+
+  const releaseAction: MaintainerAction = {
+    id: "release-draft",
+    title: "Prepare release draft",
+    target: "release",
+    priority: repository.pullRequests.length > 0 ? "normal" : "low",
+    url: `${repository.identity.url}/releases/new`,
+    summary: `Draft release notes from ${repository.pullRequests.length} open pull requests.`,
+    draft: releaseNotes,
+    commands: ["Copy release draft into GitHub Releases", "Verify merged PRs before publishing"],
+  };
+
+  return [...issueActions, ...reviewActions, releaseAction];
+}
+
 export function analyzeRepository(repository: MaintainerRepository): MaintainerAnalysis {
   const triage = repository.issues.map(classifyIssue);
   const reviews = repository.pullRequests.map(reviewPullRequest);
+  const releaseNotes = draftReleaseNotes(repository, reviews);
 
   return {
     health: computeHealth(repository, triage),
@@ -276,6 +345,7 @@ export function analyzeRepository(repository: MaintainerRepository): MaintainerA
     triage,
     reviews,
     similarIssues: detectSimilarIssues(repository.issues),
-    releaseNotes: draftReleaseNotes(repository, reviews),
+    actions: buildMaintainerActions(repository, triage, reviews, releaseNotes),
+    releaseNotes,
   };
 }

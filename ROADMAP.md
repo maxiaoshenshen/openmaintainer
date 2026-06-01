@@ -9,6 +9,7 @@
 - PR review summaries
 - Release draft generation
 - Similar issue detection
+- Copyable maintainer action plan
 - OSS readiness scoring
 - CI validation
 - OSS documentation and contribution flow

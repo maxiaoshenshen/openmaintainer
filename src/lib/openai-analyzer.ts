@@ -102,9 +102,27 @@ const analysisSchema = {
         required: ["issueNumbers", "reason", "suggestedAction"],
       },
     },
+    actions: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string" },
+          title: { type: "string" },
+          target: { type: "string", enum: ["issue", "pull-request", "release", "repository"] },
+          priority: { type: "string", enum: ["urgent", "high", "normal", "low"] },
+          url: { type: "string" },
+          summary: { type: "string" },
+          draft: { type: "string" },
+          commands: { type: "array", items: { type: "string" } },
+        },
+        required: ["id", "title", "target", "priority", "url", "summary", "draft", "commands"],
+      },
+    },
     releaseNotes: { type: "string" },
   },
-  required: ["health", "readiness", "triage", "reviews", "similarIssues", "releaseNotes"],
+  required: ["health", "readiness", "triage", "reviews", "similarIssues", "actions", "releaseNotes"],
 };
 
 function extractOutputText(response: unknown): string | null {

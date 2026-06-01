@@ -68,4 +68,26 @@ describe("analyzeRepository", () => {
       }),
     );
   });
+
+  it("creates maintainer actions that can be copied into the real GitHub workflow", () => {
+    const analysis = analyzeRepository(demoRepository);
+
+    expect(analysis.actions).toContainEqual(
+      expect.objectContaining({
+        id: "issue-284-triage",
+        target: "issue",
+        priority: "high",
+        url: "https://github.com/openmaintainer/demo-repo/issues/284",
+        commands: expect.arrayContaining(["Apply labels: bug, priority/high"]),
+        draft: expect.stringContaining("exact command output"),
+      }),
+    );
+    expect(analysis.actions).toContainEqual(
+      expect.objectContaining({
+        id: "release-draft",
+        target: "release",
+        commands: expect.arrayContaining(["Copy release draft into GitHub Releases"]),
+      }),
+    );
+  });
 });

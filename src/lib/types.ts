@@ -92,11 +92,23 @@ export type RepositoryReadiness = {
   checks: ReadinessCheck[];
 };
 
+export type MaintainerAction = {
+  id: string;
+  title: string;
+  target: "issue" | "pull-request" | "release" | "repository";
+  priority: "urgent" | "high" | "normal" | "low";
+  url: string;
+  summary: string;
+  draft: string;
+  commands: string[];
+};
+
 export type MaintainerAnalysis = {
   health: RepositoryHealth;
   readiness: RepositoryReadiness;
   triage: IssueTriage[];
   reviews: PullRequestReview[];
   similarIssues: SimilarIssueCluster[];
+  actions: MaintainerAction[];
   releaseNotes: string;
 };

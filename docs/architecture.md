@@ -23,6 +23,7 @@ OpenMaintainer is split into four layers.
 - Repository health score
 - OSS readiness checks
 - Similar issue clusters
+- Copyable maintainer actions for GitHub workflow handoff
 - Release note drafts
 
 This layer is tested with Vitest and must stay usable without network access.
