@@ -111,6 +111,29 @@ describe("analyzeRepository", () => {
     );
   });
 
+  it("creates duplicate cleanup actions for similar issue clusters", () => {
+    const analysis = analyzeRepository(demoRepository);
+
+    expect(analysis.actions).toContainEqual(
+      expect.objectContaining({
+        id: "duplicate-284-287-cleanup",
+        target: "issue",
+        priority: "normal",
+        url: "https://github.com/openmaintainer/demo-repo/issues/287",
+        summary: expect.stringContaining("#284 and #287"),
+        commands: expect.arrayContaining([
+          "Compare issue #284 with #287 before closing either thread",
+          "Keep #284 as the canonical issue",
+        ]),
+        draft: expect.stringContaining("This looks related to #284"),
+        githubCommands: expect.arrayContaining([
+          'gh issue comment 287 --repo openmaintainer/demo-repo --body "This looks related to #284. I am going to keep #284 as the canonical thread so reproduction details stay in one place."',
+          'gh issue close 287 --repo openmaintainer/demo-repo --reason "not planned"',
+        ]),
+      }),
+    );
+  });
+
   it("builds repository playbooks for immediate, weekly, and release maintenance rhythm", () => {
     const analysis = analyzeRepository(demoRepository);
 

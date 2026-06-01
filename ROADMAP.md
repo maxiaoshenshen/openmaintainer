@@ -9,6 +9,7 @@
 - PR review summaries
 - Release draft generation
 - Similar issue detection
+- Duplicate issue workflow actions
 - Copyable maintainer action plan
 - Real repository quality signals
 - Maintainer settings for per-project thresholds and preferred labels
@@ -30,7 +31,6 @@
 - Duplicate issue detection
 - Stale issue review
 - Release note export
-- Duplicate issue workflow actions
 - Persisted team-level settings
 
 ## Phase 2: Team Maintenance

@@ -419,6 +419,7 @@ function buildMaintainerActions(
   repository: MaintainerRepository,
   triage: IssueTriage[],
   reviews: PullRequestReview[],
+  similarIssues: SimilarIssueCluster[],
   releaseNotes: string,
 ): MaintainerAction[] {
   const issueActions = triage
@@ -486,6 +487,36 @@ function buildMaintainerActions(
       };
     });
 
+  const duplicateActions = similarIssues.map((cluster) => {
+    const [canonicalIssueNumber, duplicateIssueNumber] = cluster.issueNumbers;
+    const duplicateIssue = repository.issues.find(
+      (candidate) => candidate.number === duplicateIssueNumber,
+    );
+    const draft = `This looks related to #${canonicalIssueNumber}. I am going to keep #${canonicalIssueNumber} as the canonical thread so reproduction details stay in one place.`;
+
+    return {
+      id: `duplicate-${canonicalIssueNumber}-${duplicateIssueNumber}-cleanup`,
+      title: `Review duplicate issues #${canonicalIssueNumber}/#${duplicateIssueNumber}`,
+      target: "issue" as const,
+      priority: "normal" as const,
+      url: duplicateIssue?.url ?? `${repository.identity.url}/issues/${duplicateIssueNumber}`,
+      summary: `Compare #${canonicalIssueNumber} and #${duplicateIssueNumber}: ${cluster.reason}`,
+      draft,
+      commands: [
+        `Compare issue #${canonicalIssueNumber} with #${duplicateIssueNumber} before closing either thread`,
+        `Keep #${canonicalIssueNumber} as the canonical issue`,
+        "Close only after confirming the reports describe the same failure path",
+      ],
+      githubCommands: [
+        `gh issue comment ${duplicateIssueNumber} --repo ${repository.identity.fullName} --body ${shellQuote(
+          draft,
+        )}`,
+        `gh issue close ${duplicateIssueNumber} --repo ${repository.identity.fullName} --reason "not planned"`,
+        `gh issue view ${canonicalIssueNumber} --repo ${repository.identity.fullName} --web`,
+      ],
+    };
+  });
+
   const releaseAction: MaintainerAction = {
     id: "release-draft",
     title: "Prepare release draft",
@@ -500,7 +531,7 @@ function buildMaintainerActions(
     ],
   };
 
-  return [...issueActions, ...reviewActions, releaseAction];
+  return [...issueActions, ...duplicateActions, ...reviewActions, releaseAction];
 }
 
 function buildRepositoryPlaybooks(
@@ -758,10 +789,10 @@ export function analyzeRepository(
   const triage = repository.issues.map(classifyIssue);
   const reviews = repository.pullRequests.map(reviewPullRequest);
   const releaseNotes = draftReleaseNotes(repository, reviews);
-  const actions = buildMaintainerActions(repository, triage, reviews, releaseNotes);
   const health = computeHealth(repository, triage);
   const readiness = computeReadiness(repository);
   const similarIssues = detectSimilarIssues(repository.issues);
+  const actions = buildMaintainerActions(repository, triage, reviews, similarIssues, releaseNotes);
   const qualitySignals = computeQualitySignals(repository, observedAt, settings);
   const trend = buildRepositoryTrend(repository, health, readiness, qualitySignals, previousSnapshot);
 
