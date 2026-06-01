@@ -20,8 +20,9 @@ import {
   SlidersHorizontal,
   Sparkles,
 } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { MaintainerAnalysis, MaintainerRepository, MaintainerSettings } from "@/lib/types";
+import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
   exportSnapshotBundle,
@@ -81,6 +82,7 @@ const copy = {
     github: "GitHub live",
     fallback: "Deterministic fallback",
     settings: "Maintainer settings",
+    settingsLoaded: "Settings loaded",
     applySettings: "Apply settings",
     targetLabelCoverage: "Target label coverage",
     maxIssueResponseDays: "Max issue response days",
@@ -118,6 +120,7 @@ const copy = {
     github: "GitHub 实时",
     fallback: "规则兜底",
     settings: "维护者设置",
+    settingsLoaded: "设置已载入",
     applySettings: "应用设置",
     targetLabelCoverage: "目标标签覆盖率",
     maxIssueResponseDays: "最长 issue 响应天数",
@@ -217,6 +220,7 @@ export function Dashboard({
   const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
   const [copiedDigest, setCopiedDigest] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
   const [locale, setLocale] = useState<Locale>("en");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -224,6 +228,20 @@ export function Dashboard({
     initialAnalysis.settings.preferredLabels.join(", "),
   );
   const text = copy[locale];
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const loadTimer = window.setTimeout(() => {
+      const savedSettings = readSettings(window.localStorage, initialRepository.identity.fullName);
+      if (!savedSettings) return;
+      setSettings(savedSettings);
+      setPreferredLabelsDraft(savedSettings.preferredLabels.join(", "));
+      setSettingsLoaded(true);
+      window.setTimeout(() => setSettingsLoaded(false), 1800);
+    }, 0);
+
+    return () => window.clearTimeout(loadTimer);
+  }, [initialRepository.identity.fullName]);
 
   const stats = useMemo(
     () => [
@@ -242,10 +260,20 @@ export function Dashboard({
   }
 
   async function fetchRepositoryAnalysis(targetRepo: string, fromSettings: boolean) {
-    const nextSettings = {
+    const storedSettings =
+      typeof window === "undefined" || fromSettings
+        ? null
+        : readSettings(window.localStorage, targetRepo);
+    const nextSettings = storedSettings ?? {
       ...settings,
       preferredLabels: labelsFromDraft(preferredLabelsDraft),
     };
+    if (storedSettings) {
+      setSettings(storedSettings);
+      setPreferredLabelsDraft(storedSettings.preferredLabels.join(", "));
+      setSettingsLoaded(true);
+      window.setTimeout(() => setSettingsLoaded(false), 1800);
+    }
     setLoadingRepo(true);
     setLoadingSettings(fromSettings);
     setWarning(null);
@@ -269,6 +297,7 @@ export function Dashboard({
       setProvider("deterministic");
       setWarning(data.warning ?? null);
       if (typeof window !== "undefined") {
+        writeSettings(window.localStorage, data.repository.identity.fullName, data.analysis.settings);
         writeSnapshot(
           window.localStorage,
           data.repository.identity.fullName,
@@ -475,6 +504,11 @@ export function Dashboard({
             {snapshotSaved ? (
               <span className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-800">
                 {text.snapshotSaved}
+              </span>
+            ) : null}
+            {settingsLoaded ? (
+              <span className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1 text-blue-800">
+                {text.settingsLoaded}
               </span>
             ) : null}
           </div>

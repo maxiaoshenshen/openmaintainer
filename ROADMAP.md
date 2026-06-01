@@ -14,6 +14,7 @@
 - Maintainer settings for per-project thresholds and preferred labels
 - Trend memory for repository snapshot comparison
 - Local snapshot store for repeat repository inspections
+- Local settings store for repeat maintainer preferences
 - Snapshot import/export for lightweight collaboration
 - GitHub CLI handoff commands
 - Repository playbooks for daily, weekly, and release cadence

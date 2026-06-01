@@ -27,6 +27,7 @@ OpenMaintainer is split into four layers.
 - Trend memory that compares the current analysis with a previous snapshot
 - Browser-local snapshot storage for repeat inspections without a backend database
 - Snapshot import/export as a portable JSON bundle with schema versioning
+- Browser-local maintainer settings storage keyed by repository
 - Similar issue clusters
 - Copyable maintainer actions for GitHub workflow handoff
 - Safe GitHub CLI commands that require maintainer execution

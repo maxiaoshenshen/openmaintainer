@@ -37,6 +37,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Maintainer settings for per-project thresholds, release cadence, and preferred labels
 - Trend memory for comparing current analysis with a previous repository snapshot
 - Local snapshot store that remembers previous analyses in the browser
+- Local settings store that remembers maintainer preferences per repository
 - Snapshot import/export for lightweight cross-browser and team handoff
 - Similar issue cluster detection
 - Copyable maintainer action plan for issues, pull requests, and release prep
