@@ -145,10 +145,43 @@ export type RepositoryQualitySignal = {
   nextAction: string;
 };
 
+export type RepositoryAnalysisSnapshot = {
+  capturedAt: string;
+  healthScore: number;
+  readinessScore: number;
+  openIssues: number;
+  openPullRequests: number;
+  qualitySignals: Array<{
+    id: RepositoryQualitySignal["id"];
+    score: number;
+  }>;
+};
+
+export type RepositoryTrendChange = {
+  label: string;
+  previous: number;
+  current: number;
+  delta: number;
+  direction: "up" | "down" | "flat";
+};
+
+export type RepositoryQualitySignalTrend = RepositoryTrendChange & {
+  id: RepositoryQualitySignal["id"];
+};
+
+export type RepositoryTrend = {
+  direction: "improving" | "declining" | "steady" | "baseline";
+  summary: string;
+  since: string | null;
+  changes: RepositoryTrendChange[];
+  qualitySignalChanges: RepositoryQualitySignalTrend[];
+};
+
 export type MaintainerAnalysis = {
   health: RepositoryHealth;
   readiness: RepositoryReadiness;
   qualitySignals: RepositoryQualitySignal[];
+  trend: RepositoryTrend;
   triage: IssueTriage[];
   reviews: PullRequestReview[];
   similarIssues: SimilarIssueCluster[];

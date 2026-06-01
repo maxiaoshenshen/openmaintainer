@@ -9,9 +9,13 @@ import type {
   PullRequestReview,
   ReadinessCheck,
   RepositoryQualitySignal,
+  RepositoryAnalysisSnapshot,
   RepositoryPlaybook,
   RepositoryReadiness,
   RepositoryHealth,
+  RepositoryTrend,
+  RepositoryTrendChange,
+  RepositoryQualitySignalTrend,
   SimilarIssueCluster,
 } from "./types";
 
@@ -579,9 +583,119 @@ function buildMaintainerDigest(
   };
 }
 
+function changeDirection(delta: number): RepositoryTrendChange["direction"] {
+  if (delta > 0) return "up";
+  if (delta < 0) return "down";
+  return "flat";
+}
+
+function formatDelta(delta: number) {
+  return delta > 0 ? `+${delta}` : `${delta}`;
+}
+
+function trendDate(value: string) {
+  return value.slice(0, 10);
+}
+
+function buildRepositoryTrend(
+  repository: MaintainerRepository,
+  health: RepositoryHealth,
+  readiness: RepositoryReadiness,
+  qualitySignals: RepositoryQualitySignal[],
+  previousSnapshot?: RepositoryAnalysisSnapshot,
+): RepositoryTrend {
+  if (!previousSnapshot) {
+    return {
+      direction: "baseline",
+      summary: "First analysis snapshot. Future runs can compare maintenance movement.",
+      since: null,
+      changes: [],
+      qualitySignalChanges: [],
+    };
+  }
+
+  const changes: RepositoryTrendChange[] = [
+    {
+      label: "Health score",
+      previous: previousSnapshot.healthScore,
+      current: health.score,
+      delta: health.score - previousSnapshot.healthScore,
+      direction: changeDirection(health.score - previousSnapshot.healthScore),
+    },
+    {
+      label: "Readiness score",
+      previous: previousSnapshot.readinessScore,
+      current: readiness.score,
+      delta: readiness.score - previousSnapshot.readinessScore,
+      direction: changeDirection(readiness.score - previousSnapshot.readinessScore),
+    },
+    {
+      label: "Open issues",
+      previous: previousSnapshot.openIssues,
+      current: repository.openIssues,
+      delta: repository.openIssues - previousSnapshot.openIssues,
+      direction: changeDirection(repository.openIssues - previousSnapshot.openIssues),
+    },
+    {
+      label: "Open PRs",
+      previous: previousSnapshot.openPullRequests,
+      current: repository.pullRequests.length,
+      delta: repository.pullRequests.length - previousSnapshot.openPullRequests,
+      direction: changeDirection(repository.pullRequests.length - previousSnapshot.openPullRequests),
+    },
+  ];
+
+  const qualitySignalChanges: RepositoryQualitySignalTrend[] = qualitySignals.flatMap((signal) => {
+    const previous = previousSnapshot.qualitySignals.find((item) => item.id === signal.id);
+    if (!previous) return [];
+    const delta = signal.score - previous.score;
+    return [
+      {
+        id: signal.id,
+        label: signal.label,
+        previous: previous.score,
+        current: signal.score,
+        delta,
+        direction: changeDirection(delta),
+      },
+    ];
+  });
+
+  const positiveMovement =
+    changes.filter((change) =>
+      change.label === "Open issues" || change.label === "Open PRs" ? change.delta < 0 : change.delta > 0,
+    ).length + qualitySignalChanges.filter((change) => change.delta > 0).length;
+  const negativeMovement =
+    changes.filter((change) =>
+      change.label === "Open issues" || change.label === "Open PRs" ? change.delta > 0 : change.delta < 0,
+    ).length + qualitySignalChanges.filter((change) => change.delta < 0).length;
+
+  const direction: RepositoryTrend["direction"] =
+    positiveMovement > negativeMovement
+      ? "improving"
+      : negativeMovement > positiveMovement
+        ? "declining"
+        : "steady";
+  const since = trendDate(previousSnapshot.capturedAt);
+  const summary = `Health ${formatDelta(
+    changes[0].delta,
+  )}, readiness ${formatDelta(changes[1].delta)}, open issues ${formatDelta(
+    changes[2].delta,
+  )}, open PRs ${formatDelta(changes[3].delta)} since ${since}`;
+
+  return {
+    direction,
+    summary,
+    since,
+    changes,
+    qualitySignalChanges,
+  };
+}
+
 export function analyzeRepository(
   repository: MaintainerRepository,
   observedAt = new Date(),
+  previousSnapshot?: RepositoryAnalysisSnapshot,
 ): MaintainerAnalysis {
   const triage = repository.issues.map(classifyIssue);
   const reviews = repository.pullRequests.map(reviewPullRequest);
@@ -591,11 +705,13 @@ export function analyzeRepository(
   const readiness = computeReadiness(repository);
   const similarIssues = detectSimilarIssues(repository.issues);
   const qualitySignals = computeQualitySignals(repository, observedAt);
+  const trend = buildRepositoryTrend(repository, health, readiness, qualitySignals, previousSnapshot);
 
   return {
     health,
     readiness,
     qualitySignals,
+    trend,
     triage,
     reviews,
     similarIssues,

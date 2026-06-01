@@ -1,4 +1,4 @@
-import type { MaintainerRepository } from "./types";
+import type { MaintainerRepository, RepositoryAnalysisSnapshot } from "./types";
 
 export const demoRepository: MaintainerRepository = {
   identity: {
@@ -95,5 +95,19 @@ export const demoRepository: MaintainerRepository = {
       updatedAt: "2026-05-30T09:40:00Z",
       url: "https://github.com/openmaintainer/demo-repo/pull/93",
     },
+  ],
+};
+
+export const demoPreviousSnapshot: RepositoryAnalysisSnapshot = {
+  capturedAt: "2026-05-25T00:00:00Z",
+  healthScore: 68,
+  readinessScore: 80,
+  openIssues: 42,
+  openPullRequests: 4,
+  qualitySignals: [
+    { id: "label-coverage", score: 25 },
+    { id: "issue-response-gap", score: 40 },
+    { id: "pr-age", score: 30 },
+    { id: "review-load", score: 68 },
   ],
 };

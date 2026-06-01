@@ -51,6 +51,7 @@ const copy = {
     actions: "Action plan",
     playbooks: "Repository playbooks",
     digest: "Weekly digest",
+    trend: "Trend memory",
     githubHandoff: "GitHub handoff",
     copyDigest: "Copy digest",
     copyPlaybook: "Copy playbook",
@@ -75,6 +76,7 @@ const copy = {
     actions: "行动计划",
     playbooks: "仓库维护剧本",
     digest: "维护周报",
+    trend: "趋势记忆",
     githubHandoff: "GitHub 交接",
     copyDigest: "复制周报",
     copyPlaybook: "复制剧本",
@@ -569,6 +571,52 @@ export function Dashboard({
         </div>
 
         <aside className="space-y-4">
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-200 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                <Gauge className="size-5 text-blue-700" />
+                {text.trend}
+              </h2>
+              <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusColor(
+                analysis.trend.direction === "declining" ? "attention" : analysis.trend.direction === "baseline" ? "watch" : "stable",
+              )}`}
+              >
+                {analysis.trend.direction}
+              </span>
+            </div>
+            <div className="space-y-4 p-4">
+              <p className="text-sm leading-6 text-stone-700">{analysis.trend.summary}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {analysis.trend.changes.map((change) => (
+                  <div key={change.label} className="rounded-md border border-stone-200 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      {change.label}
+                    </div>
+                    <div className="mt-1 text-lg font-semibold text-stone-950">
+                      {change.delta > 0 ? "+" : ""}{change.delta}
+                    </div>
+                    <div className="mt-1 text-xs text-stone-500">
+                      {change.previous} {"->"} {change.current}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  Quality movement
+                </div>
+                {analysis.trend.qualitySignalChanges.slice(0, 4).map((change) => (
+                  <div key={change.id} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-stone-700">{change.label}</span>
+                    <span className="font-semibold text-stone-950">
+                      {change.delta > 0 ? "+" : ""}{change.delta}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
           <section className="rounded-lg border border-stone-300 bg-white">
             <div className="flex items-center justify-between border-b border-stone-200 p-4">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">

@@ -205,4 +205,39 @@ describe("analyzeRepository", () => {
       }),
     );
   });
+
+  it("compares the current repository state with a previous snapshot", () => {
+    const analysis = analyzeRepository(demoRepository, new Date("2026-06-01T00:00:00Z"), {
+      capturedAt: "2026-05-25T00:00:00Z",
+      healthScore: 68,
+      readinessScore: 80,
+      openIssues: 42,
+      openPullRequests: 4,
+      qualitySignals: [
+        { id: "label-coverage", score: 25 },
+        { id: "issue-response-gap", score: 40 },
+        { id: "pr-age", score: 30 },
+        { id: "review-load", score: 68 },
+      ],
+    });
+
+    expect(analysis.trend).toMatchObject({
+      direction: "improving",
+      summary: "Health +6, readiness +10, open issues -5, open PRs -2 since 2026-05-25",
+    });
+    expect(analysis.trend.changes).toContainEqual(
+      expect.objectContaining({
+        label: "Health score",
+        delta: 6,
+        direction: "up",
+      }),
+    );
+    expect(analysis.trend.qualitySignalChanges).toContainEqual(
+      expect.objectContaining({
+        id: "label-coverage",
+        delta: 25,
+        direction: "up",
+      }),
+    );
+  });
 });

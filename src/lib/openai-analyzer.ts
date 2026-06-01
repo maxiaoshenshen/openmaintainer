@@ -68,6 +68,50 @@ const analysisSchema = {
         required: ["id", "label", "score", "level", "detail", "evidence", "nextAction"],
       },
     },
+    trend: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        direction: { type: "string", enum: ["improving", "declining", "steady", "baseline"] },
+        summary: { type: "string" },
+        since: { type: ["string", "null"] },
+        changes: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              label: { type: "string" },
+              previous: { type: "number" },
+              current: { type: "number" },
+              delta: { type: "number" },
+              direction: { type: "string", enum: ["up", "down", "flat"] },
+            },
+            required: ["label", "previous", "current", "delta", "direction"],
+          },
+        },
+        qualitySignalChanges: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              id: {
+                type: "string",
+                enum: ["label-coverage", "issue-response-gap", "pr-age", "review-load"],
+              },
+              label: { type: "string" },
+              previous: { type: "number" },
+              current: { type: "number" },
+              delta: { type: "number" },
+              direction: { type: "string", enum: ["up", "down", "flat"] },
+            },
+            required: ["id", "label", "previous", "current", "delta", "direction"],
+          },
+        },
+      },
+      required: ["direction", "summary", "since", "changes", "qualitySignalChanges"],
+    },
     triage: {
       type: "array",
       items: {
@@ -231,6 +275,7 @@ const analysisSchema = {
     "health",
     "readiness",
     "qualitySignals",
+    "trend",
     "triage",
     "reviews",
     "similarIssues",
