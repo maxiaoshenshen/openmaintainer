@@ -131,9 +131,46 @@ const analysisSchema = {
         ],
       },
     },
+    playbooks: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string", enum: ["today", "weekly", "release"] },
+          title: { type: "string" },
+          cadence: { type: "string", enum: ["daily", "weekly", "release"] },
+          goal: { type: "string" },
+          steps: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                actionId: { type: "string" },
+                label: { type: "string" },
+                reason: { type: "string" },
+                expectedOutcome: { type: "string" },
+              },
+              required: ["actionId", "label", "reason", "expectedOutcome"],
+            },
+          },
+        },
+        required: ["id", "title", "cadence", "goal", "steps"],
+      },
+    },
     releaseNotes: { type: "string" },
   },
-  required: ["health", "readiness", "triage", "reviews", "similarIssues", "actions", "releaseNotes"],
+  required: [
+    "health",
+    "readiness",
+    "triage",
+    "reviews",
+    "similarIssues",
+    "actions",
+    "playbooks",
+    "releaseNotes",
+  ],
 };
 
 function extractOutputText(response: unknown): string | null {

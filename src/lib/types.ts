@@ -104,6 +104,21 @@ export type MaintainerAction = {
   githubCommands: string[];
 };
 
+export type RepositoryPlaybookStep = {
+  actionId: string;
+  label: string;
+  reason: string;
+  expectedOutcome: string;
+};
+
+export type RepositoryPlaybook = {
+  id: "today" | "weekly" | "release";
+  title: string;
+  cadence: "daily" | "weekly" | "release";
+  goal: string;
+  steps: RepositoryPlaybookStep[];
+};
+
 export type MaintainerAnalysis = {
   health: RepositoryHealth;
   readiness: RepositoryReadiness;
@@ -111,5 +126,6 @@ export type MaintainerAnalysis = {
   reviews: PullRequestReview[];
   similarIssues: SimilarIssueCluster[];
   actions: MaintainerAction[];
+  playbooks: RepositoryPlaybook[];
   releaseNotes: string;
 };

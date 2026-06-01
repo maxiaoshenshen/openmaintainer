@@ -110,4 +110,46 @@ describe("analyzeRepository", () => {
       "gh release create --repo openmaintainer/demo-repo --draft --notes-file RELEASE_NOTES.md",
     );
   });
+
+  it("builds repository playbooks for immediate, weekly, and release maintenance rhythm", () => {
+    const analysis = analyzeRepository(demoRepository);
+
+    expect(analysis.playbooks).toContainEqual(
+      expect.objectContaining({
+        id: "today",
+        title: "Today",
+        goal: "Stabilize the highest-risk maintainer queue first.",
+        cadence: "daily",
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            actionId: "issue-284-triage",
+            label: "Triage #284",
+            reason: expect.stringContaining("high-priority issue"),
+          }),
+        ]),
+      }),
+    );
+    expect(analysis.playbooks).toContainEqual(
+      expect.objectContaining({
+        id: "weekly",
+        cadence: "weekly",
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            actionId: "pr-92-review",
+          }),
+        ]),
+      }),
+    );
+    expect(analysis.playbooks).toContainEqual(
+      expect.objectContaining({
+        id: "release",
+        cadence: "release",
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            actionId: "release-draft",
+          }),
+        ]),
+      }),
+    );
+  });
 });

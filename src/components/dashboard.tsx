@@ -49,7 +49,9 @@ const copy = {
     reviews: "Review desk",
     release: "Release draft",
     actions: "Action plan",
+    playbooks: "Repository playbooks",
     githubHandoff: "GitHub handoff",
+    copyPlaybook: "Copy playbook",
     ai: "AI copilot",
     health: "Project health",
     readiness: "OSS readiness",
@@ -68,7 +70,9 @@ const copy = {
     reviews: "评审台",
     release: "发布草稿",
     actions: "行动计划",
+    playbooks: "仓库维护剧本",
     githubHandoff: "GitHub 交接",
+    copyPlaybook: "复制剧本",
     ai: "AI 副驾驶",
     health: "项目健康",
     readiness: "开源就绪度",
@@ -132,6 +136,21 @@ function actionMarkdown(action: MaintainerAnalysis["actions"][number]) {
   ].join("\n");
 }
 
+function playbookMarkdown(playbook: MaintainerAnalysis["playbooks"][number]) {
+  return [
+    `## ${playbook.title}`,
+    "",
+    `Cadence: ${playbook.cadence}`,
+    `Goal: ${playbook.goal}`,
+    "",
+    "### Steps",
+    ...playbook.steps.map(
+      (step, index) =>
+        `${index + 1}. ${step.label}\n   - Why: ${step.reason}\n   - Outcome: ${step.expectedOutcome}`,
+    ),
+  ].join("\n");
+}
+
 export function Dashboard({
   initialRepository,
   initialAnalysis,
@@ -147,6 +166,7 @@ export function Dashboard({
   const [loadingAi, setLoadingAi] = useState(false);
   const [copiedRelease, setCopiedRelease] = useState(false);
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
+  const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
   const [locale, setLocale] = useState<Locale>("en");
   const text = copy[locale];
 
@@ -222,6 +242,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(actionMarkdown(action));
     setCopiedAction(action.id);
     window.setTimeout(() => setCopiedAction(null), 1600);
+  }
+
+  async function copyPlaybook(playbook: MaintainerAnalysis["playbooks"][number]) {
+    await navigator.clipboard.writeText(playbookMarkdown(playbook));
+    setCopiedPlaybook(playbook.id);
+    window.setTimeout(() => setCopiedPlaybook(null), 1600);
   }
 
   return (
@@ -497,6 +523,53 @@ export function Dashboard({
         </div>
 
         <aside className="space-y-4">
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-200 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                <ClipboardList className="size-5 text-emerald-700" />
+                {text.playbooks}
+              </h2>
+              <span className="text-sm font-semibold text-stone-500">{analysis.playbooks.length}</span>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {analysis.playbooks.map((playbook) => (
+                <article key={playbook.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-stone-950">{playbook.title}</h3>
+                      <p className="mt-1 text-sm leading-6 text-stone-600">{playbook.goal}</p>
+                    </div>
+                    <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-bold uppercase text-emerald-800">
+                      {playbook.cadence}
+                    </span>
+                  </div>
+                  <ol className="mt-3 space-y-3 text-sm">
+                    {playbook.steps.map((step, index) => (
+                      <li key={`${playbook.id}-${step.actionId}`} className="grid grid-cols-[1.5rem_1fr] gap-2">
+                        <span className="flex size-6 items-center justify-center rounded-full bg-stone-950 text-xs font-bold text-white">
+                          {index + 1}
+                        </span>
+                        <div>
+                          <div className="font-semibold text-stone-900">{step.label}</div>
+                          <p className="mt-1 leading-5 text-stone-600">{step.reason}</p>
+                          <p className="mt-1 leading-5 text-stone-500">{step.expectedOutcome}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  <button
+                    onClick={() => copyPlaybook(playbook)}
+                    className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                    title={text.copyPlaybook}
+                  >
+                    <Copy className="size-4" />
+                    {copiedPlaybook === playbook.id ? "Copied" : text.copyPlaybook}
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section className="rounded-lg border border-stone-300 bg-white">
             <div className="flex items-center justify-between border-b border-stone-200 p-4">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">

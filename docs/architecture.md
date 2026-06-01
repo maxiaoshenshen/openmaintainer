@@ -25,6 +25,7 @@ OpenMaintainer is split into four layers.
 - Similar issue clusters
 - Copyable maintainer actions for GitHub workflow handoff
 - Safe GitHub CLI commands that require maintainer execution
+- Repository playbooks that organize actions into daily, weekly, and release rhythms
 - Release note drafts
 
 This layer is tested with Vitest and must stay usable without network access.

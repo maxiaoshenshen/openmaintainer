@@ -7,6 +7,7 @@ import type {
   MaintainerRepository,
   PullRequestReview,
   ReadinessCheck,
+  RepositoryPlaybook,
   RepositoryReadiness,
   RepositoryHealth,
   SimilarIssueCluster,
@@ -363,10 +364,60 @@ function buildMaintainerActions(
   return [...issueActions, ...reviewActions, releaseAction];
 }
 
+function buildRepositoryPlaybooks(actions: MaintainerAction[]): RepositoryPlaybook[] {
+  const issueActions = actions.filter((action) => action.target === "issue");
+  const reviewActions = actions.filter((action) => action.target === "pull-request");
+  const releaseAction = actions.find((action) => action.target === "release");
+
+  return [
+    {
+      id: "today",
+      title: "Today",
+      cadence: "daily",
+      goal: "Stabilize the highest-risk maintainer queue first.",
+      steps: issueActions.slice(0, 3).map((action) => ({
+        actionId: action.id,
+        label: action.title.replace("Triage issue", "Triage"),
+        reason: `${action.priority} high-priority issue needs a maintainer response before deeper debugging.`,
+        expectedOutcome: "Contributor receives a clear next step and the issue gains actionable labels.",
+      })),
+    },
+    {
+      id: "weekly",
+      title: "This week",
+      cadence: "weekly",
+      goal: "Reduce review uncertainty before the pull request queue grows stale.",
+      steps: reviewActions.slice(0, 3).map((action) => ({
+        actionId: action.id,
+        label: action.title,
+        reason: "Review-risk action should be checked while repository context is fresh.",
+        expectedOutcome: "Maintainer has a focused review path and test checklist.",
+      })),
+    },
+    {
+      id: "release",
+      title: "Before release",
+      cadence: "release",
+      goal: "Turn current maintenance work into a publishable release draft.",
+      steps: releaseAction
+        ? [
+            {
+              actionId: releaseAction.id,
+              label: releaseAction.title,
+              reason: "Release notes should be prepared from active pull requests before publish pressure rises.",
+              expectedOutcome: "Draft release notes are ready for human review.",
+            },
+          ]
+        : [],
+    },
+  ];
+}
+
 export function analyzeRepository(repository: MaintainerRepository): MaintainerAnalysis {
   const triage = repository.issues.map(classifyIssue);
   const reviews = repository.pullRequests.map(reviewPullRequest);
   const releaseNotes = draftReleaseNotes(repository, reviews);
+  const actions = buildMaintainerActions(repository, triage, reviews, releaseNotes);
 
   return {
     health: computeHealth(repository, triage),
@@ -374,7 +425,8 @@ export function analyzeRepository(repository: MaintainerRepository): MaintainerA
     triage,
     reviews,
     similarIssues: detectSimilarIssues(repository.issues),
-    actions: buildMaintainerActions(repository, triage, reviews, releaseNotes),
+    actions,
+    playbooks: buildRepositoryPlaybooks(actions),
     releaseNotes,
   };
 }
