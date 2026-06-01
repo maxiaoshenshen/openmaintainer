@@ -111,3 +111,50 @@ export const demoPreviousSnapshot: RepositoryAnalysisSnapshot = {
     { id: "review-load", score: 68 },
   ],
 };
+
+export const demoPortfolioRepositories: MaintainerRepository[] = [
+  {
+    ...demoRepository,
+    identity: {
+      owner: "openmaintainer",
+      name: "urgent-sdk",
+      fullName: "openmaintainer/urgent-sdk",
+      url: "https://github.com/openmaintainer/urgent-sdk",
+    },
+    description:
+      "A high-pressure SDK repository with aging pull requests, duplicate install reports, and a larger issue backlog.",
+    openIssues: 82,
+    license: null,
+    issues: demoRepository.issues.map((issue) => ({
+      ...issue,
+      updatedAt: "2026-05-25T00:00:00Z",
+    })),
+    pullRequests: [
+      ...demoRepository.pullRequests,
+      {
+        ...demoRepository.pullRequests[0],
+        id: 50,
+        number: 120,
+        title: "Large auth refactor needs review",
+        createdAt: "2026-05-20T00:00:00Z",
+        changedFiles: 14,
+        additions: 900,
+        deletions: 240,
+        url: "https://github.com/openmaintainer/urgent-sdk/pull/120",
+      },
+    ],
+  },
+  {
+    ...demoRepository,
+    identity: {
+      owner: "openmaintainer",
+      name: "docs-kit",
+      fullName: "openmaintainer/docs-kit",
+      url: "https://github.com/openmaintainer/docs-kit",
+    },
+    description: "A small docs helper with a calm maintainer queue.",
+    openIssues: 4,
+    issues: [],
+    pullRequests: [],
+  },
+];

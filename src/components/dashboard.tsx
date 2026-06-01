@@ -21,7 +21,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import type { MaintainerAnalysis, MaintainerRepository, MaintainerSettings } from "@/lib/types";
+import type {
+  MaintainerAnalysis,
+  MaintainerInbox,
+  MaintainerRepository,
+  MaintainerSettings,
+} from "@/lib/types";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -47,6 +52,7 @@ type AnalyzeResponse = {
 type DashboardProps = {
   initialRepository: MaintainerRepository;
   initialAnalysis: MaintainerAnalysis;
+  initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
 };
 
@@ -55,6 +61,8 @@ type Locale = "en" | "zh";
 const copy = {
   en: {
     queue: "Maintenance queue",
+    inbox: "Maintainer inbox",
+    mostPainful: "Most painful",
     reviews: "Review desk",
     release: "Release draft",
     actions: "Action plan",
@@ -93,6 +101,8 @@ const copy = {
   },
   zh: {
     queue: "维护队列",
+    inbox: "维护者收件箱",
+    mostPainful: "最痛仓库",
     reviews: "评审台",
     release: "发布草稿",
     actions: "行动计划",
@@ -204,6 +214,7 @@ function playbookMarkdown(playbook: MaintainerAnalysis["playbooks"][number]) {
 export function Dashboard({
   initialRepository,
   initialAnalysis,
+  initialInbox,
   initialSource,
 }: DashboardProps) {
   const [repository, setRepository] = useState(initialRepository);
@@ -253,6 +264,8 @@ export function Dashboard({
     ],
     [analysis.health.score, analysis.readiness.score, repository],
   );
+
+  const leadingInboxItem = initialInbox.items[0];
 
   async function inspectRepository(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -517,6 +530,97 @@ export function Dashboard({
 
       <section className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[1.4fr_0.9fr] lg:px-8">
         <div className="space-y-4">
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-4 border-b border-stone-200 p-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <ClipboardList className="size-5 text-blue-700" />
+                  {text.inbox}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">{initialInbox.summary}</p>
+              </div>
+              {leadingInboxItem ? (
+                <div className="min-w-0 rounded-md border border-rose-200 bg-rose-50 px-3 py-2">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">
+                    {text.mostPainful}
+                  </div>
+                  <div className="mt-1 truncate text-sm font-semibold text-rose-950">
+                    {leadingInboxItem.repository}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="grid grid-cols-2 border-b border-stone-200 md:grid-cols-4">
+              <div className="min-h-24 border-r border-stone-200 p-4">
+                <div className="text-2xl font-semibold text-stone-950">
+                  {initialInbox.totals.repositories}
+                </div>
+                <div className="mt-1 text-sm font-medium text-stone-500">Repositories</div>
+              </div>
+              <div className="min-h-24 border-r border-stone-200 p-4">
+                <div className="text-2xl font-semibold text-stone-950">
+                  {initialInbox.totals.openIssues}
+                </div>
+                <div className="mt-1 text-sm font-medium text-stone-500">Open issues</div>
+              </div>
+              <div className="min-h-24 border-r border-stone-200 p-4">
+                <div className="text-2xl font-semibold text-stone-950">
+                  {initialInbox.totals.openPullRequests}
+                </div>
+                <div className="mt-1 text-sm font-medium text-stone-500">Open PRs</div>
+              </div>
+              <div className="min-h-24 p-4">
+                <div className="text-2xl font-semibold text-stone-950">
+                  {initialInbox.totals.attentionRepositories}
+                </div>
+                <div className="mt-1 text-sm font-medium text-stone-500">Critical repos</div>
+              </div>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {initialInbox.items.map((item) => (
+                <article key={item.repository} className="grid gap-3 p-4 md:grid-cols-[1fr_220px]">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        className="truncate text-base font-semibold text-stone-950 hover:text-blue-700"
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {item.repository}
+                      </a>
+                      <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusColor(
+                        item.painLevel === "critical"
+                          ? "attention"
+                          : item.painLevel === "watch"
+                            ? "watch"
+                            : "stable",
+                      )}`}
+                      >
+                        {item.painLevel} · {item.painScore}
+                      </span>
+                    </div>
+                    <ul className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-stone-600">
+                      {item.reasons.map((reason) => (
+                        <li key={reason} className="rounded bg-stone-100 px-2 py-1">
+                          {reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-md border border-stone-200 bg-stone-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      Next action
+                    </div>
+                    <div className="mt-1 text-sm font-semibold leading-5 text-stone-900">
+                      {item.topActionTitle ?? "No action needed"}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section className="rounded-lg border border-stone-300 bg-white">
             <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
               <div>

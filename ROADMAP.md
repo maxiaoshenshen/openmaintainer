@@ -6,6 +6,7 @@
 - Demo mode without credentials
 - Deterministic issue triage
 - Optional OpenAI analysis
+- Multi-repository maintainer inbox
 - PR review summaries
 - Release draft generation
 - Similar issue detection

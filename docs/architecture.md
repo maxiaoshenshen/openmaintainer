@@ -14,6 +14,8 @@ OpenMaintainer is split into four layers.
 
 ## 3. Core logic
 
+`src/lib/maintainer-inbox.ts` ranks multiple repositories by maintainer pain using issue load, review age, readiness gaps, health score, and available next actions.
+
 `src/lib/maintainer-analysis.ts` contains pure TypeScript logic for:
 
 - Issue category and priority

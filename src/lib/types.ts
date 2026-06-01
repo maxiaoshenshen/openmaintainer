@@ -200,3 +200,26 @@ export type MaintainerAnalysis = {
   digest: MaintainerDigest;
   releaseNotes: string;
 };
+
+export type MaintainerInboxItem = {
+  repository: string;
+  url: string;
+  painScore: number;
+  painLevel: "critical" | "watch" | "calm";
+  openIssues: number;
+  openPullRequests: number;
+  topActionId: string | null;
+  topActionTitle: string | null;
+  reasons: string[];
+};
+
+export type MaintainerInbox = {
+  summary: string;
+  totals: {
+    repositories: number;
+    openIssues: number;
+    openPullRequests: number;
+    attentionRepositories: number;
+  };
+  items: MaintainerInboxItem[];
+};
