@@ -12,6 +12,7 @@
 - Copyable maintainer action plan
 - GitHub CLI handoff commands
 - Repository playbooks for daily, weekly, and release cadence
+- Weekly maintainer digest
 - OSS readiness scoring
 - CI validation
 - OSS documentation and contribution flow

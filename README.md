@@ -37,6 +37,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Copyable maintainer action plan for issues, pull requests, and release prep
 - GitHub CLI handoff commands for maintainer-approved execution
 - Repository playbooks for daily, weekly, and release maintenance rhythm
+- Weekly maintainer digest with priorities, deferrals, and release readiness
 - Release note draft generator
 - Release draft copy and Markdown download
 - English/Chinese UI switch

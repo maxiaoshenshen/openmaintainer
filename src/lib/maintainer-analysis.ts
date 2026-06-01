@@ -2,6 +2,7 @@ import type {
   IssueTriage,
   MaintainerAnalysis,
   MaintainerAction,
+  MaintainerDigest,
   MaintainerIssue,
   MaintainerPullRequest,
   MaintainerRepository,
@@ -413,20 +414,106 @@ function buildRepositoryPlaybooks(actions: MaintainerAction[]): RepositoryPlaybo
   ];
 }
 
+function buildMaintainerDigest(
+  repository: MaintainerRepository,
+  health: RepositoryHealth,
+  readiness: RepositoryReadiness,
+  actions: MaintainerAction[],
+  similarIssues: SimilarIssueCluster[],
+): MaintainerDigest {
+  const highPriorityActions = actions.filter(
+    (action) => action.priority === "urgent" || action.priority === "high",
+  );
+  const reviewActions = actions.filter((action) => action.target === "pull-request");
+  const releaseAction = actions.find((action) => action.target === "release");
+  const releaseReadiness: MaintainerDigest["releaseReadiness"] =
+    readiness.score < 60 ? "blocked" : reviewActions.length > 0 ? "ready-with-review" : "ready";
+  const riskLevel: MaintainerDigest["riskLevel"] =
+    health.status === "attention" || highPriorityActions.length >= 3
+      ? "attention"
+      : highPriorityActions.length > 0 || health.status === "watch"
+        ? "watch"
+        : "stable";
+
+  const priorities = [...highPriorityActions, ...reviewActions].slice(0, 4).map((action) => ({
+    actionId: action.id,
+    label: action.title,
+    reason: action.summary,
+  }));
+
+  const deferrals = [
+    {
+      label: "Lower-risk queue",
+      reason: "Handle after high-priority issue responses and review-risk checks are complete.",
+    },
+    ...(similarIssues.length > 0
+      ? [
+          {
+            label: "Duplicate cleanup",
+            reason: "Review similar issue clusters together after the first maintainer response lands.",
+          },
+        ]
+      : []),
+  ];
+
+  const highlights = [
+    `Health score ${health.score}/100 with ${health.status} status`,
+    `OSS readiness ${readiness.score}/100`,
+    `${highPriorityActions.length} high-priority maintainer actions`,
+    `${similarIssues.length} similar issue clusters detected`,
+  ];
+
+  const title = `Weekly maintainer digest for ${repository.identity.fullName}`;
+  const markdown = [
+    `## ${title}`,
+    "",
+    `Risk level: ${riskLevel}`,
+    `Release readiness: ${releaseReadiness}`,
+    "",
+    "### Highlights",
+    ...highlights.map((item) => `- ${item}`),
+    "",
+    "### Priorities",
+    ...priorities.map((item) => `- ${item.label}: ${item.reason}`),
+    "",
+    "### Defer",
+    ...deferrals.map((item) => `- ${item.label}: ${item.reason}`),
+    "",
+    "### Release",
+    releaseAction
+      ? `- ${releaseAction.summary}`
+      : "- No release action generated for the current queue.",
+  ].join("\n");
+
+  return {
+    title,
+    riskLevel,
+    releaseReadiness,
+    highlights,
+    priorities,
+    deferrals,
+    markdown,
+  };
+}
+
 export function analyzeRepository(repository: MaintainerRepository): MaintainerAnalysis {
   const triage = repository.issues.map(classifyIssue);
   const reviews = repository.pullRequests.map(reviewPullRequest);
   const releaseNotes = draftReleaseNotes(repository, reviews);
   const actions = buildMaintainerActions(repository, triage, reviews, releaseNotes);
+  const health = computeHealth(repository, triage);
+  const readiness = computeReadiness(repository);
+  const similarIssues = detectSimilarIssues(repository.issues);
 
   return {
-    health: computeHealth(repository, triage),
-    readiness: computeReadiness(repository),
+    health,
+    readiness,
     triage,
     reviews,
-    similarIssues: detectSimilarIssues(repository.issues),
+    similarIssues,
     actions,
     playbooks: buildRepositoryPlaybooks(actions),
+    digest: buildMaintainerDigest(repository, health, readiness, actions, similarIssues),
     releaseNotes,
   };
 }

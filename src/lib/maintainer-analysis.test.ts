@@ -152,4 +152,29 @@ describe("analyzeRepository", () => {
       }),
     );
   });
+
+  it("builds a weekly maintainer digest with priorities, deferrals, and release readiness", () => {
+    const analysis = analyzeRepository(demoRepository);
+
+    expect(analysis.digest).toMatchObject({
+      title: "Weekly maintainer digest for openmaintainer/demo-repo",
+      riskLevel: "watch",
+      releaseReadiness: "ready-with-review",
+    });
+    expect(analysis.digest.highlights).toContain("Health score 74/100 with stable status");
+    expect(analysis.digest.priorities).toContainEqual(
+      expect.objectContaining({
+        actionId: "issue-284-triage",
+        label: "Triage issue #284",
+      }),
+    );
+    expect(analysis.digest.deferrals).toContainEqual(
+      expect.objectContaining({
+        label: "Lower-risk queue",
+        reason: expect.stringContaining("after high-priority"),
+      }),
+    );
+    expect(analysis.digest.markdown).toContain("## Weekly maintainer digest for openmaintainer/demo-repo");
+    expect(analysis.digest.markdown).toContain("Release readiness: ready-with-review");
+  });
 });

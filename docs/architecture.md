@@ -26,6 +26,7 @@ OpenMaintainer is split into four layers.
 - Copyable maintainer actions for GitHub workflow handoff
 - Safe GitHub CLI commands that require maintainer execution
 - Repository playbooks that organize actions into daily, weekly, and release rhythms
+- Weekly maintainer digest with priorities, deferrals, and release readiness
 - Release note drafts
 
 This layer is tested with Vitest and must stay usable without network access.

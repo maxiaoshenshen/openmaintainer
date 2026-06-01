@@ -119,6 +119,22 @@ export type RepositoryPlaybook = {
   steps: RepositoryPlaybookStep[];
 };
 
+export type MaintainerDigestItem = {
+  actionId?: string;
+  label: string;
+  reason: string;
+};
+
+export type MaintainerDigest = {
+  title: string;
+  riskLevel: "stable" | "watch" | "attention";
+  releaseReadiness: "ready" | "ready-with-review" | "blocked";
+  highlights: string[];
+  priorities: MaintainerDigestItem[];
+  deferrals: MaintainerDigestItem[];
+  markdown: string;
+};
+
 export type MaintainerAnalysis = {
   health: RepositoryHealth;
   readiness: RepositoryReadiness;
@@ -127,5 +143,6 @@ export type MaintainerAnalysis = {
   similarIssues: SimilarIssueCluster[];
   actions: MaintainerAction[];
   playbooks: RepositoryPlaybook[];
+  digest: MaintainerDigest;
   releaseNotes: string;
 };

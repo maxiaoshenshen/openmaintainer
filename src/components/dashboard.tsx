@@ -50,7 +50,9 @@ const copy = {
     release: "Release draft",
     actions: "Action plan",
     playbooks: "Repository playbooks",
+    digest: "Weekly digest",
     githubHandoff: "GitHub handoff",
+    copyDigest: "Copy digest",
     copyPlaybook: "Copy playbook",
     ai: "AI copilot",
     health: "Project health",
@@ -71,7 +73,9 @@ const copy = {
     release: "发布草稿",
     actions: "行动计划",
     playbooks: "仓库维护剧本",
+    digest: "维护周报",
     githubHandoff: "GitHub 交接",
+    copyDigest: "复制周报",
     copyPlaybook: "复制剧本",
     ai: "AI 副驾驶",
     health: "项目健康",
@@ -167,6 +171,7 @@ export function Dashboard({
   const [copiedRelease, setCopiedRelease] = useState(false);
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
   const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
+  const [copiedDigest, setCopiedDigest] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const text = copy[locale];
 
@@ -248,6 +253,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(playbookMarkdown(playbook));
     setCopiedPlaybook(playbook.id);
     window.setTimeout(() => setCopiedPlaybook(null), 1600);
+  }
+
+  async function copyDigest() {
+    await navigator.clipboard.writeText(analysis.digest.markdown);
+    setCopiedDigest(true);
+    window.setTimeout(() => setCopiedDigest(false), 1600);
   }
 
   return (
@@ -523,6 +534,68 @@ export function Dashboard({
         </div>
 
         <aside className="space-y-4">
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-200 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                <ClipboardList className="size-5 text-amber-700" />
+                {text.digest}
+              </h2>
+              <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${priorityColor(analysis.digest.riskLevel)}`}>
+                {analysis.digest.riskLevel}
+              </span>
+            </div>
+            <div className="space-y-4 p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-stone-950">{analysis.digest.title}</h3>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  Release readiness: {analysis.digest.releaseReadiness}
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    Highlights
+                  </div>
+                  <ul className="mt-2 space-y-1.5 text-sm leading-5 text-stone-600">
+                    {analysis.digest.highlights.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    Defer
+                  </div>
+                  <ul className="mt-2 space-y-1.5 text-sm leading-5 text-stone-600">
+                    {analysis.digest.deferrals.map((item) => (
+                      <li key={item.label}>{item.label}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  Priorities
+                </div>
+                <ol className="mt-2 space-y-2 text-sm leading-5 text-stone-600">
+                  {analysis.digest.priorities.map((item, index) => (
+                    <li key={`${item.actionId ?? item.label}-${index}`}>
+                      <span className="font-semibold text-stone-900">{item.label}</span>: {item.reason}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <button
+                onClick={copyDigest}
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyDigest}
+              >
+                <Copy className="size-4" />
+                {copiedDigest ? "Copied" : text.copyDigest}
+              </button>
+            </div>
+          </section>
+
           <section className="rounded-lg border border-stone-300 bg-white">
             <div className="flex items-center justify-between border-b border-stone-200 p-4">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">

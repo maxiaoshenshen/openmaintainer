@@ -159,6 +159,52 @@ const analysisSchema = {
         required: ["id", "title", "cadence", "goal", "steps"],
       },
     },
+    digest: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        title: { type: "string" },
+        riskLevel: { type: "string", enum: ["stable", "watch", "attention"] },
+        releaseReadiness: { type: "string", enum: ["ready", "ready-with-review", "blocked"] },
+        highlights: { type: "array", items: { type: "string" } },
+        priorities: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              actionId: { type: "string" },
+              label: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["label", "reason"],
+          },
+        },
+        deferrals: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              actionId: { type: "string" },
+              label: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["label", "reason"],
+          },
+        },
+        markdown: { type: "string" },
+      },
+      required: [
+        "title",
+        "riskLevel",
+        "releaseReadiness",
+        "highlights",
+        "priorities",
+        "deferrals",
+        "markdown",
+      ],
+    },
     releaseNotes: { type: "string" },
   },
   required: [
@@ -169,6 +215,7 @@ const analysisSchema = {
     "similarIssues",
     "actions",
     "playbooks",
+    "digest",
     "releaseNotes",
   ],
 };
