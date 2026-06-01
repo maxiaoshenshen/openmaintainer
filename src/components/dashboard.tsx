@@ -21,6 +21,11 @@ import {
 } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import type { MaintainerAnalysis, MaintainerRepository } from "@/lib/types";
+import {
+  createSnapshotFromAnalysis,
+  readSnapshot,
+  writeSnapshot,
+} from "@/lib/snapshot-store";
 
 type RepositoryResponse = {
   repository: MaintainerRepository;
@@ -52,6 +57,7 @@ const copy = {
     playbooks: "Repository playbooks",
     digest: "Weekly digest",
     trend: "Trend memory",
+    snapshotSaved: "Snapshot saved",
     githubHandoff: "GitHub handoff",
     copyDigest: "Copy digest",
     copyPlaybook: "Copy playbook",
@@ -77,6 +83,7 @@ const copy = {
     playbooks: "仓库维护剧本",
     digest: "维护周报",
     trend: "趋势记忆",
+    snapshotSaved: "快照已保存",
     githubHandoff: "GitHub 交接",
     copyDigest: "复制周报",
     copyPlaybook: "复制剧本",
@@ -176,6 +183,7 @@ export function Dashboard({
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
   const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
   const [copiedDigest, setCopiedDigest] = useState(false);
+  const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const text = copy[locale];
 
@@ -196,13 +204,29 @@ export function Dashboard({
     setWarning(null);
 
     try {
-      const response = await fetch(`/api/repository?repo=${encodeURIComponent(repoInput)}`);
+      const params = new URLSearchParams({ repo: repoInput });
+      const previousSnapshot =
+        typeof window === "undefined"
+          ? null
+          : readSnapshot(window.localStorage, repoInput) ??
+            readSnapshot(window.localStorage, repository.identity.fullName);
+      if (previousSnapshot) params.set("previousSnapshot", JSON.stringify(previousSnapshot));
+      const response = await fetch(`/api/repository?${params.toString()}`);
       const data = (await response.json()) as RepositoryResponse;
       setRepository(data.repository);
       setAnalysis(data.analysis);
       setSource(data.source);
       setProvider("deterministic");
       setWarning(data.warning ?? null);
+      if (typeof window !== "undefined") {
+        writeSnapshot(
+          window.localStorage,
+          data.repository.identity.fullName,
+          createSnapshotFromAnalysis(data.repository, data.analysis),
+        );
+        setSnapshotSaved(true);
+        window.setTimeout(() => setSnapshotSaved(false), 1800);
+      }
     } catch (error) {
       setWarning(error instanceof Error ? error.message : "Unable to inspect repository");
     } finally {
@@ -348,6 +372,11 @@ export function Dashboard({
               {provider === "openai" ? "OpenAI" : text.fallback}
             </span>
             {warning ? <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-amber-800">{warning}</span> : null}
+            {snapshotSaved ? (
+              <span className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-800">
+                {text.snapshotSaved}
+              </span>
+            ) : null}
           </div>
         </div>
       </section>

@@ -12,6 +12,7 @@
 - Copyable maintainer action plan
 - Real repository quality signals
 - Trend memory for repository snapshot comparison
+- Local snapshot store for repeat repository inspections
 - GitHub CLI handoff commands
 - Repository playbooks for daily, weekly, and release cadence
 - Weekly maintainer digest

@@ -24,6 +24,7 @@ OpenMaintainer is split into four layers.
 - OSS readiness checks
 - Repository quality signals for queue age, label coverage, and review load
 - Trend memory that compares the current analysis with a previous snapshot
+- Browser-local snapshot storage for repeat inspections without a backend database
 - Similar issue clusters
 - Copyable maintainer actions for GitHub workflow handoff
 - Safe GitHub CLI commands that require maintainer execution
