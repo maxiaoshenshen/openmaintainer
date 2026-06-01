@@ -30,6 +30,7 @@ OpenMaintainer is split into four layers.
 - Browser-local maintainer settings storage keyed by repository
 - Similar issue clusters
 - Duplicate cleanup actions that draft canonical-thread comments and safe close commands
+- Stale issue follow-up actions based on maintainer response thresholds
 - Copyable maintainer actions for GitHub workflow handoff
 - Safe GitHub CLI commands that require maintainer execution
 - Repository playbooks that organize actions into daily, weekly, and release rhythms

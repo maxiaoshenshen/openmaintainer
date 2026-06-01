@@ -134,6 +134,35 @@ describe("analyzeRepository", () => {
     );
   });
 
+  it("creates stale issue follow-up actions from maintainer response settings", () => {
+    const analysis = analyzeRepository(
+      demoRepository,
+      new Date("2026-06-03T00:00:00Z"),
+      undefined,
+      {
+        maxIssueResponseDays: 2,
+      },
+    );
+
+    expect(analysis.actions).toContainEqual(
+      expect.objectContaining({
+        id: "stale-285-follow-up",
+        target: "issue",
+        priority: "normal",
+        url: "https://github.com/openmaintainer/demo-repo/issues/285",
+        summary: expect.stringContaining("4 days"),
+        commands: expect.arrayContaining([
+          "Refresh issue #285 because it has been quiet for 4 days",
+          "Ask whether the contributor still wants to send a focused PR",
+        ]),
+        draft: "Thanks for the proposal. Are you still interested in sending a focused PR for this? If yes, please keep the first change small so it is easy to review.",
+        githubCommands: expect.arrayContaining([
+          'gh issue comment 285 --repo openmaintainer/demo-repo --body "Thanks for the proposal. Are you still interested in sending a focused PR for this? If yes, please keep the first change small so it is easy to review."',
+        ]),
+      }),
+    );
+  });
+
   it("builds repository playbooks for immediate, weekly, and release maintenance rhythm", () => {
     const analysis = analyzeRepository(demoRepository);
 

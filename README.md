@@ -41,6 +41,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Snapshot import/export for lightweight cross-browser and team handoff
 - Similar issue cluster detection
 - Duplicate cleanup actions for maintainer-approved issue consolidation
+- Stale issue follow-up actions driven by maintainer response settings
 - Copyable maintainer action plan for issues, pull requests, and release prep
 - GitHub CLI handoff commands for maintainer-approved execution
 - Repository playbooks for daily, weekly, and release maintenance rhythm

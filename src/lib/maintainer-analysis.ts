@@ -420,8 +420,13 @@ function buildMaintainerActions(
   triage: IssueTriage[],
   reviews: PullRequestReview[],
   similarIssues: SimilarIssueCluster[],
+  observedAt: Date,
+  settings: MaintainerSettings,
   releaseNotes: string,
 ): MaintainerAction[] {
+  const duplicateIssueNumbers = new Set(
+    similarIssues.flatMap((cluster) => cluster.issueNumbers.slice(1)),
+  );
   const issueActions = triage
     .filter((item) => item.priority === "urgent" || item.priority === "high")
     .map((item) => {
@@ -487,6 +492,44 @@ function buildMaintainerActions(
       };
     });
 
+  const staleIssueActions = triage
+    .filter((item) => item.priority !== "urgent" && item.priority !== "high")
+    .flatMap((item) => {
+      if (duplicateIssueNumbers.has(item.issueNumber)) return [];
+      const issue = repository.issues.find((candidate) => candidate.number === item.issueNumber);
+      if (!issue) return [];
+      const quietDays = daysBetween(observedAt, issue.updatedAt);
+      if (quietDays <= settings.maxIssueResponseDays) return [];
+      const draft =
+        item.category === "question"
+          ? "Thanks for the question. Is this still blocking you, or did the deterministic fallback answer your workshop use case?"
+          : "Thanks for the proposal. Are you still interested in sending a focused PR for this? If yes, please keep the first change small so it is easy to review.";
+
+      return [
+        {
+          id: `stale-${item.issueNumber}-follow-up`,
+          title: `Follow up issue #${item.issueNumber}`,
+          target: "issue" as const,
+          priority: "normal" as const,
+          url: issue.url,
+          summary: `Issue #${item.issueNumber} has been quiet for ${quietDays} days.`,
+          draft,
+          commands: [
+            `Refresh issue #${item.issueNumber} because it has been quiet for ${quietDays} days`,
+            item.category === "question"
+              ? "Ask whether the question is still blocking the contributor"
+              : "Ask whether the contributor still wants to send a focused PR",
+          ],
+          githubCommands: [
+            `gh issue comment ${item.issueNumber} --repo ${repository.identity.fullName} --body ${shellQuote(
+              draft,
+            )}`,
+            `gh issue view ${item.issueNumber} --repo ${repository.identity.fullName} --web`,
+          ],
+        },
+      ];
+    });
+
   const duplicateActions = similarIssues.map((cluster) => {
     const [canonicalIssueNumber, duplicateIssueNumber] = cluster.issueNumbers;
     const duplicateIssue = repository.issues.find(
@@ -531,7 +574,7 @@ function buildMaintainerActions(
     ],
   };
 
-  return [...issueActions, ...duplicateActions, ...reviewActions, releaseAction];
+  return [...issueActions, ...staleIssueActions, ...duplicateActions, ...reviewActions, releaseAction];
 }
 
 function buildRepositoryPlaybooks(
@@ -792,7 +835,15 @@ export function analyzeRepository(
   const health = computeHealth(repository, triage);
   const readiness = computeReadiness(repository);
   const similarIssues = detectSimilarIssues(repository.issues);
-  const actions = buildMaintainerActions(repository, triage, reviews, similarIssues, releaseNotes);
+  const actions = buildMaintainerActions(
+    repository,
+    triage,
+    reviews,
+    similarIssues,
+    observedAt,
+    settings,
+    releaseNotes,
+  );
   const qualitySignals = computeQualitySignals(repository, observedAt, settings);
   const trend = buildRepositoryTrend(repository, health, readiness, qualitySignals, previousSnapshot);
 

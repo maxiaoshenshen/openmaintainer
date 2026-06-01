@@ -10,6 +10,7 @@
 - Release draft generation
 - Similar issue detection
 - Duplicate issue workflow actions
+- Stale issue review actions
 - Copyable maintainer action plan
 - Real repository quality signals
 - Maintainer settings for per-project thresholds and preferred labels
@@ -29,7 +30,6 @@
 - GitHub App authentication
 - Label suggestions that can be applied after maintainer approval
 - Duplicate issue detection
-- Stale issue review
 - Release note export
 - Persisted team-level settings
 
