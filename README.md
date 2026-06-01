@@ -35,6 +35,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - OSS readiness checklist
 - Similar issue cluster detection
 - Copyable maintainer action plan for issues, pull requests, and release prep
+- GitHub CLI handoff commands for maintainer-approved execution
 - Release note draft generator
 - Release draft copy and Markdown download
 - English/Chinese UI switch

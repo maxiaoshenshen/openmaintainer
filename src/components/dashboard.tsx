@@ -49,6 +49,7 @@ const copy = {
     reviews: "Review desk",
     release: "Release draft",
     actions: "Action plan",
+    githubHandoff: "GitHub handoff",
     ai: "AI copilot",
     health: "Project health",
     readiness: "OSS readiness",
@@ -67,6 +68,7 @@ const copy = {
     reviews: "评审台",
     release: "发布草稿",
     actions: "行动计划",
+    githubHandoff: "GitHub 交接",
     ai: "AI 副驾驶",
     health: "项目健康",
     readiness: "开源就绪度",
@@ -121,6 +123,9 @@ function actionMarkdown(action: MaintainerAnalysis["actions"][number]) {
     "",
     "### Commands",
     ...action.commands.map((command) => `- ${command}`),
+    "",
+    "### GitHub CLI",
+    ...action.githubCommands.map((command) => `- \`${command}\``),
     "",
     "### Draft",
     action.draft,
@@ -522,6 +527,14 @@ export function Dashboard({
                       <li key={command}>{command}</li>
                     ))}
                   </ul>
+                  <div className="mt-3 rounded-md border border-stone-200 bg-stone-950 p-3 text-white">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
+                      {text.githubHandoff}
+                    </div>
+                    <pre className="overflow-auto whitespace-pre-wrap font-mono text-xs leading-5 text-stone-100">
+                      {action.githubCommands.join("\n")}
+                    </pre>
+                  </div>
                   <button
                     onClick={() => copyAction(action)}
                     className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"

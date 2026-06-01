@@ -24,6 +24,7 @@ OpenMaintainer is split into four layers.
 - OSS readiness checks
 - Similar issue clusters
 - Copyable maintainer actions for GitHub workflow handoff
+- Safe GitHub CLI commands that require maintainer execution
 - Release note drafts
 
 This layer is tested with Vitest and must stay usable without network access.

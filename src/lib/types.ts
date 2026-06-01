@@ -101,6 +101,7 @@ export type MaintainerAction = {
   summary: string;
   draft: string;
   commands: string[];
+  githubCommands: string[];
 };
 
 export type MaintainerAnalysis = {

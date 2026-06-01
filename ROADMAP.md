@@ -10,6 +10,7 @@
 - Release draft generation
 - Similar issue detection
 - Copyable maintainer action plan
+- GitHub CLI handoff commands
 - OSS readiness scoring
 - CI validation
 - OSS documentation and contribution flow

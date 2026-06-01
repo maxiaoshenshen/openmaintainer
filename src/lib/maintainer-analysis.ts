@@ -267,6 +267,14 @@ function draftReleaseNotes(repository: MaintainerRepository, reviews: PullReques
   return lines.join("\n");
 }
 
+function shellQuote(value: string) {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
+}
+
+function labelFlags(labels: string[]) {
+  return labels.map((label) => `--add-label ${shellQuote(label)}`).join(" ");
+}
+
 function buildMaintainerActions(
   repository: MaintainerRepository,
   triage: IssueTriage[],
@@ -279,6 +287,13 @@ function buildMaintainerActions(
       const issue = repository.issues.find((candidate) => candidate.number === item.issueNumber);
       const workflowLabels = item.suggestedLabels.filter((label) => label !== "good-first-response");
       const contributorLabels = item.suggestedLabels.filter((label) => label === "good-first-response");
+      const labelCommand = workflowLabels.length
+        ? [
+            `gh issue edit ${item.issueNumber} --repo ${repository.identity.fullName} ${labelFlags(
+              workflowLabels,
+            )}`,
+          ]
+        : [];
 
       return {
         id: `issue-${item.issueNumber}-triage`,
@@ -294,6 +309,13 @@ function buildMaintainerActions(
           item.missingInformation.length > 0
             ? `Request missing information: ${item.missingInformation.join(", ")}`
             : "Post maintainer response draft",
+        ],
+        githubCommands: [
+          ...labelCommand,
+          `gh issue comment ${item.issueNumber} --repo ${repository.identity.fullName} --body ${shellQuote(
+            item.maintainerReply,
+          )}`,
+          `gh issue view ${item.issueNumber} --repo ${repository.identity.fullName} --web`,
         ],
       };
     });
@@ -317,6 +339,10 @@ function buildMaintainerActions(
           `Check focus areas: ${review.focusAreas.join(", ")}`,
           `Run tests: ${review.suggestedTests.join("; ")}`,
         ],
+        githubCommands: [
+          `gh pr view ${review.pullRequestNumber} --repo ${repository.identity.fullName} --web`,
+          `gh pr checks ${review.pullRequestNumber} --repo ${repository.identity.fullName}`,
+        ],
       };
     });
 
@@ -329,6 +355,9 @@ function buildMaintainerActions(
     summary: `Draft release notes from ${repository.pullRequests.length} open pull requests.`,
     draft: releaseNotes,
     commands: ["Copy release draft into GitHub Releases", "Verify merged PRs before publishing"],
+    githubCommands: [
+      `gh release create --repo ${repository.identity.fullName} --draft --notes-file RELEASE_NOTES.md`,
+    ],
   };
 
   return [...issueActions, ...reviewActions, releaseAction];

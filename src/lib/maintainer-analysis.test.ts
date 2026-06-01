@@ -90,4 +90,24 @@ describe("analyzeRepository", () => {
       }),
     );
   });
+
+  it("adds safe GitHub CLI handoff commands for maintainer-approved execution", () => {
+    const analysis = analyzeRepository(demoRepository);
+    const issueAction = analysis.actions.find((action) => action.id === "issue-284-triage");
+    const pullRequestAction = analysis.actions.find((action) => action.id === "pr-92-review");
+    const releaseAction = analysis.actions.find((action) => action.id === "release-draft");
+
+    expect(issueAction?.githubCommands).toContain(
+      'gh issue edit 284 --repo openmaintainer/demo-repo --add-label "bug" --add-label "priority/high"',
+    );
+    expect(issueAction?.githubCommands).toContain(
+      'gh issue comment 284 --repo openmaintainer/demo-repo --body "Thanks for reporting this. Could you share the exact command output, runtime version, OS version, and a minimal reproduction so we can verify the failure path?"',
+    );
+    expect(pullRequestAction?.githubCommands).toContain(
+      "gh pr view 92 --repo openmaintainer/demo-repo --web",
+    );
+    expect(releaseAction?.githubCommands).toContain(
+      "gh release create --repo openmaintainer/demo-repo --draft --notes-file RELEASE_NOTES.md",
+    );
+  });
 });
