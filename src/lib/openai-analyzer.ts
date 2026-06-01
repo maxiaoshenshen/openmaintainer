@@ -1,5 +1,5 @@
 import { analyzeRepository } from "./maintainer-analysis";
-import type { MaintainerAnalysis, MaintainerRepository } from "./types";
+import type { MaintainerAnalysis, MaintainerRepository, MaintainerSettings } from "./types";
 
 type AnalyzerResult = {
   provider: "openai" | "deterministic";
@@ -11,6 +11,26 @@ const analysisSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
+    settings: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        targetLabelCoverage: { type: "number" },
+        maxIssueResponseDays: { type: "number" },
+        maxPullRequestAgeDays: { type: "number" },
+        maxOpenPullRequests: { type: "number" },
+        releaseCadenceDays: { type: "number" },
+        preferredLabels: { type: "array", items: { type: "string" } },
+      },
+      required: [
+        "targetLabelCoverage",
+        "maxIssueResponseDays",
+        "maxPullRequestAgeDays",
+        "maxOpenPullRequests",
+        "releaseCadenceDays",
+        "preferredLabels",
+      ],
+    },
     health: {
       type: "object",
       additionalProperties: false,
@@ -272,6 +292,7 @@ const analysisSchema = {
     releaseNotes: { type: "string" },
   },
   required: [
+    "settings",
     "health",
     "readiness",
     "qualitySignals",
@@ -309,8 +330,11 @@ function extractOutputText(response: unknown): string | null {
   return parts.length > 0 ? parts.join("\n") : null;
 }
 
-export async function analyzeWithOpenAI(repository: MaintainerRepository): Promise<AnalyzerResult> {
-  const fallback = analyzeRepository(repository);
+export async function analyzeWithOpenAI(
+  repository: MaintainerRepository,
+  settings?: Partial<MaintainerSettings>,
+): Promise<AnalyzerResult> {
+  const fallback = analyzeRepository(repository, new Date(), undefined, settings);
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -337,6 +361,7 @@ export async function analyzeWithOpenAI(repository: MaintainerRepository): Promi
             openIssues: repository.openIssues,
             license: repository.license,
           },
+          settings: fallback.settings,
           issues: repository.issues.slice(0, 8),
           pullRequests: repository.pullRequests.slice(0, 6),
         }),

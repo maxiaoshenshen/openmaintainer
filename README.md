@@ -34,6 +34,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Repository health score and next actions
 - OSS readiness checklist
 - Real repository quality signals for label coverage, response gaps, PR age, and review load
+- Maintainer settings for per-project thresholds, release cadence, and preferred labels
 - Trend memory for comparing current analysis with a previous repository snapshot
 - Local snapshot store that remembers previous analyses in the browser
 - Snapshot import/export for lightweight cross-browser and team handoff
@@ -91,7 +92,7 @@ CI runs the same validation command on pushes to `main` and pull requests.
 
 - `src/app` contains the Next.js App Router UI and route handlers.
 - `src/components/dashboard.tsx` contains the interactive maintainer cockpit.
-- `src/lib/maintainer-analysis.ts` contains deterministic triage, PR review, health, and release-note logic.
+- `src/lib/maintainer-analysis.ts` contains deterministic triage, PR review, maintainer settings, health, and release-note logic.
 - `src/lib/github.ts` contains GitHub repository parsing and fetch logic.
 - `src/lib/openai-analyzer.ts` contains the optional OpenAI analysis path.
 

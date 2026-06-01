@@ -4,13 +4,13 @@ OpenMaintainer is split into four layers.
 
 ## 1. UI
 
-`src/components/dashboard.tsx` is a client component that renders the maintainer cockpit. It owns repository input, loading states, language switching, and calls to route handlers.
+`src/components/dashboard.tsx` is a client component that renders the maintainer cockpit. It owns repository input, maintainer settings, loading states, language switching, and calls to route handlers.
 
 ## 2. Route handlers
 
-`src/app/api/repository/route.ts` accepts a repository input and returns repository data plus deterministic analysis.
+`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data plus deterministic analysis.
 
-`src/app/api/analyze/route.ts` accepts repository data and returns either OpenAI-backed analysis or deterministic fallback analysis.
+`src/app/api/analyze/route.ts` accepts repository data plus optional maintainer settings and returns either OpenAI-backed analysis or deterministic fallback analysis.
 
 ## 3. Core logic
 
@@ -23,6 +23,7 @@ OpenMaintainer is split into four layers.
 - Repository health score
 - OSS readiness checks
 - Repository quality signals for queue age, label coverage, and review load
+- Maintainer settings for quality thresholds, release cadence, and preferred labels
 - Trend memory that compares the current analysis with a previous snapshot
 - Browser-local snapshot storage for repeat inspections without a backend database
 - Snapshot import/export as a portable JSON bundle with schema versioning

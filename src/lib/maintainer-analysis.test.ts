@@ -206,6 +206,56 @@ describe("analyzeRepository", () => {
     );
   });
 
+  it("uses maintainer settings to score repository quality signals", () => {
+    const analysis = analyzeRepository(demoRepository, new Date("2026-06-01T00:00:00Z"), undefined, {
+      targetLabelCoverage: 80,
+      maxIssueResponseDays: 1,
+      maxPullRequestAgeDays: 2,
+      maxOpenPullRequests: 1,
+      releaseCadenceDays: 14,
+      preferredLabels: ["bug", "documentation", "question"],
+    });
+
+    expect(analysis.settings).toMatchObject({
+      targetLabelCoverage: 80,
+      maxIssueResponseDays: 1,
+      maxPullRequestAgeDays: 2,
+      maxOpenPullRequests: 1,
+    });
+    expect(analysis.qualitySignals).toContainEqual(
+      expect.objectContaining({
+        id: "label-coverage",
+        score: 63,
+        level: "watch",
+        evidence: expect.arrayContaining([
+          "Target label coverage 80%",
+          "Preferred labels bug, documentation, question",
+        ]),
+      }),
+    );
+    expect(analysis.qualitySignals).toContainEqual(
+      expect.objectContaining({
+        id: "issue-response-gap",
+        score: 50,
+        evidence: expect.arrayContaining(["Target response gap 1 days"]),
+      }),
+    );
+    expect(analysis.qualitySignals).toContainEqual(
+      expect.objectContaining({
+        id: "review-load",
+        score: 50,
+        evidence: expect.arrayContaining(["Target open PRs 1"]),
+      }),
+    );
+    expect(analysis.playbooks).toContainEqual(
+      expect.objectContaining({
+        id: "release",
+        goal: expect.stringContaining("14-day cadence"),
+      }),
+    );
+    expect(analysis.digest.highlights).toContain("14-day release cadence target");
+  });
+
   it("compares the current repository state with a previous snapshot", () => {
     const analysis = analyzeRepository(demoRepository, new Date("2026-06-01T00:00:00Z"), {
       capturedAt: "2026-05-25T00:00:00Z",

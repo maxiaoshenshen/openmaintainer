@@ -145,6 +145,15 @@ export type RepositoryQualitySignal = {
   nextAction: string;
 };
 
+export type MaintainerSettings = {
+  targetLabelCoverage: number;
+  maxIssueResponseDays: number;
+  maxPullRequestAgeDays: number;
+  maxOpenPullRequests: number;
+  releaseCadenceDays: number;
+  preferredLabels: string[];
+};
+
 export type RepositoryAnalysisSnapshot = {
   capturedAt: string;
   healthScore: number;
@@ -178,6 +187,7 @@ export type RepositoryTrend = {
 };
 
 export type MaintainerAnalysis = {
+  settings: MaintainerSettings;
   health: RepositoryHealth;
   readiness: RepositoryReadiness;
   qualitySignals: RepositoryQualitySignal[];

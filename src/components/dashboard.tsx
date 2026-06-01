@@ -17,10 +17,11 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
 } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
-import type { MaintainerAnalysis, MaintainerRepository } from "@/lib/types";
+import type { MaintainerAnalysis, MaintainerRepository, MaintainerSettings } from "@/lib/types";
 import {
   createSnapshotFromAnalysis,
   exportSnapshotBundle,
@@ -79,6 +80,14 @@ const copy = {
     demo: "Demo mode",
     github: "GitHub live",
     fallback: "Deterministic fallback",
+    settings: "Maintainer settings",
+    applySettings: "Apply settings",
+    targetLabelCoverage: "Target label coverage",
+    maxIssueResponseDays: "Max issue response days",
+    maxPullRequestAgeDays: "Max PR age days",
+    maxOpenPullRequests: "Max open PRs",
+    releaseCadenceDays: "Release cadence days",
+    preferredLabels: "Preferred labels",
   },
   zh: {
     queue: "维护队列",
@@ -108,6 +117,14 @@ const copy = {
     demo: "演示模式",
     github: "GitHub 实时",
     fallback: "规则兜底",
+    settings: "维护者设置",
+    applySettings: "应用设置",
+    targetLabelCoverage: "目标标签覆盖率",
+    maxIssueResponseDays: "最长 issue 响应天数",
+    maxPullRequestAgeDays: "最长 PR 停留天数",
+    maxOpenPullRequests: "最多打开 PR",
+    releaseCadenceDays: "发布节奏天数",
+    preferredLabels: "偏好标签",
   },
 };
 
@@ -137,6 +154,13 @@ function readinessColor(status: "pass" | "warn" | "fail") {
 
 function releaseFileName(repository: MaintainerRepository) {
   return `${repository.identity.owner}-${repository.identity.name}-release-draft.md`;
+}
+
+function labelsFromDraft(value: string) {
+  return value
+    .split(",")
+    .map((label) => label.trim())
+    .filter(Boolean);
 }
 
 function actionMarkdown(action: MaintainerAnalysis["actions"][number]) {
@@ -187,6 +211,7 @@ export function Dashboard({
   const [warning, setWarning] = useState<string | null>(null);
   const [loadingRepo, setLoadingRepo] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(false);
   const [copiedRelease, setCopiedRelease] = useState(false);
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
   const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
@@ -194,6 +219,10 @@ export function Dashboard({
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
   const [locale, setLocale] = useState<Locale>("en");
+  const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
+  const [preferredLabelsDraft, setPreferredLabelsDraft] = useState(
+    initialAnalysis.settings.preferredLabels.join(", "),
+  );
   const text = copy[locale];
 
   const stats = useMemo(
@@ -209,21 +238,33 @@ export function Dashboard({
 
   async function inspectRepository(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    await fetchRepositoryAnalysis(repoInput, false);
+  }
+
+  async function fetchRepositoryAnalysis(targetRepo: string, fromSettings: boolean) {
+    const nextSettings = {
+      ...settings,
+      preferredLabels: labelsFromDraft(preferredLabelsDraft),
+    };
     setLoadingRepo(true);
+    setLoadingSettings(fromSettings);
     setWarning(null);
 
     try {
-      const params = new URLSearchParams({ repo: repoInput });
+      const params = new URLSearchParams({ repo: targetRepo });
       const previousSnapshot =
         typeof window === "undefined"
           ? null
-          : readSnapshot(window.localStorage, repoInput) ??
+          : readSnapshot(window.localStorage, targetRepo) ??
             readSnapshot(window.localStorage, repository.identity.fullName);
       if (previousSnapshot) params.set("previousSnapshot", JSON.stringify(previousSnapshot));
+      params.set("settings", JSON.stringify(nextSettings));
       const response = await fetch(`/api/repository?${params.toString()}`);
       const data = (await response.json()) as RepositoryResponse;
       setRepository(data.repository);
       setAnalysis(data.analysis);
+      setSettings(data.analysis.settings);
+      setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
       setProvider("deterministic");
       setWarning(data.warning ?? null);
@@ -240,7 +281,20 @@ export function Dashboard({
       setWarning(error instanceof Error ? error.message : "Unable to inspect repository");
     } finally {
       setLoadingRepo(false);
+      setLoadingSettings(false);
     }
+  }
+
+  async function applySettings() {
+    await fetchRepositoryAnalysis(repository.identity.fullName, true);
+  }
+
+  function updateNumericSetting(key: keyof Omit<MaintainerSettings, "preferredLabels">, value: string) {
+    const parsed = Number(value);
+    setSettings((current) => ({
+      ...current,
+      [key]: Number.isFinite(parsed) ? Math.max(1, parsed) : current[key],
+    }));
   }
 
   async function runAiAnalysis() {
@@ -251,10 +305,18 @@ export function Dashboard({
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repository }),
+        body: JSON.stringify({
+          repository,
+          settings: {
+            ...settings,
+            preferredLabels: labelsFromDraft(preferredLabelsDraft),
+          },
+        }),
       });
       const data = (await response.json()) as AnalyzeResponse;
       setAnalysis(data.analysis);
+      setSettings(data.analysis.settings);
+      setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
       setWarning(data.warning ?? null);
     } catch (error) {
@@ -638,6 +700,67 @@ export function Dashboard({
         </div>
 
         <aside className="space-y-4">
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-200 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                <SlidersHorizontal className="size-5 text-blue-700" />
+                {text.settings}
+              </h2>
+              <span className="text-sm font-semibold text-stone-500">
+                {analysis.settings.preferredLabels.length} labels
+              </span>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  ["targetLabelCoverage", text.targetLabelCoverage],
+                  ["maxIssueResponseDays", text.maxIssueResponseDays],
+                  ["maxPullRequestAgeDays", text.maxPullRequestAgeDays],
+                  ["maxOpenPullRequests", text.maxOpenPullRequests],
+                  ["releaseCadenceDays", text.releaseCadenceDays],
+                ].map(([key, label]) => (
+                  <label key={key} className="block">
+                    <span className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+                      {label}
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={settings[key as keyof Omit<MaintainerSettings, "preferredLabels">]}
+                      onChange={(event) =>
+                        updateNumericSetting(
+                          key as keyof Omit<MaintainerSettings, "preferredLabels">,
+                          event.target.value,
+                        )
+                      }
+                      className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-950 outline-none focus:border-blue-500"
+                    />
+                  </label>
+                ))}
+              </div>
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-stone-500">
+                  {text.preferredLabels}
+                </span>
+                <input
+                  value={preferredLabelsDraft}
+                  onChange={(event) => setPreferredLabelsDraft(event.target.value)}
+                  className="mt-1 h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm font-medium text-stone-950 outline-none focus:border-blue-500"
+                  placeholder="bug, documentation, question"
+                />
+              </label>
+              <button
+                onClick={applySettings}
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-stone-950 px-3 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={loadingSettings}
+                title={text.applySettings}
+              >
+                {loadingSettings ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                {text.applySettings}
+              </button>
+            </div>
+          </section>
+
           <section className="rounded-lg border border-stone-300 bg-white">
             <div className="flex items-center justify-between border-b border-stone-200 p-4">
               <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">

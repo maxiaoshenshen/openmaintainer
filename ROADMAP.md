@@ -11,6 +11,7 @@
 - Similar issue detection
 - Copyable maintainer action plan
 - Real repository quality signals
+- Maintainer settings for per-project thresholds and preferred labels
 - Trend memory for repository snapshot comparison
 - Local snapshot store for repeat repository inspections
 - Snapshot import/export for lightweight collaboration
@@ -29,7 +30,7 @@
 - Stale issue review
 - Release note export
 - Duplicate issue workflow actions
-- Per-repository settings
+- Persisted team-level settings
 
 ## Phase 2: Team Maintenance
 

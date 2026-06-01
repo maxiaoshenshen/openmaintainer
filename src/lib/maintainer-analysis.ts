@@ -3,6 +3,7 @@ import type {
   MaintainerAnalysis,
   MaintainerAction,
   MaintainerDigest,
+  MaintainerSettings,
   MaintainerIssue,
   MaintainerPullRequest,
   MaintainerRepository,
@@ -23,6 +24,15 @@ const BUG_TERMS = ["bug", "fail", "error", "crash", "broken", "regression", "exc
 const FEATURE_TERMS = ["add", "feature", "support", "request", "enhancement"];
 const DOC_TERMS = ["readme", "docs", "documentation", "guide", "quickstart"];
 const QUESTION_TERMS = ["question", "how", "can", "help"];
+
+const DEFAULT_SETTINGS: MaintainerSettings = {
+  targetLabelCoverage: 100,
+  maxIssueResponseDays: 1,
+  maxPullRequestAgeDays: 2,
+  maxOpenPullRequests: 8,
+  releaseCadenceDays: 30,
+  preferredLabels: ["bug", "documentation", "question", "feature", "needs-triage"],
+};
 
 function includesAny(text: string, terms: string[]) {
   const normalized = text.toLowerCase();
@@ -269,20 +279,50 @@ function signalLevel(score: number): RepositoryQualitySignal["level"] {
   return "attention";
 }
 
+function normalizeSettings(settings?: Partial<MaintainerSettings>): MaintainerSettings {
+  return {
+    targetLabelCoverage: settings?.targetLabelCoverage ?? DEFAULT_SETTINGS.targetLabelCoverage,
+    maxIssueResponseDays: settings?.maxIssueResponseDays ?? DEFAULT_SETTINGS.maxIssueResponseDays,
+    maxPullRequestAgeDays:
+      settings?.maxPullRequestAgeDays ?? DEFAULT_SETTINGS.maxPullRequestAgeDays,
+    maxOpenPullRequests: settings?.maxOpenPullRequests ?? DEFAULT_SETTINGS.maxOpenPullRequests,
+    releaseCadenceDays: settings?.releaseCadenceDays ?? DEFAULT_SETTINGS.releaseCadenceDays,
+    preferredLabels: settings?.preferredLabels?.length
+      ? settings.preferredLabels
+      : DEFAULT_SETTINGS.preferredLabels,
+  };
+}
+
 function computeQualitySignals(
   repository: MaintainerRepository,
   observedAt: Date,
+  settings: MaintainerSettings,
 ): RepositoryQualitySignal[] {
   const labeledIssues = repository.issues.filter((issue) => issue.labels.length > 0).length;
-  const labelScore =
+  const rawLabelCoverage =
     repository.issues.length === 0 ? 100 : Math.round((labeledIssues / repository.issues.length) * 100);
+  const labelScore = Math.min(
+    100,
+    Math.round((rawLabelCoverage / Math.max(1, settings.targetLabelCoverage)) * 100),
+  );
   const oldestIssueUpdatedDays = repository.issues.length
     ? Math.max(...repository.issues.map((issue) => daysBetween(observedAt, issue.updatedAt)))
     : 0;
   const oldestPrCreatedDays = repository.pullRequests.length
     ? Math.max(...repository.pullRequests.map((pullRequest) => daysBetween(observedAt, pullRequest.createdAt)))
     : 0;
-  const reviewLoadScore = Math.max(0, 100 - repository.pullRequests.length * 8);
+  const issueResponseScore = Math.max(
+    0,
+    Math.round((settings.maxIssueResponseDays / Math.max(1, oldestIssueUpdatedDays)) * 100),
+  );
+  const prAgeScore = Math.max(
+    0,
+    Math.min(100, Math.round((settings.maxPullRequestAgeDays / Math.max(1, oldestPrCreatedDays)) * 100)),
+  );
+  const reviewLoadScore = Math.max(
+    0,
+    Math.min(100, Math.round((settings.maxOpenPullRequests / Math.max(1, repository.pullRequests.length)) * 100)),
+  );
 
   return [
     {
@@ -293,7 +333,9 @@ function computeQualitySignals(
       detail: `${labeledIssues} of ${repository.issues.length} open issues already have labels`,
       evidence: [
         `${repository.issues.length - labeledIssues} unlabeled open issues`,
-        `${labelScore}% issue label coverage`,
+        `${rawLabelCoverage}% issue label coverage`,
+        `Target label coverage ${settings.targetLabelCoverage}%`,
+        `Preferred labels ${settings.preferredLabels.join(", ")}`,
       ],
       nextAction:
         labelScore < 75
@@ -303,24 +345,30 @@ function computeQualitySignals(
     {
       id: "issue-response-gap",
       label: "Issue response gap",
-      score: Math.max(0, 100 - oldestIssueUpdatedDays * 15),
-      level: signalLevel(Math.max(0, 100 - oldestIssueUpdatedDays * 15)),
+      score: issueResponseScore,
+      level: signalLevel(issueResponseScore),
       detail: `Oldest open issue was updated ${oldestIssueUpdatedDays} days ago`,
-      evidence: [`Oldest issue updated ${oldestIssueUpdatedDays} days ago`],
+      evidence: [
+        `Oldest issue updated ${oldestIssueUpdatedDays} days ago`,
+        `Target response gap ${settings.maxIssueResponseDays} days`,
+      ],
       nextAction:
-        oldestIssueUpdatedDays >= 2
+        oldestIssueUpdatedDays > settings.maxIssueResponseDays
           ? "Refresh older issue threads with a maintainer response"
           : "Keep the issue queue moving with daily triage",
     },
     {
       id: "pr-age",
       label: "Pull request age",
-      score: Math.max(0, 100 - oldestPrCreatedDays * 10),
-      level: signalLevel(Math.max(0, 100 - oldestPrCreatedDays * 10)),
+      score: prAgeScore,
+      level: signalLevel(prAgeScore),
       detail: `Oldest open pull request is ${oldestPrCreatedDays} days old`,
-      evidence: [`${repository.pullRequests.length} open pull requests`],
+      evidence: [
+        `${repository.pullRequests.length} open pull requests`,
+        `Target PR age ${settings.maxPullRequestAgeDays} days`,
+      ],
       nextAction:
-        oldestPrCreatedDays >= 7
+        oldestPrCreatedDays > settings.maxPullRequestAgeDays
           ? "Assign review ownership for aging pull requests"
           : "Keep review focus on the riskiest pull requests first",
     },
@@ -330,9 +378,12 @@ function computeQualitySignals(
       score: reviewLoadScore,
       level: signalLevel(reviewLoadScore),
       detail: `${repository.pullRequests.length} open pull requests in the review queue`,
-      evidence: [`Review load score ${reviewLoadScore}/100`],
+      evidence: [
+        `Review load score ${reviewLoadScore}/100`,
+        `Target open PRs ${settings.maxOpenPullRequests}`,
+      ],
       nextAction:
-        repository.pullRequests.length > 8
+        repository.pullRequests.length > settings.maxOpenPullRequests
           ? "Split review ownership across maintainers"
           : "Review queue is small enough for focused maintainer attention",
     },
@@ -452,7 +503,10 @@ function buildMaintainerActions(
   return [...issueActions, ...reviewActions, releaseAction];
 }
 
-function buildRepositoryPlaybooks(actions: MaintainerAction[]): RepositoryPlaybook[] {
+function buildRepositoryPlaybooks(
+  actions: MaintainerAction[],
+  settings: MaintainerSettings,
+): RepositoryPlaybook[] {
   const issueActions = actions.filter((action) => action.target === "issue");
   const reviewActions = actions.filter((action) => action.target === "pull-request");
   const releaseAction = actions.find((action) => action.target === "release");
@@ -486,7 +540,7 @@ function buildRepositoryPlaybooks(actions: MaintainerAction[]): RepositoryPlaybo
       id: "release",
       title: "Before release",
       cadence: "release",
-      goal: "Turn current maintenance work into a publishable release draft.",
+      goal: `Turn current maintenance work into a publishable release draft within a ${settings.releaseCadenceDays}-day cadence.`,
       steps: releaseAction
         ? [
             {
@@ -507,6 +561,7 @@ function buildMaintainerDigest(
   readiness: RepositoryReadiness,
   actions: MaintainerAction[],
   similarIssues: SimilarIssueCluster[],
+  settings: MaintainerSettings,
 ): MaintainerDigest {
   const highPriorityActions = actions.filter(
     (action) => action.priority === "urgent" || action.priority === "high",
@@ -548,6 +603,7 @@ function buildMaintainerDigest(
     `OSS readiness ${readiness.score}/100`,
     `${highPriorityActions.length} high-priority maintainer actions`,
     `${similarIssues.length} similar issue clusters detected`,
+    `${settings.releaseCadenceDays}-day release cadence target`,
   ];
 
   const title = `Weekly maintainer digest for ${repository.identity.fullName}`;
@@ -696,7 +752,9 @@ export function analyzeRepository(
   repository: MaintainerRepository,
   observedAt = new Date(),
   previousSnapshot?: RepositoryAnalysisSnapshot,
+  settingsInput?: Partial<MaintainerSettings>,
 ): MaintainerAnalysis {
+  const settings = normalizeSettings(settingsInput);
   const triage = repository.issues.map(classifyIssue);
   const reviews = repository.pullRequests.map(reviewPullRequest);
   const releaseNotes = draftReleaseNotes(repository, reviews);
@@ -704,10 +762,11 @@ export function analyzeRepository(
   const health = computeHealth(repository, triage);
   const readiness = computeReadiness(repository);
   const similarIssues = detectSimilarIssues(repository.issues);
-  const qualitySignals = computeQualitySignals(repository, observedAt);
+  const qualitySignals = computeQualitySignals(repository, observedAt, settings);
   const trend = buildRepositoryTrend(repository, health, readiness, qualitySignals, previousSnapshot);
 
   return {
+    settings,
     health,
     readiness,
     qualitySignals,
@@ -716,8 +775,8 @@ export function analyzeRepository(
     reviews,
     similarIssues,
     actions,
-    playbooks: buildRepositoryPlaybooks(actions),
-    digest: buildMaintainerDigest(repository, health, readiness, actions, similarIssues),
+    playbooks: buildRepositoryPlaybooks(actions, settings),
+    digest: buildMaintainerDigest(repository, health, readiness, actions, similarIssues, settings),
     releaseNotes,
   };
 }
