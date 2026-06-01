@@ -27,6 +27,7 @@ import type {
   MaintainerInbox,
   MaintainerRepository,
   MaintainerSettings,
+  OssEvidencePack,
 } from "@/lib/types";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
@@ -54,6 +55,7 @@ type DashboardProps = {
   initialRepository: MaintainerRepository;
   initialAnalysis: MaintainerAnalysis;
   initialContributorImpact: ContributorImpactQueue;
+  initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
 };
@@ -66,6 +68,8 @@ const copy = {
     inbox: "Maintainer inbox",
     mostPainful: "Most painful",
     impact: "Contributor impact",
+    evidence: "OSS evidence pack",
+    copyEvidence: "Copy evidence",
     reviews: "Review desk",
     release: "Release draft",
     actions: "Action plan",
@@ -107,6 +111,8 @@ const copy = {
     inbox: "维护者收件箱",
     mostPainful: "最痛仓库",
     impact: "贡献者影响",
+    evidence: "开源申请证据包",
+    copyEvidence: "复制证据包",
     reviews: "评审台",
     release: "发布草稿",
     actions: "行动计划",
@@ -219,6 +225,7 @@ export function Dashboard({
   initialRepository,
   initialAnalysis,
   initialContributorImpact,
+  initialEvidencePack,
   initialInbox,
   initialSource,
 }: DashboardProps) {
@@ -235,6 +242,7 @@ export function Dashboard({
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
   const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
   const [copiedDigest, setCopiedDigest] = useState(false);
+  const [copiedEvidence, setCopiedEvidence] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -405,6 +413,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(analysis.digest.markdown);
     setCopiedDigest(true);
     window.setTimeout(() => setCopiedDigest(false), 1600);
+  }
+
+  async function copyEvidencePack() {
+    await navigator.clipboard.writeText(initialEvidencePack.markdown);
+    setCopiedEvidence(true);
+    window.setTimeout(() => setCopiedEvidence(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -623,6 +637,64 @@ export function Dashboard({
                   </div>
                 </article>
               ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <ShieldCheck className="size-5 text-emerald-700" />
+                  {text.evidence}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  Prepared for Codex for Open Source review: maintenance load, contributor impact,
+                  and human-approved automation use.
+                </p>
+              </div>
+              <button
+                onClick={copyEvidencePack}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyEvidence}
+              >
+                <Copy className="size-4" />
+                {copiedEvidence ? "Copied" : text.copyEvidence}
+              </button>
+            </div>
+            <div className="grid gap-0 lg:grid-cols-[1fr_1fr]">
+              <div className="border-b border-stone-200 p-4 lg:border-b-0 lg:border-r">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  Why this repository qualifies
+                </div>
+                <p className="mt-2 text-sm leading-6 text-stone-700">
+                  {initialEvidencePack.qualificationDraft}
+                </p>
+                <div className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  API credit usage
+                </div>
+                <p className="mt-2 text-sm leading-6 text-stone-700">
+                  {initialEvidencePack.creditUseDraft}
+                </p>
+              </div>
+              <div className="p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  Evidence
+                </div>
+                <ul className="mt-3 space-y-2 text-sm leading-5 text-stone-700">
+                  {initialEvidencePack.evidence.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <a
+                  href={initialEvidencePack.programUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                >
+                  <ExternalLink className="size-4" />
+                  Codex for Open Source
+                </a>
+              </div>
             </div>
           </section>
 

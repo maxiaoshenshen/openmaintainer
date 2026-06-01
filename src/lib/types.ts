@@ -246,3 +246,13 @@ export type ContributorImpactQueue = {
   };
   items: ContributorImpactItem[];
 };
+
+export type OssEvidencePack = {
+  programUrl: string;
+  roleDraft: string;
+  qualificationDraft: string;
+  creditUseDraft: string;
+  anythingElseDraft: string;
+  evidence: string[];
+  markdown: string;
+};

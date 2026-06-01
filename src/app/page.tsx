@@ -3,6 +3,7 @@ import { demoPortfolioRepositories, demoPreviousSnapshot, demoRepository } from 
 import { buildContributorImpactQueue } from "@/lib/contributor-impact";
 import { buildMaintainerInbox } from "@/lib/maintainer-inbox";
 import { analyzeRepository } from "@/lib/maintainer-analysis";
+import { buildOssEvidencePack } from "@/lib/oss-evidence";
 
 export default function Home() {
   const observedAt = new Date("2026-06-03T00:00:00Z");
@@ -11,6 +12,7 @@ export default function Home() {
     new Date("2026-06-01T00:00:00Z"),
     demoPreviousSnapshot,
   );
+  const initialContributorImpact = buildContributorImpactQueue(demoRepository, initialAnalysis, observedAt);
   const initialInbox = buildMaintainerInbox(
     demoPortfolioRepositories.map((repository) => ({
       repository,
@@ -23,7 +25,8 @@ export default function Home() {
     <Dashboard
       initialRepository={demoRepository}
       initialAnalysis={initialAnalysis}
-      initialContributorImpact={buildContributorImpactQueue(demoRepository, initialAnalysis, observedAt)}
+      initialContributorImpact={initialContributorImpact}
+      initialEvidencePack={buildOssEvidencePack(demoRepository, initialAnalysis, initialContributorImpact)}
       initialInbox={initialInbox}
       initialSource="demo"
     />

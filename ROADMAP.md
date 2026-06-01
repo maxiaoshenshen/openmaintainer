@@ -8,6 +8,7 @@
 - Optional OpenAI analysis
 - Multi-repository maintainer inbox
 - Contributor impact queue for blocked developers
+- Codex for Open Source evidence pack
 - PR review summaries
 - Release draft generation
 - Similar issue detection

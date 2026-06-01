@@ -32,6 +32,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Optional OpenAI-powered structured analysis
 - Multi-repository maintainer inbox that ranks the most painful queues first
 - Contributor impact queue that surfaces blocked developers and unblock steps
+- Codex for Open Source evidence pack with copyable application drafts
 - Pull request review summaries and risk indicators
 - Repository health score and next actions
 - OSS readiness checklist
