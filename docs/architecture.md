@@ -12,7 +12,11 @@ OpenMaintainer is split into four layers.
 
 `src/app/api/analyze/route.ts` accepts repository data plus optional maintainer settings and returns either OpenAI-backed analysis or deterministic fallback analysis.
 
+`src/app/api/inbox/route.ts` accepts a pasted list of GitHub repositories and returns a multi-repository maintainer inbox. It uses demo portfolio data when no valid repositories are provided, so the workflow remains usable without credentials.
+
 ## 3. Core logic
+
+`src/lib/inbox-input.ts` normalizes multiline, comma-separated, and GitHub URL repository lists for the live inbox builder.
 
 `src/lib/maintainer-inbox.ts` ranks multiple repositories by maintainer pain using issue load, review age, readiness gaps, health score, and available next actions.
 

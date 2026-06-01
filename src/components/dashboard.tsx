@@ -51,6 +51,16 @@ type AnalyzeResponse = {
   warning?: string;
 };
 
+type InboxResponse = {
+  inbox: MaintainerInbox;
+  repositories: Array<{
+    requestedRepository: string;
+    repository: string;
+    source: "demo" | "github";
+    warning?: string;
+  }>;
+};
+
 type DashboardProps = {
   initialRepository: MaintainerRepository;
   initialAnalysis: MaintainerAnalysis;
@@ -66,6 +76,8 @@ const copy = {
   en: {
     queue: "Maintenance queue",
     inbox: "Maintainer inbox",
+    buildInbox: "Build inbox",
+    portfolioPlaceholder: "owner/repo, openai/openai-cookbook, vercel/next.js",
     mostPainful: "Most painful",
     impact: "Contributor impact",
     evidence: "OSS evidence pack",
@@ -109,6 +121,8 @@ const copy = {
   zh: {
     queue: "维护队列",
     inbox: "维护者收件箱",
+    buildInbox: "生成收件箱",
+    portfolioPlaceholder: "owner/repo, openai/openai-cookbook, vercel/next.js",
     mostPainful: "最痛仓库",
     impact: "贡献者影响",
     evidence: "开源申请证据包",
@@ -231,12 +245,17 @@ export function Dashboard({
 }: DashboardProps) {
   const [repository, setRepository] = useState(initialRepository);
   const [analysis, setAnalysis] = useState(initialAnalysis);
+  const [inbox, setInbox] = useState(initialInbox);
+  const [portfolioInput, setPortfolioInput] = useState(
+    initialInbox.items.map((item) => item.repository).join("\n"),
+  );
   const [repoInput, setRepoInput] = useState(initialRepository.identity.fullName);
   const [source, setSource] = useState(initialSource);
   const [provider, setProvider] = useState<AnalyzeResponse["provider"]>("deterministic");
   const [warning, setWarning] = useState<string | null>(null);
   const [loadingRepo, setLoadingRepo] = useState(false);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [loadingInbox, setLoadingInbox] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [copiedRelease, setCopiedRelease] = useState(false);
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
@@ -278,7 +297,7 @@ export function Dashboard({
     [analysis.health.score, analysis.readiness.score, repository],
   );
 
-  const leadingInboxItem = initialInbox.items[0];
+  const leadingInboxItem = inbox.items[0];
 
   async function inspectRepository(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -378,6 +397,35 @@ export function Dashboard({
       setWarning(error instanceof Error ? error.message : "Unable to run analysis");
     } finally {
       setLoadingAi(false);
+    }
+  }
+
+  async function buildPortfolioInbox() {
+    setLoadingInbox(true);
+    setWarning(null);
+
+    try {
+      const response = await fetch("/api/inbox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          repos: portfolioInput,
+          settings: {
+            ...settings,
+            preferredLabels: labelsFromDraft(preferredLabelsDraft),
+          },
+        }),
+      });
+      const data = (await response.json()) as InboxResponse;
+      setInbox(data.inbox);
+      const warnings = data.repositories
+        .filter((item) => item.warning)
+        .map((item) => `${item.requestedRepository}: ${item.warning}`);
+      setWarning(warnings.length > 0 ? warnings.join("; ") : null);
+    } catch (error) {
+      setWarning(error instanceof Error ? error.message : "Unable to build maintainer inbox");
+    } finally {
+      setLoadingInbox(false);
     }
   }
 
@@ -556,7 +604,7 @@ export function Dashboard({
                   <ClipboardList className="size-5 text-blue-700" />
                   {text.inbox}
                 </h2>
-                <p className="mt-1 text-sm leading-6 text-stone-600">{initialInbox.summary}</p>
+                <p className="mt-1 text-sm leading-6 text-stone-600">{inbox.summary}</p>
               </div>
               {leadingInboxItem ? (
                 <div className="min-w-0 rounded-md border border-rose-200 bg-rose-50 px-3 py-2">
@@ -569,34 +617,51 @@ export function Dashboard({
                 </div>
               ) : null}
             </div>
+            <div className="grid gap-3 border-b border-stone-200 p-4 lg:grid-cols-[1fr_auto] lg:items-start">
+              <textarea
+                value={portfolioInput}
+                onChange={(event) => setPortfolioInput(event.target.value)}
+                className="min-h-20 w-full resize-y rounded-md border border-stone-300 bg-white p-3 font-mono text-sm text-stone-800 outline-none placeholder:text-stone-400"
+                placeholder={text.portfolioPlaceholder}
+              />
+              <button
+                onClick={buildPortfolioInbox}
+                disabled={loadingInbox}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-stone-950 px-4 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                title={text.buildInbox}
+              >
+                {loadingInbox ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                {text.buildInbox}
+              </button>
+            </div>
             <div className="grid grid-cols-2 border-b border-stone-200 md:grid-cols-4">
               <div className="min-h-24 border-r border-stone-200 p-4">
                 <div className="text-2xl font-semibold text-stone-950">
-                  {initialInbox.totals.repositories}
+                  {inbox.totals.repositories}
                 </div>
                 <div className="mt-1 text-sm font-medium text-stone-500">Repositories</div>
               </div>
               <div className="min-h-24 border-r border-stone-200 p-4">
                 <div className="text-2xl font-semibold text-stone-950">
-                  {initialInbox.totals.openIssues}
+                  {inbox.totals.openIssues}
                 </div>
                 <div className="mt-1 text-sm font-medium text-stone-500">Open issues</div>
               </div>
               <div className="min-h-24 border-r border-stone-200 p-4">
                 <div className="text-2xl font-semibold text-stone-950">
-                  {initialInbox.totals.openPullRequests}
+                  {inbox.totals.openPullRequests}
                 </div>
                 <div className="mt-1 text-sm font-medium text-stone-500">Open PRs</div>
               </div>
               <div className="min-h-24 p-4">
                 <div className="text-2xl font-semibold text-stone-950">
-                  {initialInbox.totals.attentionRepositories}
+                  {inbox.totals.attentionRepositories}
                 </div>
                 <div className="mt-1 text-sm font-medium text-stone-500">Critical repos</div>
               </div>
             </div>
             <div className="divide-y divide-stone-200">
-              {initialInbox.items.map((item) => (
+              {inbox.items.map((item) => (
                 <article key={item.repository} className="grid gap-3 p-4 md:grid-cols-[1fr_220px]">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

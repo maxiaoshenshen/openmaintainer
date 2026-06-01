@@ -7,6 +7,7 @@
 - Deterministic issue triage
 - Optional OpenAI analysis
 - Multi-repository maintainer inbox
+- Live multi-repository inbox builder
 - Contributor impact queue for blocked developers
 - Codex for Open Source evidence pack
 - PR review summaries
