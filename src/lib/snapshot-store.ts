@@ -11,6 +11,12 @@ type SnapshotStorage = {
   set?: (key: string, value: string) => unknown;
 };
 
+export type SnapshotBundle = {
+  schemaVersion: 1;
+  repository: string;
+  snapshot: RepositoryAnalysisSnapshot;
+};
+
 export function repositorySnapshotKey(fullName: string) {
   return `openmaintainer:snapshot:${fullName.toLowerCase()}`;
 }
@@ -69,4 +75,31 @@ export function writeSnapshot(
   snapshot: RepositoryAnalysisSnapshot,
 ) {
   writeValue(storage, repositorySnapshotKey(fullName), JSON.stringify(snapshot));
+}
+
+function isSnapshot(value: unknown): value is RepositoryAnalysisSnapshot {
+  if (typeof value !== "object" || value === null) return false;
+  const snapshot = value as RepositoryAnalysisSnapshot;
+  return Boolean(snapshot.capturedAt) && Array.isArray(snapshot.qualitySignals);
+}
+
+export function exportSnapshotBundle(fullName: string, snapshot: RepositoryAnalysisSnapshot) {
+  const bundle: SnapshotBundle = {
+    schemaVersion: 1,
+    repository: fullName,
+    snapshot,
+  };
+
+  return JSON.stringify(bundle, null, 2);
+}
+
+export function importSnapshotBundle(value: string): SnapshotBundle | null {
+  try {
+    const parsed = JSON.parse(value) as SnapshotBundle;
+    if (parsed.schemaVersion !== 1) return null;
+    if (!parsed.repository || !isSnapshot(parsed.snapshot)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }

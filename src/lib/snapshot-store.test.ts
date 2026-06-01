@@ -3,6 +3,8 @@ import { analyzeRepository } from "./maintainer-analysis";
 import { demoRepository } from "./demo-data";
 import {
   createSnapshotFromAnalysis,
+  exportSnapshotBundle,
+  importSnapshotBundle,
   readSnapshot,
   repositorySnapshotKey,
   writeSnapshot,
@@ -46,5 +48,27 @@ describe("snapshot-store", () => {
     ]);
 
     expect(readSnapshot(storage, "openmaintainer/demo-repo")).toBeNull();
+  });
+
+  it("exports and imports a portable snapshot bundle", () => {
+    const snapshot = createSnapshotFromAnalysis(
+      demoRepository,
+      analyzeRepository(demoRepository, new Date("2026-06-01T00:00:00Z")),
+      "2026-06-01T00:00:00Z",
+    );
+
+    const exported = exportSnapshotBundle(demoRepository.identity.fullName, snapshot);
+    const imported = importSnapshotBundle(exported);
+
+    expect(imported).toEqual({
+      schemaVersion: 1,
+      repository: "openmaintainer/demo-repo",
+      snapshot,
+    });
+  });
+
+  it("rejects unsupported snapshot bundle imports", () => {
+    expect(importSnapshotBundle('{"schemaVersion":2}')).toBeNull();
+    expect(importSnapshotBundle("not json")).toBeNull();
   });
 });

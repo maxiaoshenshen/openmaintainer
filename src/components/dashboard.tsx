@@ -23,6 +23,8 @@ import { FormEvent, useMemo, useState } from "react";
 import type { MaintainerAnalysis, MaintainerRepository } from "@/lib/types";
 import {
   createSnapshotFromAnalysis,
+  exportSnapshotBundle,
+  importSnapshotBundle,
   readSnapshot,
   writeSnapshot,
 } from "@/lib/snapshot-store";
@@ -58,6 +60,9 @@ const copy = {
     digest: "Weekly digest",
     trend: "Trend memory",
     snapshotSaved: "Snapshot saved",
+    exportSnapshot: "Export snapshot",
+    importSnapshot: "Import snapshot",
+    snapshotJson: "Paste snapshot JSON",
     githubHandoff: "GitHub handoff",
     copyDigest: "Copy digest",
     copyPlaybook: "Copy playbook",
@@ -84,6 +89,9 @@ const copy = {
     digest: "维护周报",
     trend: "趋势记忆",
     snapshotSaved: "快照已保存",
+    exportSnapshot: "导出快照",
+    importSnapshot: "导入快照",
+    snapshotJson: "粘贴快照 JSON",
     githubHandoff: "GitHub 交接",
     copyDigest: "复制周报",
     copyPlaybook: "复制剧本",
@@ -184,6 +192,7 @@ export function Dashboard({
   const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
   const [copiedDigest, setCopiedDigest] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
+  const [snapshotImportText, setSnapshotImportText] = useState("");
   const [locale, setLocale] = useState<Locale>("en");
   const text = copy[locale];
 
@@ -287,6 +296,35 @@ export function Dashboard({
     await navigator.clipboard.writeText(analysis.digest.markdown);
     setCopiedDigest(true);
     window.setTimeout(() => setCopiedDigest(false), 1600);
+  }
+
+  function exportCurrentSnapshot() {
+    const snapshot = createSnapshotFromAnalysis(repository, analysis);
+    const blob = new Blob(
+      [exportSnapshotBundle(repository.identity.fullName, snapshot)],
+      { type: "application/json;charset=utf-8" },
+    );
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${repository.identity.owner}-${repository.identity.name}-snapshot.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importSnapshot() {
+    if (typeof window === "undefined") return;
+    const bundle = importSnapshotBundle(snapshotImportText);
+    if (!bundle) {
+      setWarning("Invalid snapshot JSON");
+      return;
+    }
+
+    writeSnapshot(window.localStorage, bundle.repository, bundle.snapshot);
+    setRepoInput(bundle.repository);
+    setSnapshotImportText("");
+    setSnapshotSaved(true);
+    window.setTimeout(() => setSnapshotSaved(false), 1800);
   }
 
   return (
@@ -642,6 +680,32 @@ export function Dashboard({
                     </span>
                   </div>
                 ))}
+              </div>
+              <div className="space-y-2 border-t border-stone-200 pt-4">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    onClick={exportCurrentSnapshot}
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                    title={text.exportSnapshot}
+                  >
+                    <Download className="size-4" />
+                    {text.exportSnapshot}
+                  </button>
+                  <button
+                    onClick={importSnapshot}
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                    title={text.importSnapshot}
+                  >
+                    <RefreshCw className="size-4" />
+                    {text.importSnapshot}
+                  </button>
+                </div>
+                <textarea
+                  value={snapshotImportText}
+                  onChange={(event) => setSnapshotImportText(event.target.value)}
+                  className="min-h-20 w-full resize-y rounded-md border border-stone-300 bg-white p-3 font-mono text-xs text-stone-800 outline-none placeholder:text-stone-400"
+                  placeholder={text.snapshotJson}
+                />
               </div>
             </div>
           </section>
