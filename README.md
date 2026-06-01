@@ -31,6 +31,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Deterministic issue triage fallback
 - Optional OpenAI-powered structured analysis
 - Multi-repository maintainer inbox that ranks the most painful queues first
+- Contributor impact queue that surfaces blocked developers and unblock steps
 - Pull request review summaries and risk indicators
 - Repository health score and next actions
 - OSS readiness checklist

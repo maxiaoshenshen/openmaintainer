@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
+  ContributorImpactQueue,
   MaintainerAnalysis,
   MaintainerInbox,
   MaintainerRepository,
@@ -52,6 +53,7 @@ type AnalyzeResponse = {
 type DashboardProps = {
   initialRepository: MaintainerRepository;
   initialAnalysis: MaintainerAnalysis;
+  initialContributorImpact: ContributorImpactQueue;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
 };
@@ -63,6 +65,7 @@ const copy = {
     queue: "Maintenance queue",
     inbox: "Maintainer inbox",
     mostPainful: "Most painful",
+    impact: "Contributor impact",
     reviews: "Review desk",
     release: "Release draft",
     actions: "Action plan",
@@ -103,6 +106,7 @@ const copy = {
     queue: "维护队列",
     inbox: "维护者收件箱",
     mostPainful: "最痛仓库",
+    impact: "贡献者影响",
     reviews: "评审台",
     release: "发布草稿",
     actions: "行动计划",
@@ -214,6 +218,7 @@ function playbookMarkdown(playbook: MaintainerAnalysis["playbooks"][number]) {
 export function Dashboard({
   initialRepository,
   initialAnalysis,
+  initialContributorImpact,
   initialInbox,
   initialSource,
 }: DashboardProps) {
@@ -614,6 +619,79 @@ export function Dashboard({
                     </div>
                     <div className="mt-1 text-sm font-semibold leading-5 text-stone-900">
                       {item.topActionTitle ?? "No action needed"}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-4 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <MessageSquareText className="size-5 text-emerald-700" />
+                  {text.impact}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {initialContributorImpact.summary}
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                <div className="rounded-md border border-stone-200 px-3 py-2">
+                  <div className="font-semibold text-stone-950">
+                    {initialContributorImpact.totals.contributorsWaiting}
+                  </div>
+                  <div className="text-xs text-stone-500">contributors</div>
+                </div>
+                <div className="rounded-md border border-stone-200 px-3 py-2">
+                  <div className="font-semibold text-stone-950">
+                    {initialContributorImpact.totals.blockedItems}
+                  </div>
+                  <div className="text-xs text-stone-500">blocked</div>
+                </div>
+                <div className="rounded-md border border-stone-200 px-3 py-2">
+                  <div className="font-semibold text-stone-950">
+                    {initialContributorImpact.totals.averageWaitDays}d
+                  </div>
+                  <div className="text-xs text-stone-500">avg wait</div>
+                </div>
+              </div>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {initialContributorImpact.items.slice(0, 4).map((item) => (
+                <article key={item.id} className="grid gap-3 p-4 md:grid-cols-[1fr_220px]">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        className="truncate text-base font-semibold text-stone-950 hover:text-blue-700"
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {item.source === "issue" ? "Issue" : "PR"} #{item.number}: {item.title}
+                      </a>
+                      <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusColor(
+                        item.impactLevel === "blocked"
+                          ? "attention"
+                          : item.impactLevel === "waiting"
+                            ? "watch"
+                            : "stable",
+                      )}`}
+                      >
+                        {item.impactLevel} · {item.waitDays}d
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-stone-600">
+                      {item.contributor} is waiting for maintainer movement.
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-stone-200 bg-stone-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      Unblock
+                    </div>
+                    <div className="mt-1 text-sm font-semibold leading-5 text-stone-900">
+                      {item.nextStep}
                     </div>
                   </div>
                 </article>

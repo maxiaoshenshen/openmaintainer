@@ -223,3 +223,26 @@ export type MaintainerInbox = {
   };
   items: MaintainerInboxItem[];
 };
+
+export type ContributorImpactItem = {
+  id: string;
+  contributor: string;
+  source: "issue" | "pull-request";
+  number: number;
+  title: string;
+  url: string;
+  waitDays: number;
+  impactLevel: "blocked" | "waiting" | "low";
+  unblockActionId: string | null;
+  nextStep: string;
+};
+
+export type ContributorImpactQueue = {
+  summary: string;
+  totals: {
+    contributorsWaiting: number;
+    blockedItems: number;
+    averageWaitDays: number;
+  };
+  items: ContributorImpactItem[];
+};

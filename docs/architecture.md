@@ -16,6 +16,8 @@ OpenMaintainer is split into four layers.
 
 `src/lib/maintainer-inbox.ts` ranks multiple repositories by maintainer pain using issue load, review age, readiness gaps, health score, and available next actions.
 
+`src/lib/contributor-impact.ts` converts issues and pull requests into a contributor-facing unblock queue, ranking who is waiting and which maintainer action will help them move.
+
 `src/lib/maintainer-analysis.ts` contains pure TypeScript logic for:
 
 - Issue category and priority

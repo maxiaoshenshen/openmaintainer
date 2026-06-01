@@ -7,6 +7,7 @@
 - Deterministic issue triage
 - Optional OpenAI analysis
 - Multi-repository maintainer inbox
+- Contributor impact queue for blocked developers
 - PR review summaries
 - Release draft generation
 - Similar issue detection

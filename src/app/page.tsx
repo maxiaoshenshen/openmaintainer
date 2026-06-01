@@ -1,5 +1,6 @@
 import { Dashboard } from "@/components/dashboard";
 import { demoPortfolioRepositories, demoPreviousSnapshot, demoRepository } from "@/lib/demo-data";
+import { buildContributorImpactQueue } from "@/lib/contributor-impact";
 import { buildMaintainerInbox } from "@/lib/maintainer-inbox";
 import { analyzeRepository } from "@/lib/maintainer-analysis";
 
@@ -22,6 +23,7 @@ export default function Home() {
     <Dashboard
       initialRepository={demoRepository}
       initialAnalysis={initialAnalysis}
+      initialContributorImpact={buildContributorImpactQueue(demoRepository, initialAnalysis, observedAt)}
       initialInbox={initialInbox}
       initialSource="demo"
     />
