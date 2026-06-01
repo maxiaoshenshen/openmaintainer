@@ -57,6 +57,7 @@ const copy = {
     ai: "AI copilot",
     health: "Project health",
     readiness: "OSS readiness",
+    quality: "Quality signals",
     similar: "Similar issues",
     repoPlaceholder: "owner/repo or GitHub URL",
     inspect: "Inspect",
@@ -80,6 +81,7 @@ const copy = {
     ai: "AI 副驾驶",
     health: "项目健康",
     readiness: "开源就绪度",
+    quality: "质量信号",
     similar: "相似 issue",
     repoPlaceholder: "owner/repo 或 GitHub 链接",
     inspect: "检查",
@@ -444,6 +446,39 @@ export function Dashboard({
                   </span>
                   <h3 className="mt-3 text-sm font-semibold text-stone-950">{check.label}</h3>
                   <p className="mt-2 text-sm leading-5 text-stone-600">{check.detail}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-200 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                <Activity className="size-5 text-blue-700" />
+                {text.quality}
+              </h2>
+              <span className="text-sm font-semibold text-stone-500">
+                {analysis.qualitySignals.length} signals
+              </span>
+            </div>
+            <div className="grid gap-0 md:grid-cols-2">
+              {analysis.qualitySignals.map((signal) => (
+                <article key={signal.id} className="border-b border-stone-200 p-4 md:border-r">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-stone-950">{signal.label}</h3>
+                      <p className="mt-1 text-sm leading-5 text-stone-600">{signal.detail}</p>
+                    </div>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusColor(signal.level)}`}>
+                      {signal.score}
+                    </span>
+                  </div>
+                  <ul className="mt-3 space-y-1 text-xs leading-5 text-stone-500">
+                    {signal.evidence.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-sm leading-5 text-stone-700">{signal.nextAction}</p>
                 </article>
               ))}
             </div>

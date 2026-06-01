@@ -48,6 +48,26 @@ const analysisSchema = {
       },
       required: ["score", "checks"],
     },
+    qualitySignals: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: {
+            type: "string",
+            enum: ["label-coverage", "issue-response-gap", "pr-age", "review-load"],
+          },
+          label: { type: "string" },
+          score: { type: "number" },
+          level: { type: "string", enum: ["stable", "watch", "attention"] },
+          detail: { type: "string" },
+          evidence: { type: "array", items: { type: "string" } },
+          nextAction: { type: "string" },
+        },
+        required: ["id", "label", "score", "level", "detail", "evidence", "nextAction"],
+      },
+    },
     triage: {
       type: "array",
       items: {
@@ -210,6 +230,7 @@ const analysisSchema = {
   required: [
     "health",
     "readiness",
+    "qualitySignals",
     "triage",
     "reviews",
     "similarIssues",

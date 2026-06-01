@@ -22,6 +22,7 @@ OpenMaintainer is split into four layers.
 - Pull request review summaries
 - Repository health score
 - OSS readiness checks
+- Repository quality signals for queue age, label coverage, and review load
 - Similar issue clusters
 - Copyable maintainer actions for GitHub workflow handoff
 - Safe GitHub CLI commands that require maintainer execution

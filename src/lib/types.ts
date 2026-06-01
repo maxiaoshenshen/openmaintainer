@@ -135,9 +135,20 @@ export type MaintainerDigest = {
   markdown: string;
 };
 
+export type RepositoryQualitySignal = {
+  id: "label-coverage" | "issue-response-gap" | "pr-age" | "review-load";
+  label: string;
+  score: number;
+  level: "stable" | "watch" | "attention";
+  detail: string;
+  evidence: string[];
+  nextAction: string;
+};
+
 export type MaintainerAnalysis = {
   health: RepositoryHealth;
   readiness: RepositoryReadiness;
+  qualitySignals: RepositoryQualitySignal[];
   triage: IssueTriage[];
   reviews: PullRequestReview[];
   similarIssues: SimilarIssueCluster[];

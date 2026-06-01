@@ -10,6 +10,7 @@
 - Release draft generation
 - Similar issue detection
 - Copyable maintainer action plan
+- Real repository quality signals
 - GitHub CLI handoff commands
 - Repository playbooks for daily, weekly, and release cadence
 - Weekly maintainer digest

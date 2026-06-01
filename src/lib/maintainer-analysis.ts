@@ -8,6 +8,7 @@ import type {
   MaintainerRepository,
   PullRequestReview,
   ReadinessCheck,
+  RepositoryQualitySignal,
   RepositoryPlaybook,
   RepositoryReadiness,
   RepositoryHealth,
@@ -250,6 +251,88 @@ function computeReadiness(repository: MaintainerRepository): RepositoryReadiness
   }, 0);
 
   return { score, checks };
+}
+
+function daysBetween(left: Date, right: string) {
+  const rightDate = new Date(right);
+  const milliseconds = left.getTime() - rightDate.getTime();
+  return Math.max(0, Math.ceil(milliseconds / 86_400_000));
+}
+
+function signalLevel(score: number): RepositoryQualitySignal["level"] {
+  if (score >= 75) return "stable";
+  if (score >= 50) return "watch";
+  return "attention";
+}
+
+function computeQualitySignals(
+  repository: MaintainerRepository,
+  observedAt: Date,
+): RepositoryQualitySignal[] {
+  const labeledIssues = repository.issues.filter((issue) => issue.labels.length > 0).length;
+  const labelScore =
+    repository.issues.length === 0 ? 100 : Math.round((labeledIssues / repository.issues.length) * 100);
+  const oldestIssueUpdatedDays = repository.issues.length
+    ? Math.max(...repository.issues.map((issue) => daysBetween(observedAt, issue.updatedAt)))
+    : 0;
+  const oldestPrCreatedDays = repository.pullRequests.length
+    ? Math.max(...repository.pullRequests.map((pullRequest) => daysBetween(observedAt, pullRequest.createdAt)))
+    : 0;
+  const reviewLoadScore = Math.max(0, 100 - repository.pullRequests.length * 8);
+
+  return [
+    {
+      id: "label-coverage",
+      label: "Label coverage",
+      score: labelScore,
+      level: signalLevel(labelScore),
+      detail: `${labeledIssues} of ${repository.issues.length} open issues already have labels`,
+      evidence: [
+        `${repository.issues.length - labeledIssues} unlabeled open issues`,
+        `${labelScore}% issue label coverage`,
+      ],
+      nextAction:
+        labelScore < 75
+          ? "Label unlabeled issues before deeper triage work"
+          : "Keep labels consistent as new issues arrive",
+    },
+    {
+      id: "issue-response-gap",
+      label: "Issue response gap",
+      score: Math.max(0, 100 - oldestIssueUpdatedDays * 15),
+      level: signalLevel(Math.max(0, 100 - oldestIssueUpdatedDays * 15)),
+      detail: `Oldest open issue was updated ${oldestIssueUpdatedDays} days ago`,
+      evidence: [`Oldest issue updated ${oldestIssueUpdatedDays} days ago`],
+      nextAction:
+        oldestIssueUpdatedDays >= 2
+          ? "Refresh older issue threads with a maintainer response"
+          : "Keep the issue queue moving with daily triage",
+    },
+    {
+      id: "pr-age",
+      label: "Pull request age",
+      score: Math.max(0, 100 - oldestPrCreatedDays * 10),
+      level: signalLevel(Math.max(0, 100 - oldestPrCreatedDays * 10)),
+      detail: `Oldest open pull request is ${oldestPrCreatedDays} days old`,
+      evidence: [`${repository.pullRequests.length} open pull requests`],
+      nextAction:
+        oldestPrCreatedDays >= 7
+          ? "Assign review ownership for aging pull requests"
+          : "Keep review focus on the riskiest pull requests first",
+    },
+    {
+      id: "review-load",
+      label: "Review load",
+      score: reviewLoadScore,
+      level: signalLevel(reviewLoadScore),
+      detail: `${repository.pullRequests.length} open pull requests in the review queue`,
+      evidence: [`Review load score ${reviewLoadScore}/100`],
+      nextAction:
+        repository.pullRequests.length > 8
+          ? "Split review ownership across maintainers"
+          : "Review queue is small enough for focused maintainer attention",
+    },
+  ];
 }
 
 function draftReleaseNotes(repository: MaintainerRepository, reviews: PullRequestReview[]) {
@@ -496,7 +579,10 @@ function buildMaintainerDigest(
   };
 }
 
-export function analyzeRepository(repository: MaintainerRepository): MaintainerAnalysis {
+export function analyzeRepository(
+  repository: MaintainerRepository,
+  observedAt = new Date(),
+): MaintainerAnalysis {
   const triage = repository.issues.map(classifyIssue);
   const reviews = repository.pullRequests.map(reviewPullRequest);
   const releaseNotes = draftReleaseNotes(repository, reviews);
@@ -504,10 +590,12 @@ export function analyzeRepository(repository: MaintainerRepository): MaintainerA
   const health = computeHealth(repository, triage);
   const readiness = computeReadiness(repository);
   const similarIssues = detectSimilarIssues(repository.issues);
+  const qualitySignals = computeQualitySignals(repository, observedAt);
 
   return {
     health,
     readiness,
+    qualitySignals,
     triage,
     reviews,
     similarIssues,

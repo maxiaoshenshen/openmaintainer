@@ -33,6 +33,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Pull request review summaries and risk indicators
 - Repository health score and next actions
 - OSS readiness checklist
+- Real repository quality signals for label coverage, response gaps, PR age, and review load
 - Similar issue cluster detection
 - Copyable maintainer action plan for issues, pull requests, and release prep
 - GitHub CLI handoff commands for maintainer-approved execution

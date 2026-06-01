@@ -177,4 +177,32 @@ describe("analyzeRepository", () => {
     expect(analysis.digest.markdown).toContain("## Weekly maintainer digest for openmaintainer/demo-repo");
     expect(analysis.digest.markdown).toContain("Release readiness: ready-with-review");
   });
+
+  it("computes real repository quality signals from queue age, labels, and review load", () => {
+    const analysis = analyzeRepository(demoRepository, new Date("2026-06-01T00:00:00Z"));
+
+    expect(analysis.qualitySignals).toContainEqual(
+      expect.objectContaining({
+        id: "label-coverage",
+        level: "watch",
+        score: 50,
+        detail: "2 of 4 open issues already have labels",
+        nextAction: "Label unlabeled issues before deeper triage work",
+      }),
+    );
+    expect(analysis.qualitySignals).toContainEqual(
+      expect.objectContaining({
+        id: "issue-response-gap",
+        level: "watch",
+        evidence: expect.arrayContaining(["Oldest issue updated 2 days ago"]),
+      }),
+    );
+    expect(analysis.qualitySignals).toContainEqual(
+      expect.objectContaining({
+        id: "pr-age",
+        level: "watch",
+        detail: "Oldest open pull request is 3 days old",
+      }),
+    );
+  });
 });
