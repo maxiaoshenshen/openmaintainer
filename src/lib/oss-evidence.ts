@@ -1,5 +1,6 @@
 import type {
   ContributorImpactQueue,
+  CodexOssApplicationPacket,
   MaintainerAnalysis,
   MaintainerRepository,
   OssEvidencePack,
@@ -42,6 +43,41 @@ export function buildOssEvidencePack(
   const anythingElseDraft = limitField(
     "This project is built specifically around real OSS maintenance workflows: reducing contributor waiting time, surfacing the most painful queues first, and turning Codex output into reviewable maintainer actions instead of opaque automation.",
   );
+  const applicationPacket: CodexOssApplicationPacket = {
+    repositoryUrl: repository.identity.url,
+    maintainerRole: "Core maintainer" as const,
+    interests: ["Codex Security", "API credits for my project"],
+    qualificationAnswer: qualificationDraft,
+    creditUseAnswer: creditUseDraft,
+    anythingElseAnswer: anythingElseDraft,
+    formFields: [
+      { label: "GitHub repository URL", value: repository.identity.url },
+      { label: "Describe your role", value: "Core maintainer" },
+      { label: "Why does this repository qualify?", value: qualificationDraft },
+      { label: "I'm interested in...", value: "Codex Security; API credits for my project" },
+      { label: "How will you use API credits for your project?", value: creditUseDraft },
+      { label: "Anything else we should know?", value: anythingElseDraft },
+    ],
+    markdown: [
+      "## Codex for Open Source application packet",
+      "",
+      `Program: ${PROGRAM_URL}`,
+      "",
+      "### Form fields",
+      `GitHub repository URL: ${repository.identity.url}`,
+      "Describe your role: Core maintainer",
+      "I'm interested in: Codex Security; API credits for my project",
+      "",
+      "### Why does this repository qualify?",
+      qualificationDraft,
+      "",
+      "### How will you use API credits for your project?",
+      creditUseDraft,
+      "",
+      "### Anything else we should know?",
+      anythingElseDraft,
+    ].join("\n"),
+  };
   const markdown = [
     "## Codex for Open Source evidence pack",
     "",
@@ -60,6 +96,8 @@ export function buildOssEvidencePack(
     "### Anything else",
     anythingElseDraft,
     "",
+    applicationPacket.markdown,
+    "",
     "### Evidence",
     ...evidence.map((item) => `- ${item}`),
   ].join("\n");
@@ -71,6 +109,7 @@ export function buildOssEvidencePack(
     creditUseDraft,
     anythingElseDraft,
     evidence,
+    applicationPacket,
     markdown,
   };
 }

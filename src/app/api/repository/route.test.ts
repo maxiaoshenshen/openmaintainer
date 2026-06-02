@@ -8,6 +8,12 @@ describe("repository route", () => {
 
     expect(body.contributorImpact.summary).toBe("6 contributor-facing blockers across 6 contributors");
     expect(body.evidencePack.evidence).toContain("6 contributor-facing blockers across 6 contributors");
+    expect(body.evidencePack.applicationPacket.repositoryUrl).toBe(
+      "https://github.com/openmaintainer/demo-repo",
+    );
+    expect(body.evidencePack.applicationPacket.markdown).toContain(
+      "Codex for Open Source application packet",
+    );
     expect(body.unblockKit.summary).toBe("4 blocked contributors can be unblocked with 9 maintainer commands");
     expect(body.unblockKit.markdown).toContain("gh issue comment 285");
   });

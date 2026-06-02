@@ -92,6 +92,8 @@ const copy = {
     copyUnblockKit: "Copy kit",
     evidence: "OSS evidence pack",
     copyEvidence: "Copy evidence",
+    applicationPacket: "Application packet",
+    copyApplication: "Copy application",
     reviews: "Review desk",
     release: "Release draft",
     actions: "Action plan",
@@ -139,6 +141,8 @@ const copy = {
     copyUnblockKit: "复制解卡包",
     evidence: "开源申请证据包",
     copyEvidence: "复制证据包",
+    applicationPacket: "申请材料包",
+    copyApplication: "复制申请材料",
     reviews: "评审台",
     release: "发布草稿",
     actions: "行动计划",
@@ -288,6 +292,7 @@ export function Dashboard({
   const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
   const [copiedDigest, setCopiedDigest] = useState(false);
   const [copiedEvidence, setCopiedEvidence] = useState(false);
+  const [copiedApplication, setCopiedApplication] = useState(false);
   const [copiedUnblockKit, setCopiedUnblockKit] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -501,6 +506,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(evidencePack.markdown);
     setCopiedEvidence(true);
     window.setTimeout(() => setCopiedEvidence(false), 1600);
+  }
+
+  async function copyApplicationPacket() {
+    await navigator.clipboard.writeText(evidencePack.applicationPacket.markdown);
+    setCopiedApplication(true);
+    window.setTimeout(() => setCopiedApplication(false), 1600);
   }
 
   async function copyUnblockKit() {
@@ -799,6 +810,38 @@ export function Dashboard({
                   <ExternalLink className="size-4" />
                   Codex for Open Source
                 </a>
+              </div>
+            </div>
+            <div className="border-t border-stone-200 bg-stone-50/70 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    {text.applicationPacket}
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-stone-600">
+                    Form-ready answers for the official Codex for Open Source application.
+                  </p>
+                </div>
+                <button
+                  onClick={copyApplicationPacket}
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-stone-950 px-3 text-sm font-semibold text-white hover:bg-stone-800"
+                  title={text.copyApplication}
+                >
+                  <Copy className="size-4" />
+                  {copiedApplication ? "Copied" : text.copyApplication}
+                </button>
+              </div>
+              <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                {evidencePack.applicationPacket.formFields.map((field) => (
+                  <div key={field.label} className="rounded-md border border-stone-200 bg-white p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      {field.label}
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-stone-800">
+                      {field.value}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </section>

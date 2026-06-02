@@ -11,6 +11,7 @@
 - Contributor impact queue for blocked developers
 - Contributor unblock kit with copyable replies and GitHub CLI commands
 - Codex for Open Source evidence pack
+- Form-ready Codex for Open Source application packet
 - PR review summaries
 - Release draft generation
 - Similar issue detection

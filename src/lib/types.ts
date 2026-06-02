@@ -254,6 +254,21 @@ export type OssEvidencePack = {
   creditUseDraft: string;
   anythingElseDraft: string;
   evidence: string[];
+  applicationPacket: CodexOssApplicationPacket;
+  markdown: string;
+};
+
+export type CodexOssApplicationPacket = {
+  repositoryUrl: string;
+  maintainerRole: "Primary maintainer" | "Core maintainer";
+  interests: Array<"Codex Security" | "API credits for my project">;
+  qualificationAnswer: string;
+  creditUseAnswer: string;
+  anythingElseAnswer: string;
+  formFields: Array<{
+    label: string;
+    value: string;
+  }>;
   markdown: string;
 };
 

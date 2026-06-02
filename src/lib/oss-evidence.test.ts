@@ -31,4 +31,34 @@ describe("buildOssEvidencePack", () => {
     expect(pack.markdown).toContain("Why this repository qualifies");
     expect(pack.markdown).toContain("How API credits will be used");
   });
+
+  it("creates a form-ready Codex for Open Source application packet", () => {
+    const observedAt = new Date("2026-06-03T00:00:00Z");
+    const analysis = analyzeRepository(demoRepository, observedAt);
+    const impact = buildContributorImpactQueue(demoRepository, analysis, observedAt);
+
+    const pack = buildOssEvidencePack(demoRepository, analysis, impact);
+
+    expect(pack.applicationPacket.repositoryUrl).toBe("https://github.com/openmaintainer/demo-repo");
+    expect(pack.applicationPacket.maintainerRole).toBe("Core maintainer");
+    expect(pack.applicationPacket.interests).toEqual(["Codex Security", "API credits for my project"]);
+    expect(pack.applicationPacket.qualificationAnswer.length).toBeLessThanOrEqual(500);
+    expect(pack.applicationPacket.creditUseAnswer.length).toBeLessThanOrEqual(500);
+    expect(pack.applicationPacket.anythingElseAnswer.length).toBeLessThanOrEqual(500);
+    expect(pack.applicationPacket.formFields).toEqual(
+      expect.arrayContaining([
+        {
+          label: "GitHub repository URL",
+          value: "https://github.com/openmaintainer/demo-repo",
+        },
+        {
+          label: "Describe your role",
+          value: "Core maintainer",
+        },
+      ]),
+    );
+    expect(pack.applicationPacket.markdown).toContain("## Codex for Open Source application packet");
+    expect(pack.applicationPacket.markdown).toContain("GitHub repository URL");
+    expect(pack.applicationPacket.markdown).toContain("API credits for my project");
+  });
 });

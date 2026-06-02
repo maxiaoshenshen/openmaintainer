@@ -35,6 +35,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Contributor impact queue that surfaces blocked developers and unblock steps
 - Contributor unblock kit with copyable maintainer replies and GitHub CLI commands
 - Codex for Open Source evidence pack with copyable application drafts
+- Form-ready Codex for Open Source application packet with official field answers
 - Pull request review summaries and risk indicators
 - Repository health score and next actions
 - OSS readiness checklist
