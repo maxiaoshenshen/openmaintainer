@@ -30,6 +30,7 @@ import type {
   MaintainerRepository,
   MaintainerSettings,
   OssEvidencePack,
+  ReproductionRequestKit,
   ResponseSlaQueue,
 } from "@/lib/types";
 import { buildContributorImpactQueue } from "@/lib/contributor-impact";
@@ -37,6 +38,7 @@ import { buildOssEvidencePack } from "@/lib/oss-evidence";
 import { buildContributorUnblockKit } from "@/lib/unblock-kit";
 import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
 import { buildResponseSlaQueue } from "@/lib/response-sla";
+import { buildReproductionRequestKit } from "@/lib/repro-kit";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -54,6 +56,7 @@ type RepositoryResponse = {
   unblockKit: ContributorUnblockKit;
   commandQueue: MaintainerCommandQueue;
   responseSla: ResponseSlaQueue;
+  reproKit: ReproductionRequestKit;
   source: "demo" | "github";
   warning?: string;
 };
@@ -81,6 +84,7 @@ type DashboardProps = {
   initialUnblockKit: ContributorUnblockKit;
   initialCommandQueue: MaintainerCommandQueue;
   initialResponseSla: ResponseSlaQueue;
+  initialReproKit: ReproductionRequestKit;
   initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
@@ -98,6 +102,8 @@ const copy = {
     impact: "Contributor impact",
     responseSla: "Response SLA",
     copyResponseSla: "Copy SLA",
+    reproKit: "Repro kit",
+    copyReproKit: "Copy repro kit",
     unblockKit: "Unblock kit",
     copyUnblockKit: "Copy kit",
     evidence: "OSS evidence pack",
@@ -151,6 +157,8 @@ const copy = {
     impact: "贡献者影响",
     responseSla: "响应 SLA",
     copyResponseSla: "复制 SLA",
+    reproKit: "复现包",
+    copyReproKit: "复制复现包",
     unblockKit: "解卡包",
     copyUnblockKit: "复制解卡包",
     evidence: "开源申请证据包",
@@ -276,6 +284,7 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     unblockKit: buildContributorUnblockKit(contributorImpact, analysis.actions),
     commandQueue: buildMaintainerCommandQueue(analysis.actions),
     responseSla: buildResponseSlaQueue(contributorImpact, analysis.settings),
+    reproKit: buildReproductionRequestKit(repository, analysis),
   };
 }
 
@@ -286,6 +295,7 @@ export function Dashboard({
   initialUnblockKit,
   initialCommandQueue,
   initialResponseSla,
+  initialReproKit,
   initialEvidencePack,
   initialInbox,
   initialSource,
@@ -297,6 +307,7 @@ export function Dashboard({
   const [unblockKit, setUnblockKit] = useState(initialUnblockKit);
   const [commandQueue, setCommandQueue] = useState(initialCommandQueue);
   const [responseSla, setResponseSla] = useState(initialResponseSla);
+  const [reproKit, setReproKit] = useState(initialReproKit);
   const [inbox, setInbox] = useState(initialInbox);
   const [portfolioInput, setPortfolioInput] = useState(
     initialInbox.items.map((item) => item.repository).join("\n"),
@@ -318,6 +329,7 @@ export function Dashboard({
   const [copiedUnblockKit, setCopiedUnblockKit] = useState(false);
   const [copiedCommandQueue, setCopiedCommandQueue] = useState(false);
   const [copiedResponseSla, setCopiedResponseSla] = useState(false);
+  const [copiedReproKit, setCopiedReproKit] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -397,6 +409,7 @@ export function Dashboard({
       setUnblockKit(data.unblockKit);
       setCommandQueue(data.commandQueue);
       setResponseSla(data.responseSla);
+      setReproKit(data.reproKit);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
@@ -456,6 +469,7 @@ export function Dashboard({
       setUnblockKit(nextArtifacts.unblockKit);
       setCommandQueue(nextArtifacts.commandQueue);
       setResponseSla(nextArtifacts.responseSla);
+      setReproKit(nextArtifacts.reproKit);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
@@ -558,6 +572,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(responseSla.markdown);
     setCopiedResponseSla(true);
     window.setTimeout(() => setCopiedResponseSla(false), 1600);
+  }
+
+  async function copyReproKit() {
+    await navigator.clipboard.writeText(reproKit.markdown);
+    setCopiedReproKit(true);
+    window.setTimeout(() => setCopiedReproKit(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -955,6 +975,65 @@ export function Dashboard({
                     <div className="mt-1 text-sm font-semibold leading-5 text-stone-900">
                       {item.nextStep}
                     </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <ClipboardList className="size-5 text-blue-700" />
+                  {text.reproKit}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {reproKit.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyReproKit}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyReproKit}
+              >
+                <Copy className="size-4" />
+                {copiedReproKit ? "Copied" : text.copyReproKit}
+              </button>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {reproKit.items.slice(0, 3).map((item) => (
+                <article key={item.id} className="grid gap-3 p-4 lg:grid-cols-[1fr_280px]">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-sm font-semibold text-stone-950 hover:text-blue-700"
+                      >
+                        {item.title}
+                      </a>
+                      <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                        {item.missingInformation.length} missing
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-stone-600">
+                      {item.commentDraft}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-stone-200 bg-stone-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      Checklist
+                    </div>
+                    <ul className="mt-2 space-y-1 text-sm leading-5 text-stone-800">
+                      {item.checklist.map((entry) => (
+                        <li key={entry} className="flex gap-2">
+                          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-blue-700" />
+                          <span>{entry}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </article>
               ))}

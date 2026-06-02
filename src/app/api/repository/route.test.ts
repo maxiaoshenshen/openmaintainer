@@ -20,5 +20,7 @@ describe("repository route", () => {
     expect(body.commandQueue.markdown).toContain("set -euo pipefail");
     expect(body.responseSla.summary).toContain("contributor threads need attention");
     expect(body.responseSla.markdown).toContain("Response SLA queue");
+    expect(body.reproKit.summary).toBe("2 bug reports need reproducible details before maintainers can act");
+    expect(body.reproKit.markdown).toContain("gh issue comment 284");
   });
 });

@@ -6,6 +6,7 @@ import { buildOssEvidencePack } from "@/lib/oss-evidence";
 import { buildContributorUnblockKit } from "@/lib/unblock-kit";
 import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
 import { buildResponseSlaQueue } from "@/lib/response-sla";
+import { buildReproductionRequestKit } from "@/lib/repro-kit";
 import type { MaintainerSettings, RepositoryAnalysisSnapshot } from "@/lib/types";
 
 function parsePreviousSnapshot(value: string | null): RepositoryAnalysisSnapshot | undefined {
@@ -55,6 +56,7 @@ export async function GET(request: Request) {
   const unblockKit = buildContributorUnblockKit(contributorImpact, analysis.actions);
   const commandQueue = buildMaintainerCommandQueue(analysis.actions);
   const responseSla = buildResponseSlaQueue(contributorImpact, analysis.settings);
+  const reproKit = buildReproductionRequestKit(result.repository, analysis);
 
   return Response.json({
     ...result,
@@ -64,5 +66,6 @@ export async function GET(request: Request) {
     unblockKit,
     commandQueue,
     responseSla,
+    reproKit,
   });
 }

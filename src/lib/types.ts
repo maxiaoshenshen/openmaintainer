@@ -291,6 +291,24 @@ export type ResponseSlaQueue = {
   markdown: string;
 };
 
+export type ReproductionRequestItem = {
+  id: string;
+  issueNumber: number;
+  title: string;
+  contributor: string;
+  url: string;
+  missingInformation: string[];
+  checklist: string[];
+  commentDraft: string;
+  githubCommand: string;
+};
+
+export type ReproductionRequestKit = {
+  summary: string;
+  items: ReproductionRequestItem[];
+  markdown: string;
+};
+
 export type OssEvidencePack = {
   programUrl: string;
   roleDraft: string;

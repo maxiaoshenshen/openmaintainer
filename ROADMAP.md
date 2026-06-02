@@ -10,6 +10,7 @@
 - Live multi-repository inbox builder
 - Contributor impact queue for blocked developers
 - Response SLA queue for overdue contributor threads
+- Reproduction request kit for incomplete bug reports
 - Contributor unblock kit with copyable replies and GitHub CLI commands
 - Maintainer command queue for prioritized, human-approved GitHub CLI batches
 - Codex for Open Source evidence pack
