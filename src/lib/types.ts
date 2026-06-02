@@ -256,3 +256,19 @@ export type OssEvidencePack = {
   evidence: string[];
   markdown: string;
 };
+
+export type ContributorUnblockKitItem = {
+  id: string;
+  contributor: string;
+  title: string;
+  url: string;
+  actionId: string;
+  commentDraft: string;
+  commands: string[];
+};
+
+export type ContributorUnblockKit = {
+  summary: string;
+  items: ContributorUnblockKitItem[];
+  markdown: string;
+};

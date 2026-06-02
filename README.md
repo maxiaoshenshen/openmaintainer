@@ -33,6 +33,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Multi-repository maintainer inbox that ranks the most painful queues first
 - Live multi-repository inbox builder for pasted GitHub repository lists
 - Contributor impact queue that surfaces blocked developers and unblock steps
+- Contributor unblock kit with copyable maintainer replies and GitHub CLI commands
 - Codex for Open Source evidence pack with copyable application drafts
 - Pull request review summaries and risk indicators
 - Repository health score and next actions
@@ -100,6 +101,7 @@ CI runs the same validation command on pushes to `main` and pull requests.
 - `src/app` contains the Next.js App Router UI and route handlers.
 - `src/components/dashboard.tsx` contains the interactive maintainer cockpit.
 - `src/lib/maintainer-analysis.ts` contains deterministic triage, PR review, maintainer settings, health, and release-note logic.
+- `src/lib/unblock-kit.ts` turns blocked contributor impact into a copyable execution package.
 - `src/lib/github.ts` contains GitHub repository parsing and fetch logic.
 - `src/lib/openai-analyzer.ts` contains the optional OpenAI analysis path.
 

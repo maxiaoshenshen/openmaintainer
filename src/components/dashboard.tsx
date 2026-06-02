@@ -23,6 +23,7 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   ContributorImpactQueue,
+  ContributorUnblockKit,
   MaintainerAnalysis,
   MaintainerInbox,
   MaintainerRepository,
@@ -65,6 +66,7 @@ type DashboardProps = {
   initialRepository: MaintainerRepository;
   initialAnalysis: MaintainerAnalysis;
   initialContributorImpact: ContributorImpactQueue;
+  initialUnblockKit: ContributorUnblockKit;
   initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
@@ -80,6 +82,8 @@ const copy = {
     portfolioPlaceholder: "owner/repo, openai/openai-cookbook, vercel/next.js",
     mostPainful: "Most painful",
     impact: "Contributor impact",
+    unblockKit: "Unblock kit",
+    copyUnblockKit: "Copy kit",
     evidence: "OSS evidence pack",
     copyEvidence: "Copy evidence",
     reviews: "Review desk",
@@ -125,6 +129,8 @@ const copy = {
     portfolioPlaceholder: "owner/repo, openai/openai-cookbook, vercel/next.js",
     mostPainful: "最痛仓库",
     impact: "贡献者影响",
+    unblockKit: "解卡包",
+    copyUnblockKit: "复制解卡包",
     evidence: "开源申请证据包",
     copyEvidence: "复制证据包",
     reviews: "评审台",
@@ -239,6 +245,7 @@ export function Dashboard({
   initialRepository,
   initialAnalysis,
   initialContributorImpact,
+  initialUnblockKit,
   initialEvidencePack,
   initialInbox,
   initialSource,
@@ -262,6 +269,7 @@ export function Dashboard({
   const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
   const [copiedDigest, setCopiedDigest] = useState(false);
   const [copiedEvidence, setCopiedEvidence] = useState(false);
+  const [copiedUnblockKit, setCopiedUnblockKit] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -467,6 +475,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(initialEvidencePack.markdown);
     setCopiedEvidence(true);
     window.setTimeout(() => setCopiedEvidence(false), 1600);
+  }
+
+  async function copyUnblockKit() {
+    await navigator.clipboard.writeText(initialUnblockKit.markdown);
+    setCopiedUnblockKit(true);
+    window.setTimeout(() => setCopiedUnblockKit(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -793,6 +807,56 @@ export function Dashboard({
                   </div>
                   <div className="text-xs text-stone-500">avg wait</div>
                 </div>
+              </div>
+            </div>
+            <div className="grid gap-0 border-b border-stone-200 bg-stone-50/70 lg:grid-cols-[1fr_260px]">
+              <div className="p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  <ClipboardList className="size-4 text-emerald-700" />
+                  {text.unblockKit}
+                </div>
+                <p className="mt-2 text-sm font-semibold leading-6 text-stone-900">
+                  {initialUnblockKit.summary}
+                </p>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {initialUnblockKit.items.slice(0, 4).map((item) => (
+                    <a
+                      key={item.id}
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="min-w-0 rounded-md border border-stone-200 bg-white px-3 py-2 hover:border-stone-300 hover:bg-stone-100"
+                    >
+                      <div className="truncate text-sm font-semibold text-stone-950">
+                        {item.contributor}
+                      </div>
+                      <div className="mt-1 truncate text-xs text-stone-600">
+                        {item.title}
+                      </div>
+                      <div className="mt-2 text-xs font-semibold text-emerald-700">
+                        {item.commands.length} command{item.commands.length === 1 ? "" : "s"}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col justify-between border-t border-stone-200 p-4 lg:border-l lg:border-t-0">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    Ready to paste
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">
+                    Includes maintainer replies and GitHub CLI commands for blocked contributors.
+                  </p>
+                </div>
+                <button
+                  onClick={copyUnblockKit}
+                  className="mt-4 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-stone-950 px-3 text-sm font-semibold text-white hover:bg-stone-800"
+                  title={text.copyUnblockKit}
+                >
+                  <Copy className="size-4" />
+                  {copiedUnblockKit ? "Copied" : text.copyUnblockKit}
+                </button>
               </div>
             </div>
             <div className="divide-y divide-stone-200">

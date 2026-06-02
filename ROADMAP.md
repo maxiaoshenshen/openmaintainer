@@ -9,6 +9,7 @@
 - Multi-repository maintainer inbox
 - Live multi-repository inbox builder
 - Contributor impact queue for blocked developers
+- Contributor unblock kit with copyable replies and GitHub CLI commands
 - Codex for Open Source evidence pack
 - PR review summaries
 - Release draft generation
