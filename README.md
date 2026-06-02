@@ -40,6 +40,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Codex for Open Source evidence pack with copyable application drafts
 - Form-ready Codex for Open Source application packet with official field answers
 - Pull request review summaries and risk indicators
+- Pull request review handoff kit with focus areas, validation steps, and GitHub CLI commands
 - Repository health score and next actions
 - OSS readiness checklist
 - Real repository quality signals for label coverage, response gaps, PR age, and review load
@@ -108,6 +109,7 @@ CI runs the same validation command on pushes to `main` and pull requests.
 - `src/lib/maintainer-command-queue.ts` stages maintainer actions into a prioritized GitHub CLI execution queue.
 - `src/lib/response-sla.ts` ranks contributor threads against maintainer response targets.
 - `src/lib/repro-kit.ts` turns incomplete bug reports into contributor-friendly reproduction requests.
+- `src/lib/pr-review-handoff.ts` turns risky pull requests into focused review handoff packages.
 - `src/lib/unblock-kit.ts` turns blocked contributor impact into a copyable execution package.
 - `src/lib/github.ts` contains GitHub repository parsing and fetch logic.
 - `src/lib/openai-analyzer.ts` contains the optional OpenAI analysis path.

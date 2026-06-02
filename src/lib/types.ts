@@ -309,6 +309,26 @@ export type ReproductionRequestKit = {
   markdown: string;
 };
 
+export type PullRequestReviewHandoffItem = {
+  id: string;
+  pullRequestNumber: number;
+  title: string;
+  contributor: string;
+  url: string;
+  risk: PullRequestReview["risk"];
+  focusAreas: string[];
+  suggestedTests: string[];
+  reviewCommentDraft: string;
+  maintainerCommands: string[];
+  githubCommentCommand: string;
+};
+
+export type PullRequestReviewHandoffKit = {
+  summary: string;
+  items: PullRequestReviewHandoffItem[];
+  markdown: string;
+};
+
 export type OssEvidencePack = {
   programUrl: string;
   roleDraft: string;

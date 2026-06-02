@@ -30,6 +30,7 @@ import type {
   MaintainerRepository,
   MaintainerSettings,
   OssEvidencePack,
+  PullRequestReviewHandoffKit,
   ReproductionRequestKit,
   ResponseSlaQueue,
 } from "@/lib/types";
@@ -39,6 +40,7 @@ import { buildContributorUnblockKit } from "@/lib/unblock-kit";
 import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
 import { buildResponseSlaQueue } from "@/lib/response-sla";
 import { buildReproductionRequestKit } from "@/lib/repro-kit";
+import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -57,6 +59,7 @@ type RepositoryResponse = {
   commandQueue: MaintainerCommandQueue;
   responseSla: ResponseSlaQueue;
   reproKit: ReproductionRequestKit;
+  reviewHandoff: PullRequestReviewHandoffKit;
   source: "demo" | "github";
   warning?: string;
 };
@@ -85,6 +88,7 @@ type DashboardProps = {
   initialCommandQueue: MaintainerCommandQueue;
   initialResponseSla: ResponseSlaQueue;
   initialReproKit: ReproductionRequestKit;
+  initialReviewHandoff: PullRequestReviewHandoffKit;
   initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
@@ -111,6 +115,8 @@ const copy = {
     applicationPacket: "Application packet",
     copyApplication: "Copy application",
     reviews: "Review desk",
+    reviewHandoff: "PR handoff",
+    copyReviewHandoff: "Copy handoff",
     release: "Release draft",
     actions: "Action plan",
     playbooks: "Repository playbooks",
@@ -166,6 +172,8 @@ const copy = {
     applicationPacket: "申请材料包",
     copyApplication: "复制申请材料",
     reviews: "评审台",
+    reviewHandoff: "PR 交接包",
+    copyReviewHandoff: "复制交接包",
     release: "发布草稿",
     actions: "行动计划",
     playbooks: "仓库维护剧本",
@@ -285,6 +293,7 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     commandQueue: buildMaintainerCommandQueue(analysis.actions),
     responseSla: buildResponseSlaQueue(contributorImpact, analysis.settings),
     reproKit: buildReproductionRequestKit(repository, analysis),
+    reviewHandoff: buildPullRequestReviewHandoffKit(repository, analysis),
   };
 }
 
@@ -296,6 +305,7 @@ export function Dashboard({
   initialCommandQueue,
   initialResponseSla,
   initialReproKit,
+  initialReviewHandoff,
   initialEvidencePack,
   initialInbox,
   initialSource,
@@ -308,6 +318,7 @@ export function Dashboard({
   const [commandQueue, setCommandQueue] = useState(initialCommandQueue);
   const [responseSla, setResponseSla] = useState(initialResponseSla);
   const [reproKit, setReproKit] = useState(initialReproKit);
+  const [reviewHandoff, setReviewHandoff] = useState(initialReviewHandoff);
   const [inbox, setInbox] = useState(initialInbox);
   const [portfolioInput, setPortfolioInput] = useState(
     initialInbox.items.map((item) => item.repository).join("\n"),
@@ -330,6 +341,7 @@ export function Dashboard({
   const [copiedCommandQueue, setCopiedCommandQueue] = useState(false);
   const [copiedResponseSla, setCopiedResponseSla] = useState(false);
   const [copiedReproKit, setCopiedReproKit] = useState(false);
+  const [copiedReviewHandoff, setCopiedReviewHandoff] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -410,6 +422,7 @@ export function Dashboard({
       setCommandQueue(data.commandQueue);
       setResponseSla(data.responseSla);
       setReproKit(data.reproKit);
+      setReviewHandoff(data.reviewHandoff);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
@@ -470,6 +483,7 @@ export function Dashboard({
       setCommandQueue(nextArtifacts.commandQueue);
       setResponseSla(nextArtifacts.responseSla);
       setReproKit(nextArtifacts.reproKit);
+      setReviewHandoff(nextArtifacts.reviewHandoff);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
@@ -578,6 +592,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(reproKit.markdown);
     setCopiedReproKit(true);
     window.setTimeout(() => setCopiedReproKit(false), 1600);
+  }
+
+  async function copyReviewHandoff() {
+    await navigator.clipboard.writeText(reviewHandoff.markdown);
+    setCopiedReviewHandoff(true);
+    window.setTimeout(() => setCopiedReviewHandoff(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -1305,6 +1325,72 @@ export function Dashboard({
                   </div>
                 </div>
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <GitPullRequest className="size-5 text-emerald-700" />
+                  {text.reviewHandoff}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {reviewHandoff.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyReviewHandoff}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyReviewHandoff}
+              >
+                <Copy className="size-4" />
+                {copiedReviewHandoff ? "Copied" : text.copyReviewHandoff}
+              </button>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {reviewHandoff.items.slice(0, 3).map((item) => (
+                <article key={item.id} className="grid gap-3 p-4 lg:grid-cols-[1fr_300px]">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-sm font-semibold text-stone-950 hover:text-blue-700"
+                      >
+                        {item.title}
+                      </a>
+                      <span className={`rounded px-2 py-1 text-xs font-bold uppercase ${riskColor(item.risk)}`}>
+                        {item.risk}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-stone-600">
+                      {item.reviewCommentDraft}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {item.focusAreas.map((area) => (
+                        <span key={area} className="rounded bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+                          {area}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-stone-200 bg-stone-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      Validation
+                    </div>
+                    <ul className="mt-2 space-y-1 text-sm leading-5 text-stone-800">
+                      {item.suggestedTests.map((test) => (
+                        <li key={test} className="flex gap-2">
+                          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+                          <span>{test}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
 

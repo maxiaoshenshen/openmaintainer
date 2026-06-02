@@ -22,5 +22,9 @@ describe("repository route", () => {
     expect(body.responseSla.markdown).toContain("Response SLA queue");
     expect(body.reproKit.summary).toBe("2 bug reports need reproducible details before maintainers can act");
     expect(body.reproKit.markdown).toContain("gh issue comment 284");
+    expect(body.reviewHandoff.summary).toBe(
+      "1 pull request needs focused review handoff before contributors wait longer",
+    );
+    expect(body.reviewHandoff.markdown).toContain("gh pr checkout 92");
   });
 });

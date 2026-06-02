@@ -16,6 +16,7 @@
 - Codex for Open Source evidence pack
 - Form-ready Codex for Open Source application packet
 - PR review summaries
+- PR review handoff kit with focus areas, validation steps, and GitHub CLI commands
 - Release draft generation
 - Similar issue detection
 - Duplicate issue workflow actions
