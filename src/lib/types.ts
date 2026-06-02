@@ -104,6 +104,25 @@ export type MaintainerAction = {
   githubCommands: string[];
 };
 
+export type MaintainerCommandQueueItem = {
+  actionId: string;
+  title: string;
+  target: MaintainerAction["target"];
+  priority: MaintainerAction["priority"];
+  url: string;
+  commandCount: number;
+  commands: string[];
+  requiresReview: boolean;
+  reviewReason: string | null;
+};
+
+export type MaintainerCommandQueue = {
+  summary: string;
+  commandCount: number;
+  items: MaintainerCommandQueueItem[];
+  markdown: string;
+};
+
 export type RepositoryPlaybookStep = {
   actionId: string;
   label: string;

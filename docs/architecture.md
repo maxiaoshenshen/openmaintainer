@@ -24,6 +24,8 @@ OpenMaintainer is split into four layers.
 
 `src/lib/unblock-kit.ts` converts blocked contributor impact into a copyable maintainer execution package with reply drafts and GitHub CLI commands.
 
+`src/lib/maintainer-command-queue.ts` stages maintainer actions into a prioritized GitHub CLI command queue with review gates for close and release commands.
+
 `src/lib/oss-evidence.ts` turns repository analysis and contributor impact into a Codex for Open Source evidence pack, including a form-ready application packet with official field answers and 500-character answer limits.
 
 `src/lib/maintainer-analysis.ts` contains pure TypeScript logic for:

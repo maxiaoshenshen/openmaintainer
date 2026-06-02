@@ -24,6 +24,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   ContributorImpactQueue,
   ContributorUnblockKit,
+  MaintainerCommandQueue,
   MaintainerAnalysis,
   MaintainerInbox,
   MaintainerRepository,
@@ -33,6 +34,7 @@ import type {
 import { buildContributorImpactQueue } from "@/lib/contributor-impact";
 import { buildOssEvidencePack } from "@/lib/oss-evidence";
 import { buildContributorUnblockKit } from "@/lib/unblock-kit";
+import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -48,6 +50,7 @@ type RepositoryResponse = {
   contributorImpact: ContributorImpactQueue;
   evidencePack: OssEvidencePack;
   unblockKit: ContributorUnblockKit;
+  commandQueue: MaintainerCommandQueue;
   source: "demo" | "github";
   warning?: string;
 };
@@ -73,6 +76,7 @@ type DashboardProps = {
   initialAnalysis: MaintainerAnalysis;
   initialContributorImpact: ContributorImpactQueue;
   initialUnblockKit: ContributorUnblockKit;
+  initialCommandQueue: MaintainerCommandQueue;
   initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
@@ -105,6 +109,8 @@ const copy = {
     importSnapshot: "Import snapshot",
     snapshotJson: "Paste snapshot JSON",
     githubHandoff: "GitHub handoff",
+    commandQueue: "Command queue",
+    copyCommandQueue: "Copy queue",
     copyDigest: "Copy digest",
     copyPlaybook: "Copy playbook",
     ai: "AI copilot",
@@ -154,6 +160,8 @@ const copy = {
     importSnapshot: "导入快照",
     snapshotJson: "粘贴快照 JSON",
     githubHandoff: "GitHub 交接",
+    commandQueue: "命令队列",
+    copyCommandQueue: "复制队列",
     copyDigest: "复制周报",
     copyPlaybook: "复制剧本",
     ai: "AI 副驾驶",
@@ -258,6 +266,7 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     contributorImpact,
     evidencePack: buildOssEvidencePack(repository, analysis, contributorImpact),
     unblockKit: buildContributorUnblockKit(contributorImpact, analysis.actions),
+    commandQueue: buildMaintainerCommandQueue(analysis.actions),
   };
 }
 
@@ -266,6 +275,7 @@ export function Dashboard({
   initialAnalysis,
   initialContributorImpact,
   initialUnblockKit,
+  initialCommandQueue,
   initialEvidencePack,
   initialInbox,
   initialSource,
@@ -275,6 +285,7 @@ export function Dashboard({
   const [contributorImpact, setContributorImpact] = useState(initialContributorImpact);
   const [evidencePack, setEvidencePack] = useState(initialEvidencePack);
   const [unblockKit, setUnblockKit] = useState(initialUnblockKit);
+  const [commandQueue, setCommandQueue] = useState(initialCommandQueue);
   const [inbox, setInbox] = useState(initialInbox);
   const [portfolioInput, setPortfolioInput] = useState(
     initialInbox.items.map((item) => item.repository).join("\n"),
@@ -294,6 +305,7 @@ export function Dashboard({
   const [copiedEvidence, setCopiedEvidence] = useState(false);
   const [copiedApplication, setCopiedApplication] = useState(false);
   const [copiedUnblockKit, setCopiedUnblockKit] = useState(false);
+  const [copiedCommandQueue, setCopiedCommandQueue] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -371,6 +383,7 @@ export function Dashboard({
       setContributorImpact(data.contributorImpact);
       setEvidencePack(data.evidencePack);
       setUnblockKit(data.unblockKit);
+      setCommandQueue(data.commandQueue);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
@@ -428,6 +441,7 @@ export function Dashboard({
       setContributorImpact(nextArtifacts.contributorImpact);
       setEvidencePack(nextArtifacts.evidencePack);
       setUnblockKit(nextArtifacts.unblockKit);
+      setCommandQueue(nextArtifacts.commandQueue);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
@@ -518,6 +532,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(unblockKit.markdown);
     setCopiedUnblockKit(true);
     window.setTimeout(() => setCopiedUnblockKit(false), 1600);
+  }
+
+  async function copyCommandQueue() {
+    await navigator.clipboard.writeText(commandQueue.markdown);
+    setCopiedCommandQueue(true);
+    window.setTimeout(() => setCopiedCommandQueue(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -1038,6 +1058,78 @@ export function Dashboard({
                     <li key={item}>{item}</li>
                   ))}
                 </ul>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <Bot className="size-5 text-blue-700" />
+                  {text.commandQueue}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {commandQueue.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyCommandQueue}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-stone-950 px-3 text-sm font-semibold text-white hover:bg-stone-800"
+                title={text.copyCommandQueue}
+              >
+                <Copy className="size-4" />
+                {copiedCommandQueue ? "Copied" : text.copyCommandQueue}
+              </button>
+            </div>
+            <div className="grid gap-0 md:grid-cols-[1fr_260px]">
+              <div className="divide-y divide-stone-200">
+                {commandQueue.items.slice(0, 4).map((item) => (
+                  <article key={item.actionId} className="grid gap-3 p-4 md:grid-cols-[1fr_150px]">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="truncate text-sm font-semibold text-stone-950 hover:text-blue-700"
+                        >
+                          {item.title}
+                        </a>
+                        <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${priorityColor(item.priority)}`}>
+                          {item.priority}
+                        </span>
+                      </div>
+                      <div className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                        {item.commandCount} command{item.commandCount === 1 ? "" : "s"}
+                      </div>
+                    </div>
+                    <div className={`rounded-md border p-3 text-sm font-semibold ${
+                      item.requiresReview
+                        ? "border-amber-200 bg-amber-50 text-amber-900"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    }`}
+                    >
+                      {item.requiresReview ? "Review first" : "Ready"}
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <div className="border-t border-stone-200 bg-stone-50 p-4 md:border-l md:border-t-0">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  Human approval gate
+                </div>
+                <p className="mt-2 text-sm leading-6 text-stone-600">
+                  Commands are staged for maintainer review. Close and release commands are flagged before running.
+                </p>
+                <div className="mt-4 rounded-md border border-stone-200 bg-white p-3">
+                  <div className="text-2xl font-semibold text-stone-950">
+                    {commandQueue.items.filter((item) => item.requiresReview).length}
+                  </div>
+                  <div className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    review gates
+                  </div>
+                </div>
               </div>
             </div>
           </section>

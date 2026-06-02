@@ -16,5 +16,7 @@ describe("repository route", () => {
     );
     expect(body.unblockKit.summary).toBe("4 blocked contributors can be unblocked with 9 maintainer commands");
     expect(body.unblockKit.markdown).toContain("gh issue comment 285");
+    expect(body.commandQueue.summary).toContain("GitHub commands");
+    expect(body.commandQueue.markdown).toContain("set -euo pipefail");
   });
 });
