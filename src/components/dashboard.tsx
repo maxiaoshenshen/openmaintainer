@@ -30,11 +30,13 @@ import type {
   MaintainerRepository,
   MaintainerSettings,
   OssEvidencePack,
+  ResponseSlaQueue,
 } from "@/lib/types";
 import { buildContributorImpactQueue } from "@/lib/contributor-impact";
 import { buildOssEvidencePack } from "@/lib/oss-evidence";
 import { buildContributorUnblockKit } from "@/lib/unblock-kit";
 import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
+import { buildResponseSlaQueue } from "@/lib/response-sla";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -51,6 +53,7 @@ type RepositoryResponse = {
   evidencePack: OssEvidencePack;
   unblockKit: ContributorUnblockKit;
   commandQueue: MaintainerCommandQueue;
+  responseSla: ResponseSlaQueue;
   source: "demo" | "github";
   warning?: string;
 };
@@ -77,6 +80,7 @@ type DashboardProps = {
   initialContributorImpact: ContributorImpactQueue;
   initialUnblockKit: ContributorUnblockKit;
   initialCommandQueue: MaintainerCommandQueue;
+  initialResponseSla: ResponseSlaQueue;
   initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
@@ -92,6 +96,8 @@ const copy = {
     portfolioPlaceholder: "owner/repo, openai/openai-cookbook, vercel/next.js",
     mostPainful: "Most painful",
     impact: "Contributor impact",
+    responseSla: "Response SLA",
+    copyResponseSla: "Copy SLA",
     unblockKit: "Unblock kit",
     copyUnblockKit: "Copy kit",
     evidence: "OSS evidence pack",
@@ -143,6 +149,8 @@ const copy = {
     portfolioPlaceholder: "owner/repo, openai/openai-cookbook, vercel/next.js",
     mostPainful: "最痛仓库",
     impact: "贡献者影响",
+    responseSla: "响应 SLA",
+    copyResponseSla: "复制 SLA",
     unblockKit: "解卡包",
     copyUnblockKit: "复制解卡包",
     evidence: "开源申请证据包",
@@ -267,6 +275,7 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     evidencePack: buildOssEvidencePack(repository, analysis, contributorImpact),
     unblockKit: buildContributorUnblockKit(contributorImpact, analysis.actions),
     commandQueue: buildMaintainerCommandQueue(analysis.actions),
+    responseSla: buildResponseSlaQueue(contributorImpact, analysis.settings),
   };
 }
 
@@ -276,6 +285,7 @@ export function Dashboard({
   initialContributorImpact,
   initialUnblockKit,
   initialCommandQueue,
+  initialResponseSla,
   initialEvidencePack,
   initialInbox,
   initialSource,
@@ -286,6 +296,7 @@ export function Dashboard({
   const [evidencePack, setEvidencePack] = useState(initialEvidencePack);
   const [unblockKit, setUnblockKit] = useState(initialUnblockKit);
   const [commandQueue, setCommandQueue] = useState(initialCommandQueue);
+  const [responseSla, setResponseSla] = useState(initialResponseSla);
   const [inbox, setInbox] = useState(initialInbox);
   const [portfolioInput, setPortfolioInput] = useState(
     initialInbox.items.map((item) => item.repository).join("\n"),
@@ -306,6 +317,7 @@ export function Dashboard({
   const [copiedApplication, setCopiedApplication] = useState(false);
   const [copiedUnblockKit, setCopiedUnblockKit] = useState(false);
   const [copiedCommandQueue, setCopiedCommandQueue] = useState(false);
+  const [copiedResponseSla, setCopiedResponseSla] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -384,6 +396,7 @@ export function Dashboard({
       setEvidencePack(data.evidencePack);
       setUnblockKit(data.unblockKit);
       setCommandQueue(data.commandQueue);
+      setResponseSla(data.responseSla);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
@@ -442,6 +455,7 @@ export function Dashboard({
       setEvidencePack(nextArtifacts.evidencePack);
       setUnblockKit(nextArtifacts.unblockKit);
       setCommandQueue(nextArtifacts.commandQueue);
+      setResponseSla(nextArtifacts.responseSla);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
@@ -538,6 +552,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(commandQueue.markdown);
     setCopiedCommandQueue(true);
     window.setTimeout(() => setCopiedCommandQueue(false), 1600);
+  }
+
+  async function copyResponseSla() {
+    await navigator.clipboard.writeText(responseSla.markdown);
+    setCopiedResponseSla(true);
+    window.setTimeout(() => setCopiedResponseSla(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -863,6 +883,81 @@ export function Dashboard({
                   </div>
                 ))}
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <Gauge className="size-5 text-rose-700" />
+                  {text.responseSla}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {responseSla.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyResponseSla}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyResponseSla}
+              >
+                <Copy className="size-4" />
+                {copiedResponseSla ? "Copied" : text.copyResponseSla}
+              </button>
+            </div>
+            <div className="grid grid-cols-3 border-b border-stone-200 text-center text-sm">
+              <div className="border-r border-stone-200 p-3">
+                <div className="text-xl font-semibold text-rose-700">{responseSla.totals.overdue}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">overdue</div>
+              </div>
+              <div className="border-r border-stone-200 p-3">
+                <div className="text-xl font-semibold text-amber-700">{responseSla.totals.atRisk}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">at risk</div>
+              </div>
+              <div className="p-3">
+                <div className="text-xl font-semibold text-emerald-700">{responseSla.totals.onTrack}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">on track</div>
+              </div>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {responseSla.items.slice(0, 4).map((item) => (
+                <article key={item.id} className="grid gap-3 p-4 md:grid-cols-[1fr_180px]">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-sm font-semibold text-stone-950 hover:text-blue-700"
+                      >
+                        {item.title}
+                      </a>
+                      <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                        item.status === "overdue"
+                          ? "border-rose-200 bg-rose-100 text-rose-800"
+                          : item.status === "at-risk"
+                            ? "border-amber-200 bg-amber-100 text-amber-900"
+                            : "border-emerald-200 bg-emerald-100 text-emerald-800"
+                      }`}
+                      >
+                        {item.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-stone-600">
+                      {item.contributor} waited {item.waitDays}d; target is {item.targetDays}d.
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-stone-200 bg-stone-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      Next
+                    </div>
+                    <div className="mt-1 text-sm font-semibold leading-5 text-stone-900">
+                      {item.nextStep}
+                    </div>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
 

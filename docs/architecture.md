@@ -22,6 +22,8 @@ OpenMaintainer is split into four layers.
 
 `src/lib/contributor-impact.ts` converts issues and pull requests into a contributor-facing unblock queue, ranking who is waiting and which maintainer action will help them move.
 
+`src/lib/response-sla.ts` ranks contributor threads against maintainer response targets, showing overdue, at-risk, and on-track waits.
+
 `src/lib/unblock-kit.ts` converts blocked contributor impact into a copyable maintainer execution package with reply drafts and GitHub CLI commands.
 
 `src/lib/maintainer-command-queue.ts` stages maintainer actions into a prioritized GitHub CLI command queue with review gates for close and release commands.

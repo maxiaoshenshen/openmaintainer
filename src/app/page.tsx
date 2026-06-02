@@ -6,6 +6,7 @@ import { analyzeRepository } from "@/lib/maintainer-analysis";
 import { buildOssEvidencePack } from "@/lib/oss-evidence";
 import { buildContributorUnblockKit } from "@/lib/unblock-kit";
 import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
+import { buildResponseSlaQueue } from "@/lib/response-sla";
 
 export default function Home() {
   const observedAt = new Date("2026-06-03T00:00:00Z");
@@ -17,6 +18,7 @@ export default function Home() {
   const initialContributorImpact = buildContributorImpactQueue(demoRepository, initialAnalysis, observedAt);
   const initialUnblockKit = buildContributorUnblockKit(initialContributorImpact, initialAnalysis.actions);
   const initialCommandQueue = buildMaintainerCommandQueue(initialAnalysis.actions);
+  const initialResponseSla = buildResponseSlaQueue(initialContributorImpact, initialAnalysis.settings);
   const initialInbox = buildMaintainerInbox(
     demoPortfolioRepositories.map((repository) => ({
       repository,
@@ -32,6 +34,7 @@ export default function Home() {
       initialContributorImpact={initialContributorImpact}
       initialUnblockKit={initialUnblockKit}
       initialCommandQueue={initialCommandQueue}
+      initialResponseSla={initialResponseSla}
       initialEvidencePack={buildOssEvidencePack(demoRepository, initialAnalysis, initialContributorImpact)}
       initialInbox={initialInbox}
       initialSource="demo"

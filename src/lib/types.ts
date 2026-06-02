@@ -266,6 +266,31 @@ export type ContributorImpactQueue = {
   items: ContributorImpactItem[];
 };
 
+export type ResponseSlaItem = {
+  id: string;
+  contributor: string;
+  title: string;
+  url: string;
+  source: ContributorImpactItem["source"];
+  waitDays: number;
+  targetDays: number;
+  daysOverTarget: number;
+  daysUntilTarget: number;
+  status: "overdue" | "at-risk" | "on-track";
+  nextStep: string;
+};
+
+export type ResponseSlaQueue = {
+  summary: string;
+  totals: {
+    overdue: number;
+    atRisk: number;
+    onTrack: number;
+  };
+  items: ResponseSlaItem[];
+  markdown: string;
+};
+
 export type OssEvidencePack = {
   programUrl: string;
   roleDraft: string;

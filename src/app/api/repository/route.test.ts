@@ -18,5 +18,7 @@ describe("repository route", () => {
     expect(body.unblockKit.markdown).toContain("gh issue comment 285");
     expect(body.commandQueue.summary).toContain("GitHub commands");
     expect(body.commandQueue.markdown).toContain("set -euo pipefail");
+    expect(body.responseSla.summary).toContain("contributor threads need attention");
+    expect(body.responseSla.markdown).toContain("Response SLA queue");
   });
 });
