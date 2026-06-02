@@ -30,6 +30,9 @@ import type {
   MaintainerSettings,
   OssEvidencePack,
 } from "@/lib/types";
+import { buildContributorImpactQueue } from "@/lib/contributor-impact";
+import { buildOssEvidencePack } from "@/lib/oss-evidence";
+import { buildContributorUnblockKit } from "@/lib/unblock-kit";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -42,6 +45,9 @@ import {
 type RepositoryResponse = {
   repository: MaintainerRepository;
   analysis: MaintainerAnalysis;
+  contributorImpact: ContributorImpactQueue;
+  evidencePack: OssEvidencePack;
+  unblockKit: ContributorUnblockKit;
   source: "demo" | "github";
   warning?: string;
 };
@@ -241,6 +247,16 @@ function playbookMarkdown(playbook: MaintainerAnalysis["playbooks"][number]) {
   ].join("\n");
 }
 
+function buildDashboardArtifacts(repository: MaintainerRepository, analysis: MaintainerAnalysis) {
+  const contributorImpact = buildContributorImpactQueue(repository, analysis);
+
+  return {
+    contributorImpact,
+    evidencePack: buildOssEvidencePack(repository, analysis, contributorImpact),
+    unblockKit: buildContributorUnblockKit(contributorImpact, analysis.actions),
+  };
+}
+
 export function Dashboard({
   initialRepository,
   initialAnalysis,
@@ -252,6 +268,9 @@ export function Dashboard({
 }: DashboardProps) {
   const [repository, setRepository] = useState(initialRepository);
   const [analysis, setAnalysis] = useState(initialAnalysis);
+  const [contributorImpact, setContributorImpact] = useState(initialContributorImpact);
+  const [evidencePack, setEvidencePack] = useState(initialEvidencePack);
+  const [unblockKit, setUnblockKit] = useState(initialUnblockKit);
   const [inbox, setInbox] = useState(initialInbox);
   const [portfolioInput, setPortfolioInput] = useState(
     initialInbox.items.map((item) => item.repository).join("\n"),
@@ -344,6 +363,9 @@ export function Dashboard({
       const data = (await response.json()) as RepositoryResponse;
       setRepository(data.repository);
       setAnalysis(data.analysis);
+      setContributorImpact(data.contributorImpact);
+      setEvidencePack(data.evidencePack);
+      setUnblockKit(data.unblockKit);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
@@ -396,7 +418,11 @@ export function Dashboard({
         }),
       });
       const data = (await response.json()) as AnalyzeResponse;
+      const nextArtifacts = buildDashboardArtifacts(repository, data.analysis);
       setAnalysis(data.analysis);
+      setContributorImpact(nextArtifacts.contributorImpact);
+      setEvidencePack(nextArtifacts.evidencePack);
+      setUnblockKit(nextArtifacts.unblockKit);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
@@ -472,13 +498,13 @@ export function Dashboard({
   }
 
   async function copyEvidencePack() {
-    await navigator.clipboard.writeText(initialEvidencePack.markdown);
+    await navigator.clipboard.writeText(evidencePack.markdown);
     setCopiedEvidence(true);
     window.setTimeout(() => setCopiedEvidence(false), 1600);
   }
 
   async function copyUnblockKit() {
-    await navigator.clipboard.writeText(initialUnblockKit.markdown);
+    await navigator.clipboard.writeText(unblockKit.markdown);
     setCopiedUnblockKit(true);
     window.setTimeout(() => setCopiedUnblockKit(false), 1600);
   }
@@ -746,13 +772,13 @@ export function Dashboard({
                   Why this repository qualifies
                 </div>
                 <p className="mt-2 text-sm leading-6 text-stone-700">
-                  {initialEvidencePack.qualificationDraft}
+                  {evidencePack.qualificationDraft}
                 </p>
                 <div className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
                   API credit usage
                 </div>
                 <p className="mt-2 text-sm leading-6 text-stone-700">
-                  {initialEvidencePack.creditUseDraft}
+                  {evidencePack.creditUseDraft}
                 </p>
               </div>
               <div className="p-4">
@@ -760,12 +786,12 @@ export function Dashboard({
                   Evidence
                 </div>
                 <ul className="mt-3 space-y-2 text-sm leading-5 text-stone-700">
-                  {initialEvidencePack.evidence.map((item) => (
+                  {evidencePack.evidence.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
                 </ul>
                 <a
-                  href={initialEvidencePack.programUrl}
+                  href={evidencePack.programUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="mt-4 inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
@@ -785,25 +811,25 @@ export function Dashboard({
                   {text.impact}
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-stone-600">
-                  {initialContributorImpact.summary}
+                  {contributorImpact.summary}
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center text-sm">
                 <div className="rounded-md border border-stone-200 px-3 py-2">
                   <div className="font-semibold text-stone-950">
-                    {initialContributorImpact.totals.contributorsWaiting}
+                    {contributorImpact.totals.contributorsWaiting}
                   </div>
                   <div className="text-xs text-stone-500">contributors</div>
                 </div>
                 <div className="rounded-md border border-stone-200 px-3 py-2">
                   <div className="font-semibold text-stone-950">
-                    {initialContributorImpact.totals.blockedItems}
+                    {contributorImpact.totals.blockedItems}
                   </div>
                   <div className="text-xs text-stone-500">blocked</div>
                 </div>
                 <div className="rounded-md border border-stone-200 px-3 py-2">
                   <div className="font-semibold text-stone-950">
-                    {initialContributorImpact.totals.averageWaitDays}d
+                    {contributorImpact.totals.averageWaitDays}d
                   </div>
                   <div className="text-xs text-stone-500">avg wait</div>
                 </div>
@@ -816,10 +842,10 @@ export function Dashboard({
                   {text.unblockKit}
                 </div>
                 <p className="mt-2 text-sm font-semibold leading-6 text-stone-900">
-                  {initialUnblockKit.summary}
+                  {unblockKit.summary}
                 </p>
                 <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  {initialUnblockKit.items.slice(0, 4).map((item) => (
+                  {unblockKit.items.slice(0, 4).map((item) => (
                     <a
                       key={item.id}
                       href={item.url}
@@ -860,7 +886,7 @@ export function Dashboard({
               </div>
             </div>
             <div className="divide-y divide-stone-200">
-              {initialContributorImpact.items.slice(0, 4).map((item) => (
+              {contributorImpact.items.slice(0, 4).map((item) => (
                 <article key={item.id} className="grid gap-3 p-4 md:grid-cols-[1fr_220px]">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

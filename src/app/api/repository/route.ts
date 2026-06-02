@@ -1,6 +1,9 @@
 import { analyzeRepository } from "@/lib/maintainer-analysis";
 import { getRepositoryOrDemo } from "@/lib/github";
 import { demoPreviousSnapshot } from "@/lib/demo-data";
+import { buildContributorImpactQueue } from "@/lib/contributor-impact";
+import { buildOssEvidencePack } from "@/lib/oss-evidence";
+import { buildContributorUnblockKit } from "@/lib/unblock-kit";
 import type { MaintainerSettings, RepositoryAnalysisSnapshot } from "@/lib/types";
 
 function parsePreviousSnapshot(value: string | null): RepositoryAnalysisSnapshot | undefined {
@@ -45,9 +48,15 @@ export async function GET(request: Request) {
     previousSnapshot ?? (result.source === "demo" ? demoPreviousSnapshot : undefined),
     settings,
   );
+  const contributorImpact = buildContributorImpactQueue(result.repository, analysis);
+  const evidencePack = buildOssEvidencePack(result.repository, analysis, contributorImpact);
+  const unblockKit = buildContributorUnblockKit(contributorImpact, analysis.actions);
 
   return Response.json({
     ...result,
     analysis,
+    contributorImpact,
+    evidencePack,
+    unblockKit,
   });
 }
