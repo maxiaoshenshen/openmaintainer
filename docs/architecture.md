@@ -8,7 +8,7 @@ OpenMaintainer is split into four layers.
 
 ## 2. Route handlers
 
-`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data, deterministic analysis, contributor impact, the evidence pack, the contributor unblock kit, the response SLA queue, the reproduction request kit, and the pull request review handoff kit.
+`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data, deterministic analysis, contributor impact, the evidence pack, the contributor unblock kit, the response SLA queue, the reproduction request kit, the contributor starter kit, and the pull request review handoff kit.
 
 `src/app/api/analyze/route.ts` accepts repository data plus optional maintainer settings and returns either OpenAI-backed analysis or deterministic fallback analysis.
 
@@ -25,6 +25,8 @@ OpenMaintainer is split into four layers.
 `src/lib/response-sla.ts` ranks contributor threads against maintainer response targets, showing overdue, at-risk, and on-track waits.
 
 `src/lib/repro-kit.ts` converts incomplete bug reports into contributor-friendly reproduction checklists, maintainer comment drafts, and GitHub CLI comment commands.
+
+`src/lib/contributor-starter-kit.ts` converts approachable issues into first contribution task packets with branch names, acceptance criteria, PR checklists, and maintainer guidance comments.
 
 `src/lib/pr-review-handoff.ts` converts risky pull requests into focused review handoff packages with validation steps, maintainer commands, and contributor-visible review comments.
 

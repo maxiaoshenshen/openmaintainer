@@ -26,5 +26,7 @@ describe("repository route", () => {
       "1 pull request needs focused review handoff before contributors wait longer",
     );
     expect(body.reviewHandoff.markdown).toContain("gh pr checkout 92");
+    expect(body.starterKit.summary).toBe("2 starter tasks are ready for new contributors");
+    expect(body.starterKit.markdown).toContain("starter/issue-285-chinese-readme-quickstart");
   });
 });

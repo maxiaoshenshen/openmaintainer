@@ -19,10 +19,12 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  UserPlus,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   ContributorImpactQueue,
+  ContributorStarterKit,
   ContributorUnblockKit,
   MaintainerCommandQueue,
   MaintainerAnalysis,
@@ -41,6 +43,7 @@ import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
 import { buildResponseSlaQueue } from "@/lib/response-sla";
 import { buildReproductionRequestKit } from "@/lib/repro-kit";
 import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
+import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -60,6 +63,7 @@ type RepositoryResponse = {
   responseSla: ResponseSlaQueue;
   reproKit: ReproductionRequestKit;
   reviewHandoff: PullRequestReviewHandoffKit;
+  starterKit: ContributorStarterKit;
   source: "demo" | "github";
   warning?: string;
 };
@@ -89,6 +93,7 @@ type DashboardProps = {
   initialResponseSla: ResponseSlaQueue;
   initialReproKit: ReproductionRequestKit;
   initialReviewHandoff: PullRequestReviewHandoffKit;
+  initialStarterKit: ContributorStarterKit;
   initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
@@ -110,6 +115,8 @@ const copy = {
     copyReproKit: "Copy repro kit",
     unblockKit: "Unblock kit",
     copyUnblockKit: "Copy kit",
+    starterKit: "Starter kit",
+    copyStarterKit: "Copy starter kit",
     evidence: "OSS evidence pack",
     copyEvidence: "Copy evidence",
     applicationPacket: "Application packet",
@@ -167,6 +174,8 @@ const copy = {
     copyReproKit: "复制复现包",
     unblockKit: "解卡包",
     copyUnblockKit: "复制解卡包",
+    starterKit: "新手任务包",
+    copyStarterKit: "复制新手任务包",
     evidence: "开源申请证据包",
     copyEvidence: "复制证据包",
     applicationPacket: "申请材料包",
@@ -294,6 +303,7 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     responseSla: buildResponseSlaQueue(contributorImpact, analysis.settings),
     reproKit: buildReproductionRequestKit(repository, analysis),
     reviewHandoff: buildPullRequestReviewHandoffKit(repository, analysis),
+    starterKit: buildContributorStarterKit(repository, analysis),
   };
 }
 
@@ -306,6 +316,7 @@ export function Dashboard({
   initialResponseSla,
   initialReproKit,
   initialReviewHandoff,
+  initialStarterKit,
   initialEvidencePack,
   initialInbox,
   initialSource,
@@ -319,6 +330,7 @@ export function Dashboard({
   const [responseSla, setResponseSla] = useState(initialResponseSla);
   const [reproKit, setReproKit] = useState(initialReproKit);
   const [reviewHandoff, setReviewHandoff] = useState(initialReviewHandoff);
+  const [starterKit, setStarterKit] = useState(initialStarterKit);
   const [inbox, setInbox] = useState(initialInbox);
   const [portfolioInput, setPortfolioInput] = useState(
     initialInbox.items.map((item) => item.repository).join("\n"),
@@ -342,6 +354,7 @@ export function Dashboard({
   const [copiedResponseSla, setCopiedResponseSla] = useState(false);
   const [copiedReproKit, setCopiedReproKit] = useState(false);
   const [copiedReviewHandoff, setCopiedReviewHandoff] = useState(false);
+  const [copiedStarterKit, setCopiedStarterKit] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -423,6 +436,7 @@ export function Dashboard({
       setResponseSla(data.responseSla);
       setReproKit(data.reproKit);
       setReviewHandoff(data.reviewHandoff);
+      setStarterKit(data.starterKit);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
@@ -484,6 +498,7 @@ export function Dashboard({
       setResponseSla(nextArtifacts.responseSla);
       setReproKit(nextArtifacts.reproKit);
       setReviewHandoff(nextArtifacts.reviewHandoff);
+      setStarterKit(nextArtifacts.starterKit);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
@@ -598,6 +613,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(reviewHandoff.markdown);
     setCopiedReviewHandoff(true);
     window.setTimeout(() => setCopiedReviewHandoff(false), 1600);
+  }
+
+  async function copyStarterKit() {
+    await navigator.clipboard.writeText(starterKit.markdown);
+    setCopiedStarterKit(true);
+    window.setTimeout(() => setCopiedStarterKit(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -923,6 +944,68 @@ export function Dashboard({
                   </div>
                 ))}
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <UserPlus className="size-5 text-teal-700" />
+                  {text.starterKit}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {starterKit.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyStarterKit}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyStarterKit}
+              >
+                <Copy className="size-4" />
+                {copiedStarterKit ? "Copied" : text.copyStarterKit}
+              </button>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {starterKit.items.slice(0, 3).map((item) => (
+                <article key={item.id} className="grid gap-3 p-4 lg:grid-cols-[1fr_300px]">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-sm font-semibold text-stone-950 hover:text-blue-700"
+                      >
+                        {item.title}
+                      </a>
+                      <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">
+                        {item.difficulty}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-stone-600">
+                      {item.maintainerCommentDraft}
+                    </p>
+                    <div className="mt-3 rounded-md border border-stone-200 bg-stone-50 px-3 py-2 font-mono text-xs text-stone-700">
+                      {item.suggestedBranch}
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-stone-200 bg-stone-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      Acceptance
+                    </div>
+                    <ul className="mt-2 space-y-1 text-sm leading-5 text-stone-800">
+                      {item.acceptanceCriteria.slice(0, 3).map((criterion) => (
+                        <li key={criterion} className="flex gap-2">
+                          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-teal-700" />
+                          <span>{criterion}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
 

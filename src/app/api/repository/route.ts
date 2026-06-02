@@ -8,6 +8,7 @@ import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
 import { buildResponseSlaQueue } from "@/lib/response-sla";
 import { buildReproductionRequestKit } from "@/lib/repro-kit";
 import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
+import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import type { MaintainerSettings, RepositoryAnalysisSnapshot } from "@/lib/types";
 
 function parsePreviousSnapshot(value: string | null): RepositoryAnalysisSnapshot | undefined {
@@ -59,6 +60,7 @@ export async function GET(request: Request) {
   const responseSla = buildResponseSlaQueue(contributorImpact, analysis.settings);
   const reproKit = buildReproductionRequestKit(result.repository, analysis);
   const reviewHandoff = buildPullRequestReviewHandoffKit(result.repository, analysis);
+  const starterKit = buildContributorStarterKit(result.repository, analysis);
 
   return Response.json({
     ...result,
@@ -70,5 +72,6 @@ export async function GET(request: Request) {
     responseSla,
     reproKit,
     reviewHandoff,
+    starterKit,
   });
 }

@@ -329,6 +329,27 @@ export type PullRequestReviewHandoffKit = {
   markdown: string;
 };
 
+export type ContributorStarterKitItem = {
+  id: string;
+  issueNumber: number;
+  title: string;
+  contributor: string;
+  url: string;
+  difficulty: "starter" | "guided";
+  reason: string;
+  suggestedBranch: string;
+  acceptanceCriteria: string[];
+  pullRequestChecklist: string[];
+  maintainerCommentDraft: string;
+  githubCommentCommand: string;
+};
+
+export type ContributorStarterKit = {
+  summary: string;
+  items: ContributorStarterKitItem[];
+  markdown: string;
+};
+
 export type OssEvidencePack = {
   programUrl: string;
   roleDraft: string;

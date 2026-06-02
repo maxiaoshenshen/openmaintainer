@@ -35,6 +35,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Contributor impact queue that surfaces blocked developers and unblock steps
 - Response SLA queue for overdue contributor threads and at-risk maintainer responses
 - Reproduction request kit for incomplete bug reports with copyable GitHub comments
+- Contributor starter kit that turns approachable issues into first contribution task packets
 - Contributor unblock kit with copyable maintainer replies and GitHub CLI commands
 - Maintainer command queue that stages prioritized GitHub CLI batches behind human approval
 - Codex for Open Source evidence pack with copyable application drafts
@@ -109,6 +110,7 @@ CI runs the same validation command on pushes to `main` and pull requests.
 - `src/lib/maintainer-command-queue.ts` stages maintainer actions into a prioritized GitHub CLI execution queue.
 - `src/lib/response-sla.ts` ranks contributor threads against maintainer response targets.
 - `src/lib/repro-kit.ts` turns incomplete bug reports into contributor-friendly reproduction requests.
+- `src/lib/contributor-starter-kit.ts` turns approachable issues into starter task packets for new contributors.
 - `src/lib/pr-review-handoff.ts` turns risky pull requests into focused review handoff packages.
 - `src/lib/unblock-kit.ts` turns blocked contributor impact into a copyable execution package.
 - `src/lib/github.ts` contains GitHub repository parsing and fetch logic.

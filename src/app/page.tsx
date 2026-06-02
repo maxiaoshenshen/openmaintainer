@@ -9,6 +9,7 @@ import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
 import { buildResponseSlaQueue } from "@/lib/response-sla";
 import { buildReproductionRequestKit } from "@/lib/repro-kit";
 import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
+import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 
 export default function Home() {
   const observedAt = new Date("2026-06-03T00:00:00Z");
@@ -23,6 +24,7 @@ export default function Home() {
   const initialResponseSla = buildResponseSlaQueue(initialContributorImpact, initialAnalysis.settings);
   const initialReproKit = buildReproductionRequestKit(demoRepository, initialAnalysis);
   const initialReviewHandoff = buildPullRequestReviewHandoffKit(demoRepository, initialAnalysis);
+  const initialStarterKit = buildContributorStarterKit(demoRepository, initialAnalysis);
   const initialInbox = buildMaintainerInbox(
     demoPortfolioRepositories.map((repository) => ({
       repository,
@@ -41,6 +43,7 @@ export default function Home() {
       initialResponseSla={initialResponseSla}
       initialReproKit={initialReproKit}
       initialReviewHandoff={initialReviewHandoff}
+      initialStarterKit={initialStarterKit}
       initialEvidencePack={buildOssEvidencePack(demoRepository, initialAnalysis, initialContributorImpact)}
       initialInbox={initialInbox}
       initialSource="demo"
