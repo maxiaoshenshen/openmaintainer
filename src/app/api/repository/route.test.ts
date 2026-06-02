@@ -28,5 +28,7 @@ describe("repository route", () => {
     expect(body.reviewHandoff.markdown).toContain("gh pr checkout 92");
     expect(body.starterKit.summary).toBe("2 starter tasks are ready for new contributors");
     expect(body.starterKit.markdown).toContain("starter/issue-285-chinese-readme-quickstart");
+    expect(body.releaseGate.status).toBe("blocked");
+    expect(body.releaseGate.markdown).toContain("Release readiness gate");
   });
 });

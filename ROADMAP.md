@@ -18,6 +18,7 @@
 - Form-ready Codex for Open Source application packet
 - PR review summaries
 - PR review handoff kit with focus areas, validation steps, and GitHub CLI commands
+- Release readiness gate with blockers, warnings, and release command handoff
 - Release draft generation
 - Similar issue detection
 - Duplicate issue workflow actions

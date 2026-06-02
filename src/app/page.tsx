@@ -10,6 +10,7 @@ import { buildResponseSlaQueue } from "@/lib/response-sla";
 import { buildReproductionRequestKit } from "@/lib/repro-kit";
 import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
 import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
+import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
 
 export default function Home() {
   const observedAt = new Date("2026-06-03T00:00:00Z");
@@ -25,6 +26,7 @@ export default function Home() {
   const initialReproKit = buildReproductionRequestKit(demoRepository, initialAnalysis);
   const initialReviewHandoff = buildPullRequestReviewHandoffKit(demoRepository, initialAnalysis);
   const initialStarterKit = buildContributorStarterKit(demoRepository, initialAnalysis);
+  const initialReleaseGate = buildReleaseReadinessGate(demoRepository, initialAnalysis);
   const initialInbox = buildMaintainerInbox(
     demoPortfolioRepositories.map((repository) => ({
       repository,
@@ -44,6 +46,7 @@ export default function Home() {
       initialReproKit={initialReproKit}
       initialReviewHandoff={initialReviewHandoff}
       initialStarterKit={initialStarterKit}
+      initialReleaseGate={initialReleaseGate}
       initialEvidencePack={buildOssEvidencePack(demoRepository, initialAnalysis, initialContributorImpact)}
       initialInbox={initialInbox}
       initialSource="demo"

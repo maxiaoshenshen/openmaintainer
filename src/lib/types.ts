@@ -350,6 +350,33 @@ export type ContributorStarterKit = {
   markdown: string;
 };
 
+export type ReleaseGateItem = {
+  id: string;
+  source: "issue" | "pull-request" | "repository";
+  targetNumber: number | null;
+  title: string;
+  detail: string;
+  url: string;
+};
+
+export type ReleaseGateCheck = {
+  id: "high-priority-bugs" | "reproduction-details" | "pull-request-risk" | "oss-readiness";
+  label: string;
+  status: "pass" | "warn" | "fail";
+  detail: string;
+};
+
+export type ReleaseReadinessGate = {
+  status: "ready" | "needs-review" | "blocked";
+  summary: string;
+  blockers: ReleaseGateItem[];
+  warnings: ReleaseGateItem[];
+  checks: ReleaseGateCheck[];
+  nextStep: string;
+  releaseCommand: string;
+  markdown: string;
+};
+
 export type OssEvidencePack = {
   programUrl: string;
   roleDraft: string;

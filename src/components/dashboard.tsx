@@ -33,6 +33,7 @@ import type {
   MaintainerSettings,
   OssEvidencePack,
   PullRequestReviewHandoffKit,
+  ReleaseReadinessGate,
   ReproductionRequestKit,
   ResponseSlaQueue,
 } from "@/lib/types";
@@ -44,6 +45,7 @@ import { buildResponseSlaQueue } from "@/lib/response-sla";
 import { buildReproductionRequestKit } from "@/lib/repro-kit";
 import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
 import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
+import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -64,6 +66,7 @@ type RepositoryResponse = {
   reproKit: ReproductionRequestKit;
   reviewHandoff: PullRequestReviewHandoffKit;
   starterKit: ContributorStarterKit;
+  releaseGate: ReleaseReadinessGate;
   source: "demo" | "github";
   warning?: string;
 };
@@ -94,6 +97,7 @@ type DashboardProps = {
   initialReproKit: ReproductionRequestKit;
   initialReviewHandoff: PullRequestReviewHandoffKit;
   initialStarterKit: ContributorStarterKit;
+  initialReleaseGate: ReleaseReadinessGate;
   initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
@@ -125,6 +129,8 @@ const copy = {
     reviewHandoff: "PR handoff",
     copyReviewHandoff: "Copy handoff",
     release: "Release draft",
+    releaseGate: "Release gate",
+    copyReleaseGate: "Copy gate",
     actions: "Action plan",
     playbooks: "Repository playbooks",
     digest: "Weekly digest",
@@ -184,6 +190,8 @@ const copy = {
     reviewHandoff: "PR 交接包",
     copyReviewHandoff: "复制交接包",
     release: "发布草稿",
+    releaseGate: "发布闸门",
+    copyReleaseGate: "复制闸门",
     actions: "行动计划",
     playbooks: "仓库维护剧本",
     digest: "维护周报",
@@ -304,6 +312,7 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     reproKit: buildReproductionRequestKit(repository, analysis),
     reviewHandoff: buildPullRequestReviewHandoffKit(repository, analysis),
     starterKit: buildContributorStarterKit(repository, analysis),
+    releaseGate: buildReleaseReadinessGate(repository, analysis),
   };
 }
 
@@ -317,6 +326,7 @@ export function Dashboard({
   initialReproKit,
   initialReviewHandoff,
   initialStarterKit,
+  initialReleaseGate,
   initialEvidencePack,
   initialInbox,
   initialSource,
@@ -331,6 +341,7 @@ export function Dashboard({
   const [reproKit, setReproKit] = useState(initialReproKit);
   const [reviewHandoff, setReviewHandoff] = useState(initialReviewHandoff);
   const [starterKit, setStarterKit] = useState(initialStarterKit);
+  const [releaseGate, setReleaseGate] = useState(initialReleaseGate);
   const [inbox, setInbox] = useState(initialInbox);
   const [portfolioInput, setPortfolioInput] = useState(
     initialInbox.items.map((item) => item.repository).join("\n"),
@@ -355,6 +366,7 @@ export function Dashboard({
   const [copiedReproKit, setCopiedReproKit] = useState(false);
   const [copiedReviewHandoff, setCopiedReviewHandoff] = useState(false);
   const [copiedStarterKit, setCopiedStarterKit] = useState(false);
+  const [copiedReleaseGate, setCopiedReleaseGate] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -437,6 +449,7 @@ export function Dashboard({
       setReproKit(data.reproKit);
       setReviewHandoff(data.reviewHandoff);
       setStarterKit(data.starterKit);
+      setReleaseGate(data.releaseGate);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
@@ -499,6 +512,7 @@ export function Dashboard({
       setReproKit(nextArtifacts.reproKit);
       setReviewHandoff(nextArtifacts.reviewHandoff);
       setStarterKit(nextArtifacts.starterKit);
+      setReleaseGate(nextArtifacts.releaseGate);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
@@ -619,6 +633,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(starterKit.markdown);
     setCopiedStarterKit(true);
     window.setTimeout(() => setCopiedStarterKit(false), 1600);
+  }
+
+  async function copyReleaseGate() {
+    await navigator.clipboard.writeText(releaseGate.markdown);
+    setCopiedReleaseGate(true);
+    window.setTimeout(() => setCopiedReleaseGate(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -1977,6 +1997,81 @@ export function Dashboard({
                   <div className="text-white/55">Compatible</div>
                   <div className="mt-1 font-semibold">中文开发者</div>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex items-start justify-between gap-3 border-b border-stone-200 p-4">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <ShieldCheck className="size-5 text-amber-700" />
+                  {text.releaseGate}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {releaseGate.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyReleaseGate}
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyReleaseGate}
+              >
+                <Copy className="size-4" />
+                <span className="hidden sm:inline">{copiedReleaseGate ? "Copied" : text.copyReleaseGate}</span>
+              </button>
+            </div>
+            <div className="grid grid-cols-3 border-b border-stone-200 text-center text-sm">
+              <div className="border-r border-stone-200 p-3">
+                <div className={`text-lg font-semibold ${
+                  releaseGate.status === "blocked"
+                    ? "text-rose-700"
+                    : releaseGate.status === "needs-review"
+                      ? "text-amber-700"
+                      : "text-emerald-700"
+                }`}
+                >
+                  {releaseGate.status}
+                </div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">status</div>
+              </div>
+              <div className="border-r border-stone-200 p-3">
+                <div className="text-lg font-semibold text-rose-700">{releaseGate.blockers.length}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">blockers</div>
+              </div>
+              <div className="p-3">
+                <div className="text-lg font-semibold text-amber-700">{releaseGate.warnings.length}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">warnings</div>
+              </div>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="rounded-md border border-stone-200 bg-stone-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  Next step
+                </div>
+                <p className="mt-1 text-sm font-semibold leading-5 text-stone-900">
+                  {releaseGate.nextStep}
+                </p>
+              </div>
+              <div className="grid gap-2">
+                {releaseGate.checks.map((check) => (
+                  <div key={check.id} className="rounded-md border border-stone-200 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-stone-950">{check.label}</span>
+                      <span className={`rounded px-2 py-1 text-xs font-bold uppercase ${
+                        check.status === "fail"
+                          ? "bg-rose-100 text-rose-800"
+                          : check.status === "warn"
+                            ? "bg-amber-100 text-amber-900"
+                            : "bg-emerald-100 text-emerald-800"
+                      }`}
+                      >
+                        {check.status}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-stone-600">{check.detail}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </section>

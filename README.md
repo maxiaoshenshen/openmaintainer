@@ -42,6 +42,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Form-ready Codex for Open Source application packet with official field answers
 - Pull request review summaries and risk indicators
 - Pull request review handoff kit with focus areas, validation steps, and GitHub CLI commands
+- Release readiness gate that blocks unsafe releases with explicit blockers and warnings
 - Repository health score and next actions
 - OSS readiness checklist
 - Real repository quality signals for label coverage, response gaps, PR age, and review load
@@ -112,6 +113,7 @@ CI runs the same validation command on pushes to `main` and pull requests.
 - `src/lib/repro-kit.ts` turns incomplete bug reports into contributor-friendly reproduction requests.
 - `src/lib/contributor-starter-kit.ts` turns approachable issues into starter task packets for new contributors.
 - `src/lib/pr-review-handoff.ts` turns risky pull requests into focused review handoff packages.
+- `src/lib/release-readiness-gate.ts` turns current blockers, review risk, and readiness checks into a release go/no-go gate.
 - `src/lib/unblock-kit.ts` turns blocked contributor impact into a copyable execution package.
 - `src/lib/github.ts` contains GitHub repository parsing and fetch logic.
 - `src/lib/openai-analyzer.ts` contains the optional OpenAI analysis path.
