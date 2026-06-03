@@ -1,0 +1,93 @@
+name: Production smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  ownership-routing-api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+
+      - name: Verify production repository API
+        env:
+          SMOKE_TARGET_URL: https://openmaintainer.vercel.app/api/repository
+        run: |
+          node <<'NODE'
+          const targetUrl = process.env.SMOKE_TARGET_URL;
+          const attempts = 18;
+          const delayMs = 10_000;
+
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          async function fetchJson() {
+            const response = await fetch(targetUrl, {
+              headers: {
+                "User-Agent": "openmaintainer-production-smoke",
+              },
+            });
+
+            const body = await response.text();
+
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${body.slice(0, 500)}`);
+            }
+
+            try {
+              return JSON.parse(body);
+            } catch (error) {
+              throw new Error(`Invalid JSON: ${body.slice(0, 500)}`);
+            }
+          }
+
+          function assertOwnershipRouting(payload) {
+            const routing = payload?.ownershipRouting;
+
+            if (!routing) {
+              throw new Error("Missing ownershipRouting in production API response.");
+            }
+
+            if (!routing.summary?.includes("ownership routes")) {
+              throw new Error(`Unexpected ownershipRouting.summary: ${routing.summary}`);
+            }
+
+            if (!routing.markdown?.includes("## Maintainer ownership routing")) {
+              throw new Error("Missing Maintainer ownership routing markdown heading.");
+            }
+
+            for (const expected of ["Release captain", "Safety reviewer"]) {
+              if (!routing.markdown.includes(expected)) {
+                throw new Error(`Missing ${expected} in ownership routing markdown.`);
+              }
+            }
+
+            return routing.summary;
+          }
+
+          let lastError;
+
+          for (let attempt = 1; attempt <= attempts; attempt += 1) {
+            try {
+              const payload = await fetchJson();
+              const summary = assertOwnershipRouting(payload);
+              console.log(`Production smoke passed: ${summary}`);
+              process.exit(0);
+            } catch (error) {
+              lastError = error;
+              console.log(`Attempt ${attempt}/${attempts} failed: ${error.message}`);
+
+              if (attempt < attempts) {
+                await sleep(delayMs);
+              }
+            }
+          }
+
+          console.error(`Production smoke failed: ${lastError?.message ?? "unknown error"}`);
+          process.exit(1);
+          NODE
