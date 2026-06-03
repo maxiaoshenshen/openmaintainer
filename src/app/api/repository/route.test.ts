@@ -36,5 +36,8 @@ describe("repository route", () => {
     expect(body.statusBrief.markdown).toContain("Maintainer status update");
     expect(body.replyOutbox.summary).toContain("contributor replies are ready to send");
     expect(body.replyOutbox.markdown).toContain("Contributor reply outbox");
+    expect(body.decisionLog.summary).toContain("maintainer decisions logged");
+    expect(body.decisionLog.markdown).toContain("Maintainer decision log");
+    expect(body.decisionLog.markdown).toContain("Release gate is blocked");
   });
 });

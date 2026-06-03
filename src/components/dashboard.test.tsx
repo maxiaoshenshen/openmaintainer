@@ -6,6 +6,7 @@ import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
 import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
 import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
+import { buildMaintainerDecisionLog } from "@/lib/maintainer-decision-log";
 import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildMaintainerInbox } from "@/lib/maintainer-inbox";
 import { buildOssEvidencePack } from "@/lib/oss-evidence";
@@ -35,6 +36,12 @@ function renderDashboard() {
   const reviewHandoff = buildPullRequestReviewHandoffKit(demoRepository, analysis);
   const starterKit = buildContributorStarterKit(demoRepository, analysis);
   const releaseGate = buildReleaseReadinessGate(demoRepository, analysis);
+  const decisionLog = buildMaintainerDecisionLog({
+    repository: demoRepository,
+    analysis,
+    commandQueue,
+    releaseGate,
+  });
   const focusPlan = buildMaintainerFocusPlan({
     repository: demoRepository,
     releaseGate,
@@ -74,6 +81,7 @@ function renderDashboard() {
       initialReviewHandoff={reviewHandoff}
       initialStarterKit={starterKit}
       initialReleaseGate={releaseGate}
+      initialDecisionLog={decisionLog}
       initialFocusPlan={focusPlan}
       initialStatusBrief={statusBrief}
       initialReplyOutbox={replyOutbox}
@@ -95,5 +103,15 @@ describe("Dashboard", () => {
     expect(markup).toContain("first-time-contributor");
     expect(markup).toContain("gh issue comment 284");
     expect(markup).toContain("gh pr comment 92");
+  });
+
+  it("renders the maintainer decision log with review gates", () => {
+    const markup = renderDashboard();
+
+    expect(markup).toContain("Decision log");
+    expect(markup).toContain("7 maintainer decisions logged");
+    expect(markup).toContain("Copy decisions");
+    expect(markup).toContain("Human review required before close or release command");
+    expect(markup).toContain("Release gate is blocked; do not run release command yet");
   });
 });

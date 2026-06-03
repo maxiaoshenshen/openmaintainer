@@ -123,6 +123,31 @@ export type MaintainerCommandQueue = {
   markdown: string;
 };
 
+export type MaintainerDecisionLogItem = {
+  id: string;
+  actionId: string;
+  title: string;
+  url: string;
+  decisionType: "respond" | "review" | "close" | "release";
+  status: "ready" | "needs-review" | "blocked";
+  risk: "low" | "medium" | "high";
+  humanGate: string;
+  evidence: string[];
+  commands: string[];
+};
+
+export type MaintainerDecisionLog = {
+  summary: string;
+  totals: {
+    ready: number;
+    needsReview: number;
+    blocked: number;
+    highRisk: number;
+  };
+  items: MaintainerDecisionLogItem[];
+  markdown: string;
+};
+
 export type RepositoryPlaybookStep = {
   actionId: string;
   label: string;

@@ -14,6 +14,7 @@ import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
 import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
 import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
+import { buildMaintainerDecisionLog } from "@/lib/maintainer-decision-log";
 
 export default function Home() {
   const observedAt = new Date("2026-06-03T00:00:00Z");
@@ -30,6 +31,12 @@ export default function Home() {
   const initialReviewHandoff = buildPullRequestReviewHandoffKit(demoRepository, initialAnalysis);
   const initialStarterKit = buildContributorStarterKit(demoRepository, initialAnalysis);
   const initialReleaseGate = buildReleaseReadinessGate(demoRepository, initialAnalysis);
+  const initialDecisionLog = buildMaintainerDecisionLog({
+    repository: demoRepository,
+    analysis: initialAnalysis,
+    commandQueue: initialCommandQueue,
+    releaseGate: initialReleaseGate,
+  });
   const initialFocusPlan = buildMaintainerFocusPlan({
     repository: demoRepository,
     releaseGate: initialReleaseGate,
@@ -69,6 +76,7 @@ export default function Home() {
       initialReviewHandoff={initialReviewHandoff}
       initialStarterKit={initialStarterKit}
       initialReleaseGate={initialReleaseGate}
+      initialDecisionLog={initialDecisionLog}
       initialFocusPlan={initialFocusPlan}
       initialStatusBrief={initialStatusBrief}
       initialReplyOutbox={initialReplyOutbox}

@@ -15,6 +15,7 @@
 - Contributor unblock kit with copyable replies and GitHub CLI commands
 - Contributor reply outbox for one-stop maintainer-to-contributor response drafts
 - Maintainer command queue for prioritized, human-approved GitHub CLI batches
+- Maintainer decision log for auditable ready, review-required, and blocked actions
 - Codex for Open Source evidence pack
 - Form-ready Codex for Open Source application packet
 - PR review summaries

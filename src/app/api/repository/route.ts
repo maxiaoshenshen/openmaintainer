@@ -13,6 +13,7 @@ import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
 import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
 import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
+import { buildMaintainerDecisionLog } from "@/lib/maintainer-decision-log";
 import type { MaintainerSettings, RepositoryAnalysisSnapshot } from "@/lib/types";
 
 function parsePreviousSnapshot(value: string | null): RepositoryAnalysisSnapshot | undefined {
@@ -66,6 +67,12 @@ export async function GET(request: Request) {
   const reviewHandoff = buildPullRequestReviewHandoffKit(result.repository, analysis);
   const starterKit = buildContributorStarterKit(result.repository, analysis);
   const releaseGate = buildReleaseReadinessGate(result.repository, analysis);
+  const decisionLog = buildMaintainerDecisionLog({
+    repository: result.repository,
+    analysis,
+    commandQueue,
+    releaseGate,
+  });
   const focusPlan = buildMaintainerFocusPlan({
     repository: result.repository,
     releaseGate,
@@ -98,6 +105,7 @@ export async function GET(request: Request) {
     reviewHandoff,
     starterKit,
     releaseGate,
+    decisionLog,
     focusPlan,
     statusBrief,
     replyOutbox,

@@ -8,7 +8,7 @@ OpenMaintainer is split into four layers.
 
 ## 2. Route handlers
 
-`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data, deterministic analysis, contributor impact, the evidence pack, the contributor unblock kit, the response SLA queue, the reproduction request kit, the contributor starter kit, the pull request review handoff kit, the release readiness gate, the maintainer focus plan, the contributor status brief, and the contributor reply outbox.
+`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data, deterministic analysis, contributor impact, the evidence pack, the contributor unblock kit, the response SLA queue, the reproduction request kit, the contributor starter kit, the pull request review handoff kit, the release readiness gate, the maintainer decision log, the maintainer focus plan, the contributor status brief, and the contributor reply outbox.
 
 `src/app/api/analyze/route.ts` accepts repository data plus optional maintainer settings and returns either OpenAI-backed analysis or deterministic fallback analysis.
 
@@ -41,6 +41,8 @@ OpenMaintainer is split into four layers.
 `src/lib/unblock-kit.ts` converts blocked contributor impact into a copyable maintainer execution package with reply drafts and GitHub CLI commands.
 
 `src/lib/maintainer-command-queue.ts` stages maintainer actions into a prioritized GitHub CLI command queue with review gates for close and release commands.
+
+`src/lib/maintainer-decision-log.ts` converts suggested actions, command queue review gates, and release gate status into an auditable ready/review/blocked decision record.
 
 `src/lib/oss-evidence.ts` turns repository analysis and contributor impact into a Codex for Open Source evidence pack, including a form-ready application packet with official field answers and 500-character answer limits.
 

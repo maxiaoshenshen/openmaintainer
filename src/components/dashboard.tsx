@@ -28,6 +28,7 @@ import type {
   ContributorStarterKit,
   ContributorStatusBrief,
   ContributorUnblockKit,
+  MaintainerDecisionLog,
   MaintainerCommandQueue,
   MaintainerFocusPlan,
   MaintainerAnalysis,
@@ -52,6 +53,7 @@ import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
 import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
 import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
+import { buildMaintainerDecisionLog } from "@/lib/maintainer-decision-log";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
@@ -74,6 +76,7 @@ type RepositoryResponse = {
   reviewHandoff: PullRequestReviewHandoffKit;
   starterKit: ContributorStarterKit;
   releaseGate: ReleaseReadinessGate;
+  decisionLog: MaintainerDecisionLog;
   focusPlan: MaintainerFocusPlan;
   statusBrief: ContributorStatusBrief;
   replyOutbox: ContributorReplyOutbox;
@@ -108,6 +111,7 @@ type DashboardProps = {
   initialReviewHandoff: PullRequestReviewHandoffKit;
   initialStarterKit: ContributorStarterKit;
   initialReleaseGate: ReleaseReadinessGate;
+  initialDecisionLog: MaintainerDecisionLog;
   initialFocusPlan: MaintainerFocusPlan;
   initialStatusBrief: ContributorStatusBrief;
   initialReplyOutbox: ContributorReplyOutbox;
@@ -117,6 +121,7 @@ type DashboardProps = {
 };
 
 type Locale = "en" | "zh";
+type CopyState = "idle" | "copied" | "failed";
 
 const copy = {
   en: {
@@ -153,6 +158,12 @@ const copy = {
     release: "Release draft",
     releaseGate: "Release gate",
     copyReleaseGate: "Copy gate",
+    decisionLog: "Decision log",
+    copyDecisionLog: "Copy decisions",
+    copyFailed: "Copy failed",
+    readyDecisions: "ready",
+    reviewDecisions: "review",
+    blockedDecisions: "blocked",
     actions: "Action plan",
     playbooks: "Repository playbooks",
     digest: "Weekly digest",
@@ -223,6 +234,12 @@ const copy = {
     release: "发布草稿",
     releaseGate: "发布闸门",
     copyReleaseGate: "复制闸门",
+    decisionLog: "决策日志",
+    copyDecisionLog: "复制决策",
+    copyFailed: "复制失败",
+    readyDecisions: "就绪",
+    reviewDecisions: "审核",
+    blockedDecisions: "阻塞",
     actions: "行动计划",
     playbooks: "仓库维护剧本",
     digest: "维护周报",
@@ -285,6 +302,12 @@ function readinessColor(status: "pass" | "warn" | "fail") {
   return "bg-rose-100 text-rose-800";
 }
 
+function decisionStatusColor(status: MaintainerDecisionLog["items"][number]["status"]) {
+  if (status === "ready") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (status === "needs-review") return "border-amber-200 bg-amber-50 text-amber-900";
+  return "border-rose-200 bg-rose-50 text-rose-800";
+}
+
 function releaseFileName(repository: MaintainerRepository) {
   return `${repository.identity.owner}-${repository.identity.name}-release-draft.md`;
 }
@@ -339,6 +362,12 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
   const reviewHandoff = buildPullRequestReviewHandoffKit(repository, analysis);
   const starterKit = buildContributorStarterKit(repository, analysis);
   const releaseGate = buildReleaseReadinessGate(repository, analysis);
+  const decisionLog = buildMaintainerDecisionLog({
+    repository,
+    analysis,
+    commandQueue,
+    releaseGate,
+  });
   const focusPlan = buildMaintainerFocusPlan({
     repository,
     releaseGate,
@@ -357,6 +386,7 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     reviewHandoff,
     starterKit,
     releaseGate,
+    decisionLog,
     focusPlan,
     statusBrief: buildContributorStatusBrief({
       repository,
@@ -384,6 +414,7 @@ export function Dashboard({
   initialReviewHandoff,
   initialStarterKit,
   initialReleaseGate,
+  initialDecisionLog,
   initialFocusPlan,
   initialStatusBrief,
   initialReplyOutbox,
@@ -402,6 +433,7 @@ export function Dashboard({
   const [reviewHandoff, setReviewHandoff] = useState(initialReviewHandoff);
   const [starterKit, setStarterKit] = useState(initialStarterKit);
   const [releaseGate, setReleaseGate] = useState(initialReleaseGate);
+  const [decisionLog, setDecisionLog] = useState(initialDecisionLog);
   const [focusPlan, setFocusPlan] = useState(initialFocusPlan);
   const [statusBrief, setStatusBrief] = useState(initialStatusBrief);
   const [replyOutbox, setReplyOutbox] = useState(initialReplyOutbox);
@@ -430,6 +462,7 @@ export function Dashboard({
   const [copiedReviewHandoff, setCopiedReviewHandoff] = useState(false);
   const [copiedStarterKit, setCopiedStarterKit] = useState(false);
   const [copiedReleaseGate, setCopiedReleaseGate] = useState(false);
+  const [decisionLogCopyState, setDecisionLogCopyState] = useState<CopyState>("idle");
   const [copiedFocusPlan, setCopiedFocusPlan] = useState(false);
   const [copiedStatusBrief, setCopiedStatusBrief] = useState(false);
   const [copiedReplyOutbox, setCopiedReplyOutbox] = useState(false);
@@ -516,6 +549,7 @@ export function Dashboard({
       setReviewHandoff(data.reviewHandoff);
       setStarterKit(data.starterKit);
       setReleaseGate(data.releaseGate);
+      setDecisionLog(data.decisionLog);
       setFocusPlan(data.focusPlan);
       setStatusBrief(data.statusBrief);
       setReplyOutbox(data.replyOutbox);
@@ -582,6 +616,7 @@ export function Dashboard({
       setReviewHandoff(nextArtifacts.reviewHandoff);
       setStarterKit(nextArtifacts.starterKit);
       setReleaseGate(nextArtifacts.releaseGate);
+      setDecisionLog(nextArtifacts.decisionLog);
       setFocusPlan(nextArtifacts.focusPlan);
       setStatusBrief(nextArtifacts.statusBrief);
       setReplyOutbox(nextArtifacts.replyOutbox);
@@ -711,6 +746,12 @@ export function Dashboard({
     await copyTextToClipboard(releaseGate.markdown);
     setCopiedReleaseGate(true);
     window.setTimeout(() => setCopiedReleaseGate(false), 1600);
+  }
+
+  async function copyDecisionLog() {
+    const copied = await copyTextToClipboard(decisionLog.markdown);
+    setDecisionLogCopyState(copied ? "copied" : "failed");
+    window.setTimeout(() => setDecisionLogCopyState("idle"), 1600);
   }
 
   async function copyFocusPlan() {
@@ -916,6 +957,100 @@ export function Dashboard({
                   </article>
                 ))}
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <ClipboardList className="size-5 text-amber-700" />
+                  {text.decisionLog}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {decisionLog.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyDecisionLog}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyDecisionLog}
+              >
+                <Copy className="size-4" />
+                {decisionLogCopyState === "copied"
+                  ? "Copied"
+                  : decisionLogCopyState === "failed"
+                    ? text.copyFailed
+                    : text.copyDecisionLog}
+              </button>
+            </div>
+            <div className="grid grid-cols-3 border-b border-stone-200 text-center text-sm">
+              <div className="border-r border-stone-200 p-3">
+                <div className="text-xl font-semibold text-emerald-700">{decisionLog.totals.ready}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  {text.readyDecisions}
+                </div>
+              </div>
+              <div className="border-r border-stone-200 p-3">
+                <div className="text-xl font-semibold text-amber-700">{decisionLog.totals.needsReview}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  {text.reviewDecisions}
+                </div>
+              </div>
+              <div className="p-3">
+                <div className="text-xl font-semibold text-rose-700">{decisionLog.totals.blocked}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  {text.blockedDecisions}
+                </div>
+              </div>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {decisionLog.items.map((item) => (
+                <article key={item.id} className="grid gap-3 p-4 lg:grid-cols-[1fr_260px]">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="min-w-0 text-sm font-semibold leading-6 text-stone-950 hover:text-blue-700"
+                      >
+                        {item.title}
+                      </a>
+                      <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${decisionStatusColor(item.status)}`}>
+                        {item.status}
+                      </span>
+                      <span className={`rounded px-2 py-1 text-xs font-bold uppercase ${riskColor(item.risk)}`}>
+                        {item.risk}
+                      </span>
+                      <span className="rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs font-semibold text-stone-600">
+                        {item.decisionType}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-stone-600">
+                      {item.humanGate}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {item.evidence.slice(0, 3).map((entry) => (
+                        <span key={entry} className="rounded bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">
+                          {entry}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-stone-200 bg-stone-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                      {text.githubHandoff}
+                    </div>
+                    <div className="mt-1 text-sm font-semibold leading-5 text-stone-900">
+                      {item.commands.length} command{item.commands.length === 1 ? "" : "s"}
+                    </div>
+                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-stone-600">
+                      {item.commands[0] ?? "No command staged"}
+                    </p>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
 
