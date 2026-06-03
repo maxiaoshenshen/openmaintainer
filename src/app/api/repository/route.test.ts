@@ -32,5 +32,7 @@ describe("repository route", () => {
     expect(body.releaseGate.markdown).toContain("Release readiness gate");
     expect(body.focusPlan.summary).toContain("focus blocks");
     expect(body.focusPlan.markdown).toContain("Maintainer focus plan");
+    expect(body.statusBrief.summary).toContain("contributor threads need maintainer attention");
+    expect(body.statusBrief.markdown).toContain("Maintainer status update");
   });
 });

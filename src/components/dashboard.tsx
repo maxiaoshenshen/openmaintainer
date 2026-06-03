@@ -25,6 +25,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   ContributorImpactQueue,
   ContributorStarterKit,
+  ContributorStatusBrief,
   ContributorUnblockKit,
   MaintainerCommandQueue,
   MaintainerFocusPlan,
@@ -48,6 +49,7 @@ import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
 import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
 import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
+import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -70,6 +72,7 @@ type RepositoryResponse = {
   starterKit: ContributorStarterKit;
   releaseGate: ReleaseReadinessGate;
   focusPlan: MaintainerFocusPlan;
+  statusBrief: ContributorStatusBrief;
   source: "demo" | "github";
   warning?: string;
 };
@@ -102,6 +105,7 @@ type DashboardProps = {
   initialStarterKit: ContributorStarterKit;
   initialReleaseGate: ReleaseReadinessGate;
   initialFocusPlan: MaintainerFocusPlan;
+  initialStatusBrief: ContributorStatusBrief;
   initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
@@ -119,6 +123,8 @@ const copy = {
     impact: "Contributor impact",
     focusPlan: "Focus plan",
     copyFocusPlan: "Copy plan",
+    statusBrief: "Public status",
+    copyStatusBrief: "Copy status",
     responseSla: "Response SLA",
     copyResponseSla: "Copy SLA",
     reproKit: "Repro kit",
@@ -182,6 +188,8 @@ const copy = {
     impact: "贡献者影响",
     focusPlan: "今日聚焦",
     copyFocusPlan: "复制计划",
+    statusBrief: "公开状态",
+    copyStatusBrief: "复制状态",
     responseSla: "响应 SLA",
     copyResponseSla: "复制 SLA",
     reproKit: "复现包",
@@ -313,7 +321,15 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
   const commandQueue = buildMaintainerCommandQueue(analysis.actions);
   const responseSla = buildResponseSlaQueue(contributorImpact, analysis.settings);
   const reviewHandoff = buildPullRequestReviewHandoffKit(repository, analysis);
+  const starterKit = buildContributorStarterKit(repository, analysis);
   const releaseGate = buildReleaseReadinessGate(repository, analysis);
+  const focusPlan = buildMaintainerFocusPlan({
+    repository,
+    releaseGate,
+    responseSla,
+    commandQueue,
+    reviewHandoff,
+  });
 
   return {
     contributorImpact,
@@ -323,14 +339,15 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     responseSla,
     reproKit: buildReproductionRequestKit(repository, analysis),
     reviewHandoff,
-    starterKit: buildContributorStarterKit(repository, analysis),
+    starterKit,
     releaseGate,
-    focusPlan: buildMaintainerFocusPlan({
+    focusPlan,
+    statusBrief: buildContributorStatusBrief({
       repository,
       releaseGate,
       responseSla,
-      commandQueue,
-      reviewHandoff,
+      starterKit,
+      focusPlan,
     }),
   };
 }
@@ -347,6 +364,7 @@ export function Dashboard({
   initialStarterKit,
   initialReleaseGate,
   initialFocusPlan,
+  initialStatusBrief,
   initialEvidencePack,
   initialInbox,
   initialSource,
@@ -363,6 +381,7 @@ export function Dashboard({
   const [starterKit, setStarterKit] = useState(initialStarterKit);
   const [releaseGate, setReleaseGate] = useState(initialReleaseGate);
   const [focusPlan, setFocusPlan] = useState(initialFocusPlan);
+  const [statusBrief, setStatusBrief] = useState(initialStatusBrief);
   const [inbox, setInbox] = useState(initialInbox);
   const [portfolioInput, setPortfolioInput] = useState(
     initialInbox.items.map((item) => item.repository).join("\n"),
@@ -389,6 +408,7 @@ export function Dashboard({
   const [copiedStarterKit, setCopiedStarterKit] = useState(false);
   const [copiedReleaseGate, setCopiedReleaseGate] = useState(false);
   const [copiedFocusPlan, setCopiedFocusPlan] = useState(false);
+  const [copiedStatusBrief, setCopiedStatusBrief] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -473,6 +493,7 @@ export function Dashboard({
       setStarterKit(data.starterKit);
       setReleaseGate(data.releaseGate);
       setFocusPlan(data.focusPlan);
+      setStatusBrief(data.statusBrief);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
@@ -537,6 +558,7 @@ export function Dashboard({
       setStarterKit(nextArtifacts.starterKit);
       setReleaseGate(nextArtifacts.releaseGate);
       setFocusPlan(nextArtifacts.focusPlan);
+      setStatusBrief(nextArtifacts.statusBrief);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
@@ -669,6 +691,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(focusPlan.markdown);
     setCopiedFocusPlan(true);
     window.setTimeout(() => setCopiedFocusPlan(false), 1600);
+  }
+
+  async function copyStatusBrief() {
+    await navigator.clipboard.writeText(statusBrief.markdown);
+    setCopiedStatusBrief(true);
+    window.setTimeout(() => setCopiedStatusBrief(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -855,6 +883,99 @@ export function Dashboard({
                     </p>
                   </article>
                 ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <MessageSquareText className="size-5 text-emerald-700" />
+                  {text.statusBrief}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {statusBrief.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyStatusBrief}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyStatusBrief}
+              >
+                <Copy className="size-4" />
+                {copiedStatusBrief ? "Copied" : text.copyStatusBrief}
+              </button>
+            </div>
+            <div className="grid border-b border-stone-200 lg:grid-cols-[0.8fr_1fr]">
+              <div className="border-b border-stone-200 p-4 lg:border-b-0 lg:border-r">
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  Release status
+                </div>
+                <p className="mt-2 text-sm font-semibold leading-6 text-stone-950">
+                  {statusBrief.releaseStatus}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-stone-600">
+                  {statusBrief.maintainerFocus.map((item) => (
+                    <span key={`${item.source}-${item.title}`} className="rounded-full border border-stone-300 bg-stone-50 px-2 py-1">
+                      {item.source} · {item.estimatedMinutes}m
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-3 p-4 md:grid-cols-2">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    Waiting on maintainer
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {statusBrief.waitingOnMaintainer.map((item) => (
+                      <a
+                        key={`${item.contributor}-${item.title}`}
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block rounded-md border border-stone-200 bg-stone-50 p-3 hover:border-blue-300 hover:bg-blue-50"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-stone-950">{item.contributor}</span>
+                          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-800">
+                            {item.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-600">
+                          {item.title}
+                        </p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    Contributors can help
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {statusBrief.contributorOpportunities.map((item) => (
+                      <a
+                        key={item.title}
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block rounded-md border border-stone-200 bg-stone-50 p-3 hover:border-emerald-300 hover:bg-emerald-50"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                            {item.difficulty}
+                          </span>
+                          <span className="text-xs font-semibold text-stone-500">{item.suggestedBranch}</span>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-700">
+                          {item.title}
+                        </p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </section>

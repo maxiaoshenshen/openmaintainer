@@ -396,6 +396,40 @@ export type MaintainerFocusPlan = {
   markdown: string;
 };
 
+export type ContributorStatusBriefFocusItem = {
+  title: string;
+  priority: MaintainerFocusPlanItem["priority"];
+  source: MaintainerFocusPlanItem["source"];
+  estimatedMinutes: number;
+  url: string;
+};
+
+export type ContributorStatusBriefWaitingItem = {
+  contributor: string;
+  title: string;
+  status: ResponseSlaItem["status"];
+  waitDays: number;
+  url: string;
+  nextStep: string;
+};
+
+export type ContributorStatusBriefOpportunity = {
+  title: string;
+  difficulty: ContributorStarterKitItem["difficulty"];
+  url: string;
+  suggestedBranch: string;
+};
+
+export type ContributorStatusBrief = {
+  title: string;
+  summary: string;
+  releaseStatus: string;
+  maintainerFocus: ContributorStatusBriefFocusItem[];
+  waitingOnMaintainer: ContributorStatusBriefWaitingItem[];
+  contributorOpportunities: ContributorStatusBriefOpportunity[];
+  markdown: string;
+};
+
 export type OssEvidencePack = {
   programUrl: string;
   roleDraft: string;

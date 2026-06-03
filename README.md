@@ -44,6 +44,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Pull request review handoff kit with focus areas, validation steps, and GitHub CLI commands
 - Release readiness gate that blocks unsafe releases with explicit blockers and warnings
 - Maintainer focus plan that turns release blockers, overdue responses, review handoffs, and ready commands into a three-item daily plan
+- Contributor-facing public status brief that maintainers can copy into GitHub Discussions, pinned issues, or README updates
 - Repository health score and next actions
 - OSS readiness checklist
 - Real repository quality signals for label coverage, response gaps, PR age, and review load
@@ -116,6 +117,7 @@ CI runs the same validation command on pushes to `main` and pull requests.
 - `src/lib/pr-review-handoff.ts` turns risky pull requests into focused review handoff packages.
 - `src/lib/release-readiness-gate.ts` turns current blockers, review risk, and readiness checks into a release go/no-go gate.
 - `src/lib/maintainer-focus-plan.ts` turns the release gate, response SLA queue, PR handoff, and command queue into a copyable daily focus plan.
+- `src/lib/contributor-status-brief.ts` turns maintainer focus, release status, SLA waits, and starter tasks into a public contributor status update.
 - `src/lib/unblock-kit.ts` turns blocked contributor impact into a copyable execution package.
 - `src/lib/github.ts` contains GitHub repository parsing and fetch logic.
 - `src/lib/openai-analyzer.ts` contains the optional OpenAI analysis path.

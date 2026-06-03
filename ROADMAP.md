@@ -20,6 +20,7 @@
 - PR review handoff kit with focus areas, validation steps, and GitHub CLI commands
 - Release readiness gate with blockers, warnings, and release command handoff
 - Maintainer focus plan that selects the top daily release, response, review, and command priorities
+- Contributor-facing public status brief for GitHub Discussions, pinned issues, and README updates
 - Release draft generation
 - Similar issue detection
 - Duplicate issue workflow actions

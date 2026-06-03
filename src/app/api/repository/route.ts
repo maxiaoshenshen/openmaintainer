@@ -11,6 +11,7 @@ import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
 import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
 import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
+import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
 import type { MaintainerSettings, RepositoryAnalysisSnapshot } from "@/lib/types";
 
 function parsePreviousSnapshot(value: string | null): RepositoryAnalysisSnapshot | undefined {
@@ -71,6 +72,13 @@ export async function GET(request: Request) {
     commandQueue,
     reviewHandoff,
   });
+  const statusBrief = buildContributorStatusBrief({
+    repository: result.repository,
+    releaseGate,
+    responseSla,
+    starterKit,
+    focusPlan,
+  });
 
   return Response.json({
     ...result,
@@ -85,5 +93,6 @@ export async function GET(request: Request) {
     starterKit,
     releaseGate,
     focusPlan,
+    statusBrief,
   });
 }
