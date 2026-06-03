@@ -15,6 +15,7 @@ import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
 import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
 import { buildMaintainerDecisionLog } from "@/lib/maintainer-decision-log";
+import { buildMaintainerOwnershipRouting } from "@/lib/maintainer-ownership-routing";
 
 export default function Home() {
   const observedAt = new Date("2026-06-03T00:00:00Z");
@@ -36,6 +37,13 @@ export default function Home() {
     analysis: initialAnalysis,
     commandQueue: initialCommandQueue,
     releaseGate: initialReleaseGate,
+  });
+  const initialOwnershipRouting = buildMaintainerOwnershipRouting({
+    repository: demoRepository,
+    responseSla: initialResponseSla,
+    reviewHandoff: initialReviewHandoff,
+    releaseGate: initialReleaseGate,
+    decisionLog: initialDecisionLog,
   });
   const initialFocusPlan = buildMaintainerFocusPlan({
     repository: demoRepository,
@@ -77,6 +85,7 @@ export default function Home() {
       initialStarterKit={initialStarterKit}
       initialReleaseGate={initialReleaseGate}
       initialDecisionLog={initialDecisionLog}
+      initialOwnershipRouting={initialOwnershipRouting}
       initialFocusPlan={initialFocusPlan}
       initialStatusBrief={initialStatusBrief}
       initialReplyOutbox={initialReplyOutbox}

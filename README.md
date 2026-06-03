@@ -40,6 +40,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Contributor reply outbox that gathers repro, review, and starter-task replies into one copyable maintainer send queue
 - Maintainer command queue that stages prioritized GitHub CLI batches behind human approval
 - Maintainer decision log that turns suggested actions, command gates, and release blockers into an auditable ready/review/blocked record
+- Maintainer ownership routing that assigns release, triage, review, and safety handoffs to clear maintainer roles
 - Codex for Open Source evidence pack with copyable application drafts
 - Form-ready Codex for Open Source application packet with official field answers
 - Pull request review summaries and risk indicators
@@ -120,6 +121,7 @@ CI runs the same validation command on pushes to `main` and pull requests.
 - `src/lib/contributor-reply-outbox.ts` gathers contributor-facing replies from repro requests, PR handoffs, and starter tasks into one copyable send queue.
 - `src/lib/release-readiness-gate.ts` turns current blockers, review risk, and readiness checks into a release go/no-go gate.
 - `src/lib/maintainer-decision-log.ts` turns suggested actions, command queue gates, and release gate status into an auditable maintainer decision record.
+- `src/lib/maintainer-ownership-routing.ts` turns release blockers, overdue responses, PR handoffs, and decision gates into role-based maintainer handoffs.
 - `src/lib/maintainer-focus-plan.ts` turns the release gate, response SLA queue, PR handoff, and command queue into a copyable daily focus plan.
 - `src/lib/contributor-status-brief.ts` turns maintainer focus, release status, SLA waits, and starter tasks into a public contributor status update.
 - `src/lib/unblock-kit.ts` turns blocked contributor impact into a copyable execution package.

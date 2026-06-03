@@ -148,6 +148,30 @@ export type MaintainerDecisionLog = {
   markdown: string;
 };
 
+export type MaintainerOwnershipRouteItem = {
+  id: string;
+  ownerRole: "Release captain" | "Triage maintainer" | "Review maintainer" | "Safety reviewer";
+  priority: "critical" | "high" | "normal";
+  source: "release" | "sla" | "review" | "decision";
+  title: string;
+  url: string;
+  reason: string;
+  nextStep: string;
+  handoff: string;
+};
+
+export type MaintainerOwnershipRouting = {
+  summary: string;
+  totals: {
+    releaseCaptain: number;
+    triageMaintainer: number;
+    reviewMaintainer: number;
+    safetyReviewer: number;
+  };
+  items: MaintainerOwnershipRouteItem[];
+  markdown: string;
+};
+
 export type RepositoryPlaybookStep = {
   actionId: string;
   label: string;

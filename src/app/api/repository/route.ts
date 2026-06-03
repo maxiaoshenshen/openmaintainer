@@ -14,6 +14,7 @@ import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
 import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
 import { buildMaintainerDecisionLog } from "@/lib/maintainer-decision-log";
+import { buildMaintainerOwnershipRouting } from "@/lib/maintainer-ownership-routing";
 import type { MaintainerSettings, RepositoryAnalysisSnapshot } from "@/lib/types";
 
 function parsePreviousSnapshot(value: string | null): RepositoryAnalysisSnapshot | undefined {
@@ -73,6 +74,13 @@ export async function GET(request: Request) {
     commandQueue,
     releaseGate,
   });
+  const ownershipRouting = buildMaintainerOwnershipRouting({
+    repository: result.repository,
+    responseSla,
+    reviewHandoff,
+    releaseGate,
+    decisionLog,
+  });
   const focusPlan = buildMaintainerFocusPlan({
     repository: result.repository,
     releaseGate,
@@ -106,6 +114,7 @@ export async function GET(request: Request) {
     starterKit,
     releaseGate,
     decisionLog,
+    ownershipRouting,
     focusPlan,
     statusBrief,
     replyOutbox,

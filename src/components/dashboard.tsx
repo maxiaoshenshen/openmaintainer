@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Users,
   UserPlus,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -31,6 +32,7 @@ import type {
   MaintainerDecisionLog,
   MaintainerCommandQueue,
   MaintainerFocusPlan,
+  MaintainerOwnershipRouting,
   MaintainerAnalysis,
   MaintainerInbox,
   MaintainerRepository,
@@ -54,6 +56,7 @@ import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
 import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
 import { buildMaintainerDecisionLog } from "@/lib/maintainer-decision-log";
+import { buildMaintainerOwnershipRouting } from "@/lib/maintainer-ownership-routing";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
@@ -77,6 +80,7 @@ type RepositoryResponse = {
   starterKit: ContributorStarterKit;
   releaseGate: ReleaseReadinessGate;
   decisionLog: MaintainerDecisionLog;
+  ownershipRouting: MaintainerOwnershipRouting;
   focusPlan: MaintainerFocusPlan;
   statusBrief: ContributorStatusBrief;
   replyOutbox: ContributorReplyOutbox;
@@ -112,6 +116,7 @@ type DashboardProps = {
   initialStarterKit: ContributorStarterKit;
   initialReleaseGate: ReleaseReadinessGate;
   initialDecisionLog: MaintainerDecisionLog;
+  initialOwnershipRouting: MaintainerOwnershipRouting;
   initialFocusPlan: MaintainerFocusPlan;
   initialStatusBrief: ContributorStatusBrief;
   initialReplyOutbox: ContributorReplyOutbox;
@@ -160,10 +165,16 @@ const copy = {
     copyReleaseGate: "Copy gate",
     decisionLog: "Decision log",
     copyDecisionLog: "Copy decisions",
+    ownershipRouting: "Ownership routing",
+    copyOwnershipRouting: "Copy routing",
     copyFailed: "Copy failed",
     readyDecisions: "ready",
     reviewDecisions: "review",
     blockedDecisions: "blocked",
+    releaseCaptain: "Release captain",
+    triageMaintainer: "Triage maintainer",
+    reviewMaintainer: "Review maintainer",
+    safetyReviewer: "Safety reviewer",
     actions: "Action plan",
     playbooks: "Repository playbooks",
     digest: "Weekly digest",
@@ -236,10 +247,16 @@ const copy = {
     copyReleaseGate: "复制闸门",
     decisionLog: "决策日志",
     copyDecisionLog: "复制决策",
+    ownershipRouting: "负责人路由",
+    copyOwnershipRouting: "复制路由",
     copyFailed: "复制失败",
     readyDecisions: "就绪",
     reviewDecisions: "审核",
     blockedDecisions: "阻塞",
+    releaseCaptain: "发布负责人",
+    triageMaintainer: "分诊维护者",
+    reviewMaintainer: "评审维护者",
+    safetyReviewer: "安全审核者",
     actions: "行动计划",
     playbooks: "仓库维护剧本",
     digest: "维护周报",
@@ -368,6 +385,13 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     commandQueue,
     releaseGate,
   });
+  const ownershipRouting = buildMaintainerOwnershipRouting({
+    repository,
+    responseSla,
+    reviewHandoff,
+    releaseGate,
+    decisionLog,
+  });
   const focusPlan = buildMaintainerFocusPlan({
     repository,
     releaseGate,
@@ -387,6 +411,7 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     starterKit,
     releaseGate,
     decisionLog,
+    ownershipRouting,
     focusPlan,
     statusBrief: buildContributorStatusBrief({
       repository,
@@ -415,6 +440,7 @@ export function Dashboard({
   initialStarterKit,
   initialReleaseGate,
   initialDecisionLog,
+  initialOwnershipRouting,
   initialFocusPlan,
   initialStatusBrief,
   initialReplyOutbox,
@@ -434,6 +460,7 @@ export function Dashboard({
   const [starterKit, setStarterKit] = useState(initialStarterKit);
   const [releaseGate, setReleaseGate] = useState(initialReleaseGate);
   const [decisionLog, setDecisionLog] = useState(initialDecisionLog);
+  const [ownershipRouting, setOwnershipRouting] = useState(initialOwnershipRouting);
   const [focusPlan, setFocusPlan] = useState(initialFocusPlan);
   const [statusBrief, setStatusBrief] = useState(initialStatusBrief);
   const [replyOutbox, setReplyOutbox] = useState(initialReplyOutbox);
@@ -463,6 +490,7 @@ export function Dashboard({
   const [copiedStarterKit, setCopiedStarterKit] = useState(false);
   const [copiedReleaseGate, setCopiedReleaseGate] = useState(false);
   const [decisionLogCopyState, setDecisionLogCopyState] = useState<CopyState>("idle");
+  const [ownershipRoutingCopyState, setOwnershipRoutingCopyState] = useState<CopyState>("idle");
   const [copiedFocusPlan, setCopiedFocusPlan] = useState(false);
   const [copiedStatusBrief, setCopiedStatusBrief] = useState(false);
   const [copiedReplyOutbox, setCopiedReplyOutbox] = useState(false);
@@ -550,6 +578,7 @@ export function Dashboard({
       setStarterKit(data.starterKit);
       setReleaseGate(data.releaseGate);
       setDecisionLog(data.decisionLog);
+      setOwnershipRouting(data.ownershipRouting);
       setFocusPlan(data.focusPlan);
       setStatusBrief(data.statusBrief);
       setReplyOutbox(data.replyOutbox);
@@ -617,6 +646,7 @@ export function Dashboard({
       setStarterKit(nextArtifacts.starterKit);
       setReleaseGate(nextArtifacts.releaseGate);
       setDecisionLog(nextArtifacts.decisionLog);
+      setOwnershipRouting(nextArtifacts.ownershipRouting);
       setFocusPlan(nextArtifacts.focusPlan);
       setStatusBrief(nextArtifacts.statusBrief);
       setReplyOutbox(nextArtifacts.replyOutbox);
@@ -752,6 +782,12 @@ export function Dashboard({
     const copied = await copyTextToClipboard(decisionLog.markdown);
     setDecisionLogCopyState(copied ? "copied" : "failed");
     window.setTimeout(() => setDecisionLogCopyState("idle"), 1600);
+  }
+
+  async function copyOwnershipRouting() {
+    const copied = await copyTextToClipboard(ownershipRouting.markdown);
+    setOwnershipRoutingCopyState(copied ? "copied" : "failed");
+    window.setTimeout(() => setOwnershipRoutingCopyState("idle"), 1600);
   }
 
   async function copyFocusPlan() {
@@ -1047,6 +1083,93 @@ export function Dashboard({
                     </div>
                     <p className="mt-2 line-clamp-2 text-xs leading-5 text-stone-600">
                       {item.commands[0] ?? "No command staged"}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <Users className="size-5 text-indigo-700" />
+                  {text.ownershipRouting}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {ownershipRouting.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyOwnershipRouting}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyOwnershipRouting}
+              >
+                <Copy className="size-4" />
+                {ownershipRoutingCopyState === "copied"
+                  ? "Copied"
+                  : ownershipRoutingCopyState === "failed"
+                    ? text.copyFailed
+                    : text.copyOwnershipRouting}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 border-b border-stone-200 text-center text-sm md:grid-cols-4">
+              <div className="border-r border-b border-stone-200 p-3 md:border-b-0">
+                <div className="text-xl font-semibold text-indigo-700">{ownershipRouting.totals.releaseCaptain}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  {text.releaseCaptain}
+                </div>
+              </div>
+              <div className="border-b border-stone-200 p-3 md:border-r md:border-b-0">
+                <div className="text-xl font-semibold text-blue-700">{ownershipRouting.totals.triageMaintainer}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  {text.triageMaintainer}
+                </div>
+              </div>
+              <div className="border-r border-stone-200 p-3">
+                <div className="text-xl font-semibold text-amber-700">{ownershipRouting.totals.reviewMaintainer}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  {text.reviewMaintainer}
+                </div>
+              </div>
+              <div className="p-3">
+                <div className="text-xl font-semibold text-rose-700">{ownershipRouting.totals.safetyReviewer}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  {text.safetyReviewer}
+                </div>
+              </div>
+            </div>
+            <div className="divide-y divide-stone-200">
+              {ownershipRouting.items.map((item) => (
+                <article key={item.id} className="grid gap-3 p-4 lg:grid-cols-[220px_1fr]">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold leading-5 text-stone-950">
+                      {item.ownerRole}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${priorityColor(item.priority)}`}>
+                        {item.priority}
+                      </span>
+                      <span className="rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs font-semibold text-stone-600">
+                        {item.source}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm font-semibold leading-6 text-stone-950 hover:text-blue-700"
+                    >
+                      {item.title}
+                    </a>
+                    <p className="mt-2 text-sm leading-6 text-stone-600">
+                      {item.reason}
+                    </p>
+                    <p className="mt-3 rounded-md border border-stone-200 bg-stone-50 px-3 py-2 text-xs leading-5 text-stone-700">
+                      {item.nextStep}
                     </p>
                   </div>
                 </article>

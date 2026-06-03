@@ -9,6 +9,7 @@ import { buildMaintainerCommandQueue } from "@/lib/maintainer-command-queue";
 import { buildMaintainerDecisionLog } from "@/lib/maintainer-decision-log";
 import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildMaintainerInbox } from "@/lib/maintainer-inbox";
+import { buildMaintainerOwnershipRouting } from "@/lib/maintainer-ownership-routing";
 import { buildOssEvidencePack } from "@/lib/oss-evidence";
 import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
 import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
@@ -41,6 +42,13 @@ function renderDashboard() {
     analysis,
     commandQueue,
     releaseGate,
+  });
+  const ownershipRouting = buildMaintainerOwnershipRouting({
+    repository: demoRepository,
+    responseSla,
+    reviewHandoff,
+    releaseGate,
+    decisionLog,
   });
   const focusPlan = buildMaintainerFocusPlan({
     repository: demoRepository,
@@ -82,6 +90,7 @@ function renderDashboard() {
       initialStarterKit={starterKit}
       initialReleaseGate={releaseGate}
       initialDecisionLog={decisionLog}
+      initialOwnershipRouting={ownershipRouting}
       initialFocusPlan={focusPlan}
       initialStatusBrief={statusBrief}
       initialReplyOutbox={replyOutbox}
@@ -113,5 +122,18 @@ describe("Dashboard", () => {
     expect(markup).toContain("Copy decisions");
     expect(markup).toContain("Human review required before close or release command");
     expect(markup).toContain("Release gate is blocked; do not run release command yet");
+  });
+
+  it("renders maintainer ownership routing with role handoffs", () => {
+    const markup = renderDashboard();
+
+    expect(markup).toContain("Ownership routing");
+    expect(markup).toContain("7 ownership routes assigned across 4 maintainer roles");
+    expect(markup).toContain("Copy routing");
+    expect(markup).toContain("Release captain");
+    expect(markup).toContain("Triage maintainer");
+    expect(markup).toContain("Review maintainer");
+    expect(markup).toContain("Safety reviewer");
+    expect(markup).toContain("Review risky PR #92");
   });
 });

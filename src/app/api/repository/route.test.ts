@@ -39,5 +39,9 @@ describe("repository route", () => {
     expect(body.decisionLog.summary).toContain("maintainer decisions logged");
     expect(body.decisionLog.markdown).toContain("Maintainer decision log");
     expect(body.decisionLog.markdown).toContain("Release gate is blocked");
+    expect(body.ownershipRouting.summary).toContain("ownership routes");
+    expect(body.ownershipRouting.markdown).toContain("Maintainer ownership routing");
+    expect(body.ownershipRouting.markdown).toContain("Owner role: Release captain");
+    expect(body.ownershipRouting.markdown).toContain("Owner role: Safety reviewer");
   });
 });

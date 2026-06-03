@@ -8,7 +8,7 @@ OpenMaintainer is split into four layers.
 
 ## 2. Route handlers
 
-`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data, deterministic analysis, contributor impact, the evidence pack, the contributor unblock kit, the response SLA queue, the reproduction request kit, the contributor starter kit, the pull request review handoff kit, the release readiness gate, the maintainer decision log, the maintainer focus plan, the contributor status brief, and the contributor reply outbox.
+`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data, deterministic analysis, contributor impact, the evidence pack, the contributor unblock kit, the response SLA queue, the reproduction request kit, the contributor starter kit, the pull request review handoff kit, the release readiness gate, the maintainer decision log, the maintainer ownership routing artifact, the maintainer focus plan, the contributor status brief, and the contributor reply outbox.
 
 `src/app/api/analyze/route.ts` accepts repository data plus optional maintainer settings and returns either OpenAI-backed analysis or deterministic fallback analysis.
 
@@ -35,6 +35,8 @@ OpenMaintainer is split into four layers.
 `src/lib/release-readiness-gate.ts` converts current issue blockers, missing reproduction details, pull request risk, and OSS readiness checks into a release go/no-go gate.
 
 `src/lib/maintainer-focus-plan.ts` converts release blockers, overdue contributor responses, pull request review handoffs, and ready command batches into a three-item daily focus plan.
+
+`src/lib/maintainer-ownership-routing.ts` converts release blockers, overdue contributor responses, pull request review handoffs, and decision log gates into role-based handoffs for release captains, triage maintainers, review maintainers, and safety reviewers.
 
 `src/lib/contributor-status-brief.ts` converts maintainer focus, release status, response SLA waits, and starter tasks into a public status update that can be copied into GitHub Discussions, pinned issues, or README updates.
 
