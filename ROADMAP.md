@@ -13,6 +13,7 @@
 - Reproduction request kit for incomplete bug reports
 - Contributor starter kit for first contribution task packets
 - Contributor unblock kit with copyable replies and GitHub CLI commands
+- Contributor reply outbox for one-stop maintainer-to-contributor response drafts
 - Maintainer command queue for prioritized, human-approved GitHub CLI batches
 - Codex for Open Source evidence pack
 - Form-ready Codex for Open Source application packet

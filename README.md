@@ -37,6 +37,7 @@ OpenMaintainer makes that work visible in one cockpit. AI output is treated as a
 - Reproduction request kit for incomplete bug reports with copyable GitHub comments
 - Contributor starter kit that turns approachable issues into first contribution task packets
 - Contributor unblock kit with copyable maintainer replies and GitHub CLI commands
+- Contributor reply outbox that gathers repro, review, and starter-task replies into one copyable maintainer send queue
 - Maintainer command queue that stages prioritized GitHub CLI batches behind human approval
 - Codex for Open Source evidence pack with copyable application drafts
 - Form-ready Codex for Open Source application packet with official field answers
@@ -115,6 +116,7 @@ CI runs the same validation command on pushes to `main` and pull requests.
 - `src/lib/repro-kit.ts` turns incomplete bug reports into contributor-friendly reproduction requests.
 - `src/lib/contributor-starter-kit.ts` turns approachable issues into starter task packets for new contributors.
 - `src/lib/pr-review-handoff.ts` turns risky pull requests into focused review handoff packages.
+- `src/lib/contributor-reply-outbox.ts` gathers contributor-facing replies from repro requests, PR handoffs, and starter tasks into one copyable send queue.
 - `src/lib/release-readiness-gate.ts` turns current blockers, review risk, and readiness checks into a release go/no-go gate.
 - `src/lib/maintainer-focus-plan.ts` turns the release gate, response SLA queue, PR handoff, and command queue into a copyable daily focus plan.
 - `src/lib/contributor-status-brief.ts` turns maintainer focus, release status, SLA waits, and starter tasks into a public contributor status update.

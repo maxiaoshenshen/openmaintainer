@@ -24,6 +24,7 @@ import {
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   ContributorImpactQueue,
+  ContributorReplyOutbox,
   ContributorStarterKit,
   ContributorStatusBrief,
   ContributorUnblockKit,
@@ -50,6 +51,8 @@ import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
 import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
+import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -73,6 +76,7 @@ type RepositoryResponse = {
   releaseGate: ReleaseReadinessGate;
   focusPlan: MaintainerFocusPlan;
   statusBrief: ContributorStatusBrief;
+  replyOutbox: ContributorReplyOutbox;
   source: "demo" | "github";
   warning?: string;
 };
@@ -106,6 +110,7 @@ type DashboardProps = {
   initialReleaseGate: ReleaseReadinessGate;
   initialFocusPlan: MaintainerFocusPlan;
   initialStatusBrief: ContributorStatusBrief;
+  initialReplyOutbox: ContributorReplyOutbox;
   initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
@@ -125,6 +130,11 @@ const copy = {
     copyFocusPlan: "Copy plan",
     statusBrief: "Public status",
     copyStatusBrief: "Copy status",
+    replyOutbox: "Reply outbox",
+    copyReplyOutbox: "Copy outbox",
+    readyReplies: "ready replies",
+    urgentReplies: "urgent",
+    commandPreview: "GitHub handoff",
     responseSla: "Response SLA",
     copyResponseSla: "Copy SLA",
     reproKit: "Repro kit",
@@ -190,6 +200,11 @@ const copy = {
     copyFocusPlan: "复制计划",
     statusBrief: "公开状态",
     copyStatusBrief: "复制状态",
+    replyOutbox: "回复发件箱",
+    copyReplyOutbox: "复制发件箱",
+    readyReplies: "待发回复",
+    urgentReplies: "紧急",
+    commandPreview: "GitHub 交接",
     responseSla: "响应 SLA",
     copyResponseSla: "复制 SLA",
     reproKit: "复现包",
@@ -320,6 +335,7 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
   const contributorImpact = buildContributorImpactQueue(repository, analysis);
   const commandQueue = buildMaintainerCommandQueue(analysis.actions);
   const responseSla = buildResponseSlaQueue(contributorImpact, analysis.settings);
+  const reproKit = buildReproductionRequestKit(repository, analysis);
   const reviewHandoff = buildPullRequestReviewHandoffKit(repository, analysis);
   const starterKit = buildContributorStarterKit(repository, analysis);
   const releaseGate = buildReleaseReadinessGate(repository, analysis);
@@ -337,7 +353,7 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
     unblockKit: buildContributorUnblockKit(contributorImpact, analysis.actions),
     commandQueue,
     responseSla,
-    reproKit: buildReproductionRequestKit(repository, analysis),
+    reproKit,
     reviewHandoff,
     starterKit,
     releaseGate,
@@ -348,6 +364,11 @@ function buildDashboardArtifacts(repository: MaintainerRepository, analysis: Mai
       responseSla,
       starterKit,
       focusPlan,
+    }),
+    replyOutbox: buildContributorReplyOutbox({
+      reproKit,
+      reviewHandoff,
+      starterKit,
     }),
   };
 }
@@ -365,6 +386,7 @@ export function Dashboard({
   initialReleaseGate,
   initialFocusPlan,
   initialStatusBrief,
+  initialReplyOutbox,
   initialEvidencePack,
   initialInbox,
   initialSource,
@@ -382,6 +404,7 @@ export function Dashboard({
   const [releaseGate, setReleaseGate] = useState(initialReleaseGate);
   const [focusPlan, setFocusPlan] = useState(initialFocusPlan);
   const [statusBrief, setStatusBrief] = useState(initialStatusBrief);
+  const [replyOutbox, setReplyOutbox] = useState(initialReplyOutbox);
   const [inbox, setInbox] = useState(initialInbox);
   const [portfolioInput, setPortfolioInput] = useState(
     initialInbox.items.map((item) => item.repository).join("\n"),
@@ -409,6 +432,7 @@ export function Dashboard({
   const [copiedReleaseGate, setCopiedReleaseGate] = useState(false);
   const [copiedFocusPlan, setCopiedFocusPlan] = useState(false);
   const [copiedStatusBrief, setCopiedStatusBrief] = useState(false);
+  const [copiedReplyOutbox, setCopiedReplyOutbox] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -494,6 +518,7 @@ export function Dashboard({
       setReleaseGate(data.releaseGate);
       setFocusPlan(data.focusPlan);
       setStatusBrief(data.statusBrief);
+      setReplyOutbox(data.replyOutbox);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
@@ -559,6 +584,7 @@ export function Dashboard({
       setReleaseGate(nextArtifacts.releaseGate);
       setFocusPlan(nextArtifacts.focusPlan);
       setStatusBrief(nextArtifacts.statusBrief);
+      setReplyOutbox(nextArtifacts.replyOutbox);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
@@ -600,7 +626,7 @@ export function Dashboard({
   }
 
   async function copyReleaseDraft() {
-    await navigator.clipboard.writeText(analysis.releaseNotes);
+    await copyTextToClipboard(analysis.releaseNotes);
     setCopiedRelease(true);
     window.setTimeout(() => setCopiedRelease(false), 1600);
   }
@@ -616,87 +642,93 @@ export function Dashboard({
   }
 
   async function copyAction(action: MaintainerAnalysis["actions"][number]) {
-    await navigator.clipboard.writeText(actionMarkdown(action));
+    await copyTextToClipboard(actionMarkdown(action));
     setCopiedAction(action.id);
     window.setTimeout(() => setCopiedAction(null), 1600);
   }
 
   async function copyPlaybook(playbook: MaintainerAnalysis["playbooks"][number]) {
-    await navigator.clipboard.writeText(playbookMarkdown(playbook));
+    await copyTextToClipboard(playbookMarkdown(playbook));
     setCopiedPlaybook(playbook.id);
     window.setTimeout(() => setCopiedPlaybook(null), 1600);
   }
 
   async function copyDigest() {
-    await navigator.clipboard.writeText(analysis.digest.markdown);
+    await copyTextToClipboard(analysis.digest.markdown);
     setCopiedDigest(true);
     window.setTimeout(() => setCopiedDigest(false), 1600);
   }
 
   async function copyEvidencePack() {
-    await navigator.clipboard.writeText(evidencePack.markdown);
+    await copyTextToClipboard(evidencePack.markdown);
     setCopiedEvidence(true);
     window.setTimeout(() => setCopiedEvidence(false), 1600);
   }
 
   async function copyApplicationPacket() {
-    await navigator.clipboard.writeText(evidencePack.applicationPacket.markdown);
+    await copyTextToClipboard(evidencePack.applicationPacket.markdown);
     setCopiedApplication(true);
     window.setTimeout(() => setCopiedApplication(false), 1600);
   }
 
   async function copyUnblockKit() {
-    await navigator.clipboard.writeText(unblockKit.markdown);
+    await copyTextToClipboard(unblockKit.markdown);
     setCopiedUnblockKit(true);
     window.setTimeout(() => setCopiedUnblockKit(false), 1600);
   }
 
   async function copyCommandQueue() {
-    await navigator.clipboard.writeText(commandQueue.markdown);
+    await copyTextToClipboard(commandQueue.markdown);
     setCopiedCommandQueue(true);
     window.setTimeout(() => setCopiedCommandQueue(false), 1600);
   }
 
   async function copyResponseSla() {
-    await navigator.clipboard.writeText(responseSla.markdown);
+    await copyTextToClipboard(responseSla.markdown);
     setCopiedResponseSla(true);
     window.setTimeout(() => setCopiedResponseSla(false), 1600);
   }
 
   async function copyReproKit() {
-    await navigator.clipboard.writeText(reproKit.markdown);
+    await copyTextToClipboard(reproKit.markdown);
     setCopiedReproKit(true);
     window.setTimeout(() => setCopiedReproKit(false), 1600);
   }
 
   async function copyReviewHandoff() {
-    await navigator.clipboard.writeText(reviewHandoff.markdown);
+    await copyTextToClipboard(reviewHandoff.markdown);
     setCopiedReviewHandoff(true);
     window.setTimeout(() => setCopiedReviewHandoff(false), 1600);
   }
 
   async function copyStarterKit() {
-    await navigator.clipboard.writeText(starterKit.markdown);
+    await copyTextToClipboard(starterKit.markdown);
     setCopiedStarterKit(true);
     window.setTimeout(() => setCopiedStarterKit(false), 1600);
   }
 
   async function copyReleaseGate() {
-    await navigator.clipboard.writeText(releaseGate.markdown);
+    await copyTextToClipboard(releaseGate.markdown);
     setCopiedReleaseGate(true);
     window.setTimeout(() => setCopiedReleaseGate(false), 1600);
   }
 
   async function copyFocusPlan() {
-    await navigator.clipboard.writeText(focusPlan.markdown);
+    await copyTextToClipboard(focusPlan.markdown);
     setCopiedFocusPlan(true);
     window.setTimeout(() => setCopiedFocusPlan(false), 1600);
   }
 
   async function copyStatusBrief() {
-    await navigator.clipboard.writeText(statusBrief.markdown);
+    await copyTextToClipboard(statusBrief.markdown);
     setCopiedStatusBrief(true);
     window.setTimeout(() => setCopiedStatusBrief(false), 1600);
+  }
+
+  async function copyReplyOutbox() {
+    await copyTextToClipboard(replyOutbox.markdown);
+    setCopiedReplyOutbox(true);
+    window.setTimeout(() => setCopiedReplyOutbox(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -976,6 +1008,86 @@ export function Dashboard({
                     ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <MessageSquareText className="size-5 text-blue-700" />
+                  {text.replyOutbox}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {replyOutbox.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyReplyOutbox}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyReplyOutbox}
+              >
+                <Copy className="size-4" />
+                {copiedReplyOutbox ? "Copied" : text.copyReplyOutbox}
+              </button>
+            </div>
+            <div className="grid border-b border-stone-200 lg:grid-cols-[170px_1fr]">
+              <div className="grid grid-cols-2 border-b border-stone-200 lg:block lg:border-b-0 lg:border-r">
+                <div className="border-r border-stone-200 p-4 lg:border-r-0 lg:border-b">
+                  <div className="text-3xl font-semibold text-stone-950">
+                    {replyOutbox.items.length}
+                  </div>
+                  <div className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    {text.readyReplies}
+                  </div>
+                </div>
+                <div className="p-4">
+                  <div className="text-3xl font-semibold text-rose-700">
+                    {replyOutbox.items.filter((item) => item.priority === "urgent").length}
+                  </div>
+                  <div className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    {text.urgentReplies}
+                  </div>
+                </div>
+              </div>
+              <div className="divide-y divide-stone-200">
+                {replyOutbox.items.slice(0, 4).map((item) => (
+                  <article key={item.id} className="grid gap-3 p-4 xl:grid-cols-[1fr_320px]">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="min-w-0 text-sm font-semibold leading-6 text-stone-950 hover:text-blue-700"
+                        >
+                          {item.title}
+                        </a>
+                        <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${priorityColor(item.priority)}`}>
+                          {item.priority}
+                        </span>
+                        <span className="rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs font-semibold text-stone-600">
+                          {item.source} · {item.target === "pull-request" ? "PR" : "issue"} #{item.targetNumber}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                        {item.contributor}
+                      </p>
+                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-stone-600">
+                        {item.body}
+                      </p>
+                    </div>
+                    <div className="min-w-0 rounded-md border border-stone-200 bg-stone-950 p-3 text-white">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
+                        {text.commandPreview}
+                      </div>
+                      <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words font-mono text-xs leading-5 text-stone-100">
+                        {item.githubCommand}
+                      </pre>
+                    </div>
+                  </article>
+                ))}
               </div>
             </div>
           </section>

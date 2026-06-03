@@ -12,6 +12,7 @@ import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
 import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
+import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
 import type { MaintainerSettings, RepositoryAnalysisSnapshot } from "@/lib/types";
 
 function parsePreviousSnapshot(value: string | null): RepositoryAnalysisSnapshot | undefined {
@@ -79,6 +80,11 @@ export async function GET(request: Request) {
     starterKit,
     focusPlan,
   });
+  const replyOutbox = buildContributorReplyOutbox({
+    reproKit,
+    reviewHandoff,
+    starterKit,
+  });
 
   return Response.json({
     ...result,
@@ -94,5 +100,6 @@ export async function GET(request: Request) {
     releaseGate,
     focusPlan,
     statusBrief,
+    replyOutbox,
   });
 }

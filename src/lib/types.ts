@@ -350,6 +350,25 @@ export type ContributorStarterKit = {
   markdown: string;
 };
 
+export type ContributorReplyOutboxItem = {
+  id: string;
+  priority: "urgent" | "high" | "normal";
+  source: "repro" | "review" | "starter";
+  target: "issue" | "pull-request";
+  targetNumber: number;
+  contributor: string;
+  title: string;
+  url: string;
+  body: string;
+  githubCommand: string;
+};
+
+export type ContributorReplyOutbox = {
+  summary: string;
+  items: ContributorReplyOutboxItem[];
+  markdown: string;
+};
+
 export type ReleaseGateItem = {
   id: string;
   source: "issue" | "pull-request" | "repository";

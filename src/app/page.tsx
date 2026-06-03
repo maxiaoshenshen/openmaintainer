@@ -13,6 +13,7 @@ import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
 import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
+import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
 
 export default function Home() {
   const observedAt = new Date("2026-06-03T00:00:00Z");
@@ -43,6 +44,11 @@ export default function Home() {
     starterKit: initialStarterKit,
     focusPlan: initialFocusPlan,
   });
+  const initialReplyOutbox = buildContributorReplyOutbox({
+    reproKit: initialReproKit,
+    reviewHandoff: initialReviewHandoff,
+    starterKit: initialStarterKit,
+  });
   const initialInbox = buildMaintainerInbox(
     demoPortfolioRepositories.map((repository) => ({
       repository,
@@ -65,6 +71,7 @@ export default function Home() {
       initialReleaseGate={initialReleaseGate}
       initialFocusPlan={initialFocusPlan}
       initialStatusBrief={initialStatusBrief}
+      initialReplyOutbox={initialReplyOutbox}
       initialEvidencePack={buildOssEvidencePack(demoRepository, initialAnalysis, initialContributorImpact)}
       initialInbox={initialInbox}
       initialSource="demo"

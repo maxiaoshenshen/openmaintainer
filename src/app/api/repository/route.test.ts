@@ -34,5 +34,7 @@ describe("repository route", () => {
     expect(body.focusPlan.markdown).toContain("Maintainer focus plan");
     expect(body.statusBrief.summary).toContain("contributor threads need maintainer attention");
     expect(body.statusBrief.markdown).toContain("Maintainer status update");
+    expect(body.replyOutbox.summary).toContain("contributor replies are ready to send");
+    expect(body.replyOutbox.markdown).toContain("Contributor reply outbox");
   });
 });

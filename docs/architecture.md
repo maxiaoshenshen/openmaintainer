@@ -8,7 +8,7 @@ OpenMaintainer is split into four layers.
 
 ## 2. Route handlers
 
-`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data, deterministic analysis, contributor impact, the evidence pack, the contributor unblock kit, the response SLA queue, the reproduction request kit, the contributor starter kit, the pull request review handoff kit, the release readiness gate, the maintainer focus plan, and the contributor status brief.
+`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data, deterministic analysis, contributor impact, the evidence pack, the contributor unblock kit, the response SLA queue, the reproduction request kit, the contributor starter kit, the pull request review handoff kit, the release readiness gate, the maintainer focus plan, the contributor status brief, and the contributor reply outbox.
 
 `src/app/api/analyze/route.ts` accepts repository data plus optional maintainer settings and returns either OpenAI-backed analysis or deterministic fallback analysis.
 
@@ -29,6 +29,8 @@ OpenMaintainer is split into four layers.
 `src/lib/contributor-starter-kit.ts` converts approachable issues into first contribution task packets with branch names, acceptance criteria, PR checklists, and maintainer guidance comments.
 
 `src/lib/pr-review-handoff.ts` converts risky pull requests into focused review handoff packages with validation steps, maintainer commands, and contributor-visible review comments.
+
+`src/lib/contributor-reply-outbox.ts` combines reproduction request comments, PR review handoff comments, and starter-task guidance comments into one prioritized contributor reply outbox with copyable GitHub CLI comment commands.
 
 `src/lib/release-readiness-gate.ts` converts current issue blockers, missing reproduction details, pull request risk, and OSS readiness checks into a release go/no-go gate.
 
