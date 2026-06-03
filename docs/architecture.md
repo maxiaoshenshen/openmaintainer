@@ -8,7 +8,7 @@ OpenMaintainer is split into four layers.
 
 ## 2. Route handlers
 
-`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data, deterministic analysis, contributor impact, the evidence pack, the contributor unblock kit, the response SLA queue, the reproduction request kit, the contributor starter kit, the pull request review handoff kit, and the release readiness gate.
+`src/app/api/repository/route.ts` accepts a repository input, optional previous snapshot, optional maintainer settings, and returns repository data, deterministic analysis, contributor impact, the evidence pack, the contributor unblock kit, the response SLA queue, the reproduction request kit, the contributor starter kit, the pull request review handoff kit, the release readiness gate, and the maintainer focus plan.
 
 `src/app/api/analyze/route.ts` accepts repository data plus optional maintainer settings and returns either OpenAI-backed analysis or deterministic fallback analysis.
 
@@ -31,6 +31,8 @@ OpenMaintainer is split into four layers.
 `src/lib/pr-review-handoff.ts` converts risky pull requests into focused review handoff packages with validation steps, maintainer commands, and contributor-visible review comments.
 
 `src/lib/release-readiness-gate.ts` converts current issue blockers, missing reproduction details, pull request risk, and OSS readiness checks into a release go/no-go gate.
+
+`src/lib/maintainer-focus-plan.ts` converts release blockers, overdue contributor responses, pull request review handoffs, and ready command batches into a three-item daily focus plan.
 
 `src/lib/unblock-kit.ts` converts blocked contributor impact into a copyable maintainer execution package with reply drafts and GitHub CLI commands.
 

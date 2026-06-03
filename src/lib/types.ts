@@ -377,6 +377,25 @@ export type ReleaseReadinessGate = {
   markdown: string;
 };
 
+export type MaintainerFocusPlanItem = {
+  id: string;
+  priority: "critical" | "high" | "normal";
+  source: "release" | "sla" | "review" | "command";
+  title: string;
+  detail: string;
+  url: string;
+  estimatedMinutes: number;
+  reason: string;
+  expectedOutcome: string;
+};
+
+export type MaintainerFocusPlan = {
+  summary: string;
+  totalEstimatedMinutes: number;
+  items: MaintainerFocusPlanItem[];
+  markdown: string;
+};
+
 export type OssEvidencePack = {
   programUrl: string;
   roleDraft: string;

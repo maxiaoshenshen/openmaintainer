@@ -11,6 +11,7 @@ import { buildReproductionRequestKit } from "@/lib/repro-kit";
 import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
 import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
+import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 
 export default function Home() {
   const observedAt = new Date("2026-06-03T00:00:00Z");
@@ -27,6 +28,13 @@ export default function Home() {
   const initialReviewHandoff = buildPullRequestReviewHandoffKit(demoRepository, initialAnalysis);
   const initialStarterKit = buildContributorStarterKit(demoRepository, initialAnalysis);
   const initialReleaseGate = buildReleaseReadinessGate(demoRepository, initialAnalysis);
+  const initialFocusPlan = buildMaintainerFocusPlan({
+    repository: demoRepository,
+    releaseGate: initialReleaseGate,
+    responseSla: initialResponseSla,
+    commandQueue: initialCommandQueue,
+    reviewHandoff: initialReviewHandoff,
+  });
   const initialInbox = buildMaintainerInbox(
     demoPortfolioRepositories.map((repository) => ({
       repository,
@@ -47,6 +55,7 @@ export default function Home() {
       initialReviewHandoff={initialReviewHandoff}
       initialStarterKit={initialStarterKit}
       initialReleaseGate={initialReleaseGate}
+      initialFocusPlan={initialFocusPlan}
       initialEvidencePack={buildOssEvidencePack(demoRepository, initialAnalysis, initialContributorImpact)}
       initialInbox={initialInbox}
       initialSource="demo"

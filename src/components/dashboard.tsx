@@ -27,6 +27,7 @@ import type {
   ContributorStarterKit,
   ContributorUnblockKit,
   MaintainerCommandQueue,
+  MaintainerFocusPlan,
   MaintainerAnalysis,
   MaintainerInbox,
   MaintainerRepository,
@@ -46,6 +47,7 @@ import { buildReproductionRequestKit } from "@/lib/repro-kit";
 import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
 import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
+import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import { readSettings, writeSettings } from "@/lib/settings-store";
 import {
   createSnapshotFromAnalysis,
@@ -67,6 +69,7 @@ type RepositoryResponse = {
   reviewHandoff: PullRequestReviewHandoffKit;
   starterKit: ContributorStarterKit;
   releaseGate: ReleaseReadinessGate;
+  focusPlan: MaintainerFocusPlan;
   source: "demo" | "github";
   warning?: string;
 };
@@ -98,6 +101,7 @@ type DashboardProps = {
   initialReviewHandoff: PullRequestReviewHandoffKit;
   initialStarterKit: ContributorStarterKit;
   initialReleaseGate: ReleaseReadinessGate;
+  initialFocusPlan: MaintainerFocusPlan;
   initialEvidencePack: OssEvidencePack;
   initialInbox: MaintainerInbox;
   initialSource: "demo" | "github";
@@ -113,6 +117,8 @@ const copy = {
     portfolioPlaceholder: "owner/repo, openai/openai-cookbook, vercel/next.js",
     mostPainful: "Most painful",
     impact: "Contributor impact",
+    focusPlan: "Focus plan",
+    copyFocusPlan: "Copy plan",
     responseSla: "Response SLA",
     copyResponseSla: "Copy SLA",
     reproKit: "Repro kit",
@@ -174,6 +180,8 @@ const copy = {
     portfolioPlaceholder: "owner/repo, openai/openai-cookbook, vercel/next.js",
     mostPainful: "最痛仓库",
     impact: "贡献者影响",
+    focusPlan: "今日聚焦",
+    copyFocusPlan: "复制计划",
     responseSla: "响应 SLA",
     copyResponseSla: "复制 SLA",
     reproKit: "复现包",
@@ -243,7 +251,7 @@ function riskColor(risk: "high" | "medium" | "low") {
 }
 
 function priorityColor(priority: string) {
-  if (priority === "urgent" || priority === "high") return "border-rose-300 bg-rose-50 text-rose-800";
+  if (priority === "urgent" || priority === "critical" || priority === "high") return "border-rose-300 bg-rose-50 text-rose-800";
   if (priority === "normal") return "border-blue-300 bg-blue-50 text-blue-800";
   return "border-stone-300 bg-stone-50 text-stone-700";
 }
@@ -302,17 +310,28 @@ function playbookMarkdown(playbook: MaintainerAnalysis["playbooks"][number]) {
 
 function buildDashboardArtifacts(repository: MaintainerRepository, analysis: MaintainerAnalysis) {
   const contributorImpact = buildContributorImpactQueue(repository, analysis);
+  const commandQueue = buildMaintainerCommandQueue(analysis.actions);
+  const responseSla = buildResponseSlaQueue(contributorImpact, analysis.settings);
+  const reviewHandoff = buildPullRequestReviewHandoffKit(repository, analysis);
+  const releaseGate = buildReleaseReadinessGate(repository, analysis);
 
   return {
     contributorImpact,
     evidencePack: buildOssEvidencePack(repository, analysis, contributorImpact),
     unblockKit: buildContributorUnblockKit(contributorImpact, analysis.actions),
-    commandQueue: buildMaintainerCommandQueue(analysis.actions),
-    responseSla: buildResponseSlaQueue(contributorImpact, analysis.settings),
+    commandQueue,
+    responseSla,
     reproKit: buildReproductionRequestKit(repository, analysis),
-    reviewHandoff: buildPullRequestReviewHandoffKit(repository, analysis),
+    reviewHandoff,
     starterKit: buildContributorStarterKit(repository, analysis),
-    releaseGate: buildReleaseReadinessGate(repository, analysis),
+    releaseGate,
+    focusPlan: buildMaintainerFocusPlan({
+      repository,
+      releaseGate,
+      responseSla,
+      commandQueue,
+      reviewHandoff,
+    }),
   };
 }
 
@@ -327,6 +346,7 @@ export function Dashboard({
   initialReviewHandoff,
   initialStarterKit,
   initialReleaseGate,
+  initialFocusPlan,
   initialEvidencePack,
   initialInbox,
   initialSource,
@@ -342,6 +362,7 @@ export function Dashboard({
   const [reviewHandoff, setReviewHandoff] = useState(initialReviewHandoff);
   const [starterKit, setStarterKit] = useState(initialStarterKit);
   const [releaseGate, setReleaseGate] = useState(initialReleaseGate);
+  const [focusPlan, setFocusPlan] = useState(initialFocusPlan);
   const [inbox, setInbox] = useState(initialInbox);
   const [portfolioInput, setPortfolioInput] = useState(
     initialInbox.items.map((item) => item.repository).join("\n"),
@@ -367,6 +388,7 @@ export function Dashboard({
   const [copiedReviewHandoff, setCopiedReviewHandoff] = useState(false);
   const [copiedStarterKit, setCopiedStarterKit] = useState(false);
   const [copiedReleaseGate, setCopiedReleaseGate] = useState(false);
+  const [copiedFocusPlan, setCopiedFocusPlan] = useState(false);
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
@@ -450,6 +472,7 @@ export function Dashboard({
       setReviewHandoff(data.reviewHandoff);
       setStarterKit(data.starterKit);
       setReleaseGate(data.releaseGate);
+      setFocusPlan(data.focusPlan);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setSource(data.source);
@@ -513,6 +536,7 @@ export function Dashboard({
       setReviewHandoff(nextArtifacts.reviewHandoff);
       setStarterKit(nextArtifacts.starterKit);
       setReleaseGate(nextArtifacts.releaseGate);
+      setFocusPlan(nextArtifacts.focusPlan);
       setSettings(data.analysis.settings);
       setPreferredLabelsDraft(data.analysis.settings.preferredLabels.join(", "));
       setProvider(data.provider);
@@ -639,6 +663,12 @@ export function Dashboard({
     await navigator.clipboard.writeText(releaseGate.markdown);
     setCopiedReleaseGate(true);
     window.setTimeout(() => setCopiedReleaseGate(false), 1600);
+  }
+
+  async function copyFocusPlan() {
+    await navigator.clipboard.writeText(focusPlan.markdown);
+    setCopiedFocusPlan(true);
+    window.setTimeout(() => setCopiedFocusPlan(false), 1600);
   }
 
   function exportCurrentSnapshot() {
@@ -769,6 +799,66 @@ export function Dashboard({
 
       <section className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[1.4fr_0.9fr] lg:px-8">
         <div className="space-y-4">
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <Gauge className="size-5 text-blue-700" />
+                  {text.focusPlan}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {focusPlan.summary}
+                </p>
+              </div>
+              <button
+                onClick={copyFocusPlan}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100"
+                title={text.copyFocusPlan}
+              >
+                <Copy className="size-4" />
+                {copiedFocusPlan ? "Copied" : text.copyFocusPlan}
+              </button>
+            </div>
+            <div className="grid gap-0 border-b border-stone-200 sm:grid-cols-[160px_1fr]">
+              <div className="border-b border-stone-200 p-4 sm:border-b-0 sm:border-r">
+                <div className="text-3xl font-semibold text-stone-950">
+                  {focusPlan.totalEstimatedMinutes}
+                </div>
+                <div className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  minutes today
+                </div>
+              </div>
+              <div className="grid gap-3 p-4 md:grid-cols-3">
+                {focusPlan.items.slice(0, 3).map((item) => (
+                  <article key={item.id} className="rounded-md border border-stone-200 bg-stone-50 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${priorityColor(item.priority)}`}>
+                        {item.priority}
+                      </span>
+                      <span className="rounded-full border border-stone-300 bg-white px-2 py-0.5 text-xs font-semibold text-stone-600">
+                        {item.source} · {item.estimatedMinutes}m
+                      </span>
+                    </div>
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 block text-sm font-semibold leading-6 text-stone-950 hover:text-blue-700"
+                    >
+                      {item.title}
+                    </a>
+                    <p className="mt-2 text-sm leading-6 text-stone-600">
+                      {item.reason}
+                    </p>
+                    <p className="mt-3 rounded-md border border-stone-200 bg-white px-3 py-2 text-xs leading-5 text-stone-700">
+                      {item.expectedOutcome}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
           <section className="rounded-lg border border-stone-300 bg-white">
             <div className="flex flex-col gap-4 border-b border-stone-200 p-4 lg:flex-row lg:items-start lg:justify-between">
               <div>

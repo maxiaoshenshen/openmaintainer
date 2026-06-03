@@ -30,5 +30,7 @@ describe("repository route", () => {
     expect(body.starterKit.markdown).toContain("starter/issue-285-chinese-readme-quickstart");
     expect(body.releaseGate.status).toBe("blocked");
     expect(body.releaseGate.markdown).toContain("Release readiness gate");
+    expect(body.focusPlan.summary).toContain("focus blocks");
+    expect(body.focusPlan.markdown).toContain("Maintainer focus plan");
   });
 });

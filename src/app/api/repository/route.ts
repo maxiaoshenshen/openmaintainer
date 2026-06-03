@@ -10,6 +10,7 @@ import { buildReproductionRequestKit } from "@/lib/repro-kit";
 import { buildPullRequestReviewHandoffKit } from "@/lib/pr-review-handoff";
 import { buildContributorStarterKit } from "@/lib/contributor-starter-kit";
 import { buildReleaseReadinessGate } from "@/lib/release-readiness-gate";
+import { buildMaintainerFocusPlan } from "@/lib/maintainer-focus-plan";
 import type { MaintainerSettings, RepositoryAnalysisSnapshot } from "@/lib/types";
 
 function parsePreviousSnapshot(value: string | null): RepositoryAnalysisSnapshot | undefined {
@@ -63,6 +64,13 @@ export async function GET(request: Request) {
   const reviewHandoff = buildPullRequestReviewHandoffKit(result.repository, analysis);
   const starterKit = buildContributorStarterKit(result.repository, analysis);
   const releaseGate = buildReleaseReadinessGate(result.repository, analysis);
+  const focusPlan = buildMaintainerFocusPlan({
+    repository: result.repository,
+    releaseGate,
+    responseSla,
+    commandQueue,
+    reviewHandoff,
+  });
 
   return Response.json({
     ...result,
@@ -76,5 +84,6 @@ export async function GET(request: Request) {
     reviewHandoff,
     starterKit,
     releaseGate,
+    focusPlan,
   });
 }
