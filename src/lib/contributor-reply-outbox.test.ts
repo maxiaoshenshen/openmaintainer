@@ -32,6 +32,22 @@ describe("buildContributorReplyOutbox", () => {
     });
     expect(outbox.items[0].body).toContain("To help us reproduce it quickly");
     expect(outbox.items[0].githubCommand).toContain("gh issue comment 284");
+    expect(outbox.items[0].variants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          language: "en",
+          label: "English",
+          body: expect.stringContaining("To help us reproduce it quickly"),
+          githubCommand: expect.stringContaining("gh issue comment 284"),
+        }),
+        expect.objectContaining({
+          language: "zh",
+          label: "中文",
+          body: expect.stringContaining("为了帮助我们快速复现"),
+          githubCommand: expect.stringContaining("gh issue comment 284"),
+        }),
+      ]),
+    );
     expect(outbox.items.find((item) => item.id === "reply-review-handoff-pr-92")).toMatchObject({
       source: "review",
       target: "pull-request",
@@ -44,6 +60,8 @@ describe("buildContributorReplyOutbox", () => {
       targetNumber: 285,
     });
     expect(outbox.markdown).toContain("## Contributor reply outbox");
+    expect(outbox.markdown).toContain("English reply:");
+    expect(outbox.markdown).toContain("中文回复:");
     expect(outbox.markdown).toContain("gh pr comment 92");
     expect(outbox.markdown).toContain("starter/issue-285-chinese-readme-quickstart");
   });

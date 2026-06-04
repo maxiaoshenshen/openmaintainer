@@ -110,6 +110,8 @@ describe("Dashboard", () => {
     expect(markup).toContain("Copy outbox");
     expect(markup).toContain("Issue #284: Windows install fails when pnpm is not already available");
     expect(markup).toContain("first-time-contributor");
+    expect(markup).toContain("English / 中文");
+    expect(markup).toContain("为了帮助我们快速复现");
     expect(markup).toContain("gh issue comment 284");
     expect(markup).toContain("gh pr comment 92");
   });

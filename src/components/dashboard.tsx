@@ -1328,13 +1328,25 @@ export function Dashboard({
                         <span className="rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs font-semibold text-stone-600">
                           {item.source} · {item.target === "pull-request" ? "PR" : "issue"} #{item.targetNumber}
                         </span>
+                        <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                          {item.variants.map((variant) => variant.label).join(" / ")}
+                        </span>
                       </div>
                       <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
                         {item.contributor}
                       </p>
-                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-stone-600">
-                        {item.body}
-                      </p>
+                      <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                        {item.variants.map((variant) => (
+                          <div key={`${item.id}-${variant.language}`} className="rounded-md border border-stone-200 bg-stone-50 p-3">
+                            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                              {variant.label}
+                            </div>
+                            <p className="mt-1 line-clamp-3 text-sm leading-6 text-stone-600">
+                              {variant.body}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                     <div className="min-w-0 rounded-md border border-stone-200 bg-stone-950 p-3 text-white">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">

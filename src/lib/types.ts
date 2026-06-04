@@ -410,6 +410,12 @@ export type ContributorReplyOutboxItem = {
   url: string;
   body: string;
   githubCommand: string;
+  variants: Array<{
+    language: MaintainerLanguage;
+    label: "English" | "中文";
+    body: string;
+    githubCommand: string;
+  }>;
 };
 
 export type ContributorReplyOutbox = {
