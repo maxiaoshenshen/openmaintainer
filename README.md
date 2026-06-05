@@ -1,6 +1,6 @@
 # OpenMaintainer
 
-[![Tests](https://img.shields.io/badge/Tests-53%20passed-22c55e)](https://github.com/maxiaoshenshen/openmaintainer)
+[![Tests](https://img.shields.io/badge/Tests-54%20passed-22c55e)](https://github.com/maxiaoshenshen/openmaintainer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000)](https://vercel.com)
 
@@ -58,6 +58,8 @@ cp .env.example .env.local
 # Add GITHUB_TOKEN for higher rate limits
 # Add OPENAI_API_KEY for model-backed analysis
 ```
+
+For a maintainer-focused walkthrough, see [Maintainer Quickstart](docs/maintainer-quickstart.md).
 
 ## Features
 
@@ -129,12 +131,19 @@ src/
 ## Testing
 
 ```bash
-npm run test       # 53 tests, 24 test files
+npm run test       # 54 tests, 24 test files
 npm run lint
 npm run typecheck
 npm run build
 npm run validate   # CI gate: test + lint + typecheck + build
 ```
+
+## Evaluator & Launch Materials
+
+- [Maintainer Quickstart](docs/maintainer-quickstart.md): how an OSS maintainer can use the workbench in 10 minutes.
+- [Launch Checklist](docs/launch-checklist.md): repository, deployment, trust, and community launch readiness.
+- [OpenAI Pro Reward Application](docs/openai-pro-application.md): application packet for the OpenAI Pro reward.
+- [Codex for OSS Application](docs/codex-for-oss-application.md): support narrative for OSS-focused programs.
 
 ## Roadmap
 
