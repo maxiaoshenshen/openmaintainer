@@ -10,6 +10,7 @@ import {
   Download,
   ExternalLink,
   Gauge,
+  Share,
   GitPullRequest,
   Languages,
   Loader2,
@@ -78,6 +79,11 @@ import {
   addRecentRepo,
   removeRecentRepo,
 } from "@/lib/recent-repos-store";
+import {
+  createSharedReport,
+  generateShareUrl,
+  saveSharedReport,
+} from "@/lib/share-store";
 
 type RepositoryResponse = {
   repository: MaintainerRepository;
@@ -553,6 +559,7 @@ export function Dashboard({
   const [snapshotSaved, setSnapshotSaved] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
+  const [sharedUrl, setSharedUrl] = useState<string | null>(null);
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -571,6 +578,23 @@ export function Dashboard({
     setRepoInput(repo);
     setShowRecentRepos(false);
     await fetchRepositoryAnalysis(repo, false);
+  }
+
+  async function shareAnalysis() {
+    const report = createSharedReport(
+      repository.identity.fullName,
+      analysis.health.score,
+      analysis.readiness.score,
+      repository.openIssues,
+      repository.pullRequests.length,
+      commandQueue.items.length,
+      analysis.llm?.tokenUsage?.totalTokens ?? 0
+    );
+    const url = generateShareUrl(report);
+    setSharedUrl(url);
+    saveSharedReport(window.localStorage, report);
+    await navigator.clipboard.writeText(url);
+    setTimeout(() => setSharedUrl(null), 3000);
   }
 
   function removeFromRecent(repo: string, event: React.MouseEvent) {
