@@ -32,6 +32,7 @@ import type {
   ContributorStarterKit,
   ContributorStatusBrief,
   ContributorUnblockKit,
+  MaintainerCommandSafetyLevel,
   MaintainerDecisionLog,
   MaintainerCommandQueue,
   MaintainerFocusPlan,
@@ -195,6 +196,10 @@ const copy = {
     githubHandoff: "GitHub handoff",
     commandQueue: "Command queue",
     copyCommandQueue: "Copy queue",
+    commandSafety: "Command safety",
+    safeCommands: "Safe",
+    reviewCommands: "Review",
+    destructiveCommands: "Destructive",
     copyDigest: "Copy digest",
     copyPlaybook: "Copy playbook",
     ai: "AI copilot",
@@ -290,6 +295,10 @@ const copy = {
     githubHandoff: "GitHub 交接",
     commandQueue: "命令队列",
     copyCommandQueue: "复制队列",
+    commandSafety: "命令安全",
+    safeCommands: "安全",
+    reviewCommands: "审核",
+    destructiveCommands: "破坏性",
     copyDigest: "复制周报",
     copyPlaybook: "复制剧本",
     ai: "AI 副驾驶",
@@ -352,6 +361,12 @@ function readinessColor(status: "pass" | "warn" | "fail") {
 function decisionStatusColor(status: MaintainerDecisionLog["items"][number]["status"]) {
   if (status === "ready") return "border-emerald-200 bg-emerald-50 text-emerald-800";
   if (status === "needs-review") return "border-amber-200 bg-amber-50 text-amber-900";
+  return "border-rose-200 bg-rose-50 text-rose-800";
+}
+
+function commandSafetyColor(level: MaintainerCommandSafetyLevel) {
+  if (level === "safe") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (level === "review") return "border-amber-200 bg-amber-50 text-amber-900";
   return "border-rose-200 bg-rose-50 text-rose-800";
 }
 
@@ -2101,6 +2116,14 @@ export function Dashboard({
                       <div className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
                         {item.commandCount} command{item.commandCount === 1 ? "" : "s"}
                       </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${commandSafetyColor(item.safetyLevel)}`}>
+                          {item.safetyLevel}
+                        </span>
+                        <span className="rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs font-semibold text-stone-600">
+                          {item.safetyReason}
+                        </span>
+                      </div>
                     </div>
                     <div className={`rounded-md border p-3 text-sm font-semibold ${
                       item.requiresReview
@@ -2121,11 +2144,30 @@ export function Dashboard({
                   Commands are staged for maintainer review. Close and release commands are flagged before running.
                 </p>
                 <div className="mt-4 rounded-md border border-stone-200 bg-white p-3">
-                  <div className="text-2xl font-semibold text-stone-950">
-                    {commandQueue.items.filter((item) => item.requiresReview).length}
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    {text.commandSafety}
                   </div>
-                  <div className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
-                    review gates
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                    {[
+                      ["safe", text.safeCommands, commandQueue.safetyTotals.safe],
+                      ["review", text.reviewCommands, commandQueue.safetyTotals.review],
+                      ["destructive", text.destructiveCommands, commandQueue.safetyTotals.destructive],
+                    ].map(([level, label, total]) => (
+                      <div key={level} className={`rounded-md border p-2 ${commandSafetyColor(level as MaintainerCommandSafetyLevel)}`}>
+                        <div className="text-lg font-semibold">{total}</div>
+                        <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em]">
+                          {label}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 space-y-1 text-xs leading-5 text-stone-600">
+                    <p>Safe: Read-only GitHub command</p>
+                    <p>Review: Writes labels or comments</p>
+                    <p>Destructive: Contains close, delete, or release command</p>
+                  </div>
+                  <div className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    {commandQueue.items.filter((item) => item.requiresReview).length} review gates
                   </div>
                 </div>
               </div>

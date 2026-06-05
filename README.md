@@ -1,6 +1,6 @@
 # OpenMaintainer
 
-[![Tests](https://img.shields.io/badge/Tests-55%20passed-22c55e)](https://github.com/maxiaoshenshen/openmaintainer)
+[![Tests](https://img.shields.io/badge/Tests-57%20passed-22c55e)](https://github.com/maxiaoshenshen/openmaintainer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000)](https://vercel.com)
 
@@ -131,7 +131,7 @@ src/
 ## Testing
 
 ```bash
-npm run test       # 55 tests, 24 test files
+npm run test       # 57 tests, 24 test files
 npm run lint
 npm run typecheck
 npm run build

@@ -140,6 +140,17 @@ describe("Dashboard", () => {
     expect(markup).toContain("Release gate is blocked; do not run release command yet");
   });
 
+  it("renders command queue safety tiers for maintainer review", () => {
+    const markup = renderDashboard();
+
+    expect(markup).toContain("Command safety");
+    expect(markup).toContain("Safe");
+    expect(markup).toContain("Review");
+    expect(markup).toContain("Destructive");
+    expect(markup).toContain("Writes labels or comments");
+    expect(markup).toContain("Contains close, delete, or release command");
+  });
+
   it("renders maintainer ownership routing with role handoffs", () => {
     const markup = renderDashboard();
 

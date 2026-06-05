@@ -34,4 +34,37 @@ describe("buildMaintainerCommandQueue", () => {
     expect(queue.markdown).toContain("set -euo pipefail");
     expect(queue.markdown).toContain("gh issue comment 285");
   });
+
+  it("classifies each queued GitHub handoff by its highest safety risk", () => {
+    const analysis = analyzeRepository(
+      demoRepository,
+      new Date("2026-06-03T00:00:00Z"),
+      undefined,
+      { maxIssueResponseDays: 2 },
+    );
+
+    const queue = buildMaintainerCommandQueue(analysis.actions);
+
+    expect(queue.safetyTotals).toEqual({
+      safe: 1,
+      review: 4,
+      destructive: 2,
+    });
+    expect(queue.items.find((item) => item.actionId === "pr-92-review")).toMatchObject({
+      safetyLevel: "safe",
+      safetyReason: "Read-only GitHub command",
+      requiresReview: false,
+    });
+    expect(queue.items.find((item) => item.actionId === "issue-284-triage")).toMatchObject({
+      safetyLevel: "review",
+      safetyReason: "Writes labels or comments",
+      requiresReview: false,
+    });
+    expect(queue.items.find((item) => item.actionId === "duplicate-284-287-cleanup")).toMatchObject({
+      safetyLevel: "destructive",
+      safetyReason: "Contains close, delete, or release command",
+      requiresReview: true,
+    });
+    expect(queue.markdown).toContain("# Safety: destructive");
+  });
 });

@@ -104,6 +104,8 @@ export type MaintainerAction = {
   githubCommands: string[];
 };
 
+export type MaintainerCommandSafetyLevel = "safe" | "review" | "destructive";
+
 export type MaintainerCommandQueueItem = {
   actionId: string;
   title: string;
@@ -112,6 +114,8 @@ export type MaintainerCommandQueueItem = {
   url: string;
   commandCount: number;
   commands: string[];
+  safetyLevel: MaintainerCommandSafetyLevel;
+  safetyReason: string;
   requiresReview: boolean;
   reviewReason: string | null;
 };
@@ -119,6 +123,7 @@ export type MaintainerCommandQueueItem = {
 export type MaintainerCommandQueue = {
   summary: string;
   commandCount: number;
+  safetyTotals: Record<MaintainerCommandSafetyLevel, number>;
   items: MaintainerCommandQueueItem[];
   markdown: string;
 };
