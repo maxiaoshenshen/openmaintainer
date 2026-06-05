@@ -576,3 +576,109 @@ export type ContributorUnblockKit = {
   items: ContributorUnblockKitItem[];
   markdown: string;
 };
+
+// Duplicate Detection Types
+export type DuplicateCandidate = {
+  originalIssue: MaintainerIssue;
+  potentialDuplicate: MaintainerIssue;
+  similarity: number;
+  matchingTerms: string[];
+  suggestion: string;
+};
+
+export type DuplicateDetectionResult = {
+  candidates: DuplicateCandidate[];
+  totalAnalyzed: number;
+  clusters: number;
+};
+
+// PR Merge Advisor Types
+export type MergeReadiness = "ready" | "needs-changes" | "needs-review" | "blocked";
+export type RiskLevel = "low" | "medium" | "high";
+
+export type MergeAdvice = {
+  prNumber: number;
+  prTitle: string;
+  readiness: MergeReadiness;
+  riskLevel: RiskLevel;
+  blockers: string[];
+  suggestions: string[];
+  estimatedReviewTime: string;
+  mergeConfidence: number;
+};
+
+export type MergeAdvisoryReport = {
+  mergeable: MergeAdvice[];
+  needsReview: MergeAdvice[];
+  blocked: MergeAdvice[];
+  totalPRs: number;
+  readyToMerge: number;
+  averageConfidence: number;
+};
+
+// Contributor Health Types
+export type ActivityLevel = "active" | "engaged" | "dormant";
+export type Sentiment = "positive" | "neutral" | "frustrated";
+
+export type ContributorProfile = {
+  username: string;
+  totalContributions: number;
+  prsMerged: number;
+  issuesOpened: number;
+  avgResponseRate: number;
+  lastActive: string;
+  activityLevel: ActivityLevel;
+  sentiment: Sentiment;
+  healthScore: number;
+};
+
+export type ContributorHealthReport = {
+  contributors: ContributorProfile[];
+  atRisk: string[];
+  topContributors: string[];
+  dormantContributors: string[];
+  summary: {
+    totalContributors: number;
+    activeCount: number;
+    averageHealth: number;
+  };
+};
+
+// Maintainer Rhythm Types
+export type RhythmType = "daily" | "weekly" | "biweekly" | "monthly";
+export type TaskPriority = "critical" | "high" | "medium" | "low";
+export type EnergyLevel = "high" | "medium" | "low";
+
+export type RhythmTask = {
+  id: string;
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  estimatedMinutes: number;
+  category: "review" | "triage" | "release" | "community" | "maintenance";
+  completed: boolean;
+};
+
+export type FocusBlock = {
+  start: string;
+  end: string;
+  activity: string;
+  energyLevel: EnergyLevel;
+};
+
+export type DailyRhythmPlan = {
+  morning: RhythmTask[];
+  afternoon: RhythmTask[];
+  evening: RhythmTask[];
+  focusWindows: FocusBlock[];
+  dailyTip: string;
+};
+
+export type WeeklyRhythmReport = {
+  weekOf: string;
+  completed: number;
+  pending: number;
+  productivity: number;
+  patterns: string[];
+  recommendations: string[];
+};
