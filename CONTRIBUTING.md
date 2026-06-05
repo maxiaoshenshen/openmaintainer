@@ -1,37 +1,58 @@
-# Contributing
+# Contributing to OpenMaintainer
 
-Thanks for helping improve OpenMaintainer.
+Thank you for your interest in contributing to OpenMaintainer! This project is built to help OSS maintainers reduce friction and stay in control.
 
-## Development
+## Quick Start
 
 ```bash
+git clone https://github.com/maxiaoshenshen/openmaintainer.git
+cd openmaintainer
 npm install
 npm run dev
 ```
 
-Before opening a pull request:
+Open [http://localhost:3000](http://localhost:3000) and enter `demo` or any public GitHub repository.
+
+## Development
 
 ```bash
-npm run validate
+npm test          # Run tests
+npm run lint      # Check code style
+npm run typecheck # TypeScript check
+npm run validate  # Full CI gate
 ```
 
-## What to contribute
+## Project Structure
 
-Good first contributions:
+```
+src/
+  app/              # Next.js App Router
+  components/
+    dashboard.tsx   # Main maintainer cockpit
+  lib/
+    *.ts             # Domain logic for each feature
+```
 
-- Improve issue classification rules
-- Add tests for repository edge cases
-- Improve accessibility and mobile layout
-- Add documentation examples for real maintainer workflows
-- Improve Chinese copy while keeping English as the primary product language
+## Adding New Features
 
-## Pull request expectations
+1. Add TypeScript types to `src/lib/types.ts`
+2. Implement domain logic in `src/lib/`
+3. Add UI components to `src/components/dashboard.tsx`
+4. Add tests in `src/components/*.test.tsx`
+5. Run `npm run validate` before submitting
 
-- Keep changes focused.
-- Add or update tests for behavior changes.
-- Explain maintainer impact in the pull request body.
-- Do not submit secrets, tokens, private repository data, or confidential logs.
+## Reporting Issues
 
-## Maintainer principle
+Please include:
+- Repository URL (if applicable)
+- Expected vs actual behavior
+- Steps to reproduce
+- Browser/OS version
 
-OpenMaintainer produces drafts and recommendations. Human maintainers own final decisions.
+## Code of Conduct
+
+Be respectful, inclusive, and collaborative. We're all here to make OSS maintenance better.
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the MIT License.
