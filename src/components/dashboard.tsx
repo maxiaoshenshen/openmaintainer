@@ -952,15 +952,17 @@ export function Dashboard({
       {/* Tab Navigation */}
       <nav className="mx-auto mt-4 grid w-full max-w-7xl grid-cols-5 gap-1 px-4 sm:px-6 lg:px-8">
         {[
-          { id: "focus", icon: LayoutDashboard, label: text.tabFocus },
-          { id: "contributors", icon: Users, label: text.tabContributors },
-          { id: "review", icon: GitPullRequest, label: text.tabReview },
-          { id: "release", icon: Rocket, label: text.tabRelease },
-          { id: "docs", icon: FileText, label: text.tabDocs },
-        ].map(({ id, icon: Icon, label }) => (
-          <button
+          { id: "focus", href: "#workspace-focus", icon: LayoutDashboard, label: text.tabFocus },
+          { id: "contributors", href: "#workspace-contributors", icon: Users, label: text.tabContributors },
+          { id: "review", href: "#workspace-review", icon: GitPullRequest, label: text.tabReview },
+          { id: "release", href: "#workspace-release", icon: Rocket, label: text.tabRelease },
+          { id: "docs", href: "#workspace-docs", icon: FileText, label: text.tabDocs },
+        ].map(({ id, href, icon: Icon, label }) => (
+          <a
             key={id}
+            href={href}
             onClick={() => setActiveTab(id as ActiveTab)}
+            aria-current={activeTab === id ? "page" : undefined}
             className={`flex flex-col items-center gap-1 rounded-lg p-3 transition ${
               activeTab === id
                 ? "bg-stone-950 text-white shadow-md"
@@ -969,13 +971,13 @@ export function Dashboard({
           >
             <Icon className="size-5" />
             <span className="text-xs font-semibold">{label}</span>
-          </button>
+          </a>
         ))}
       </nav>
 
       <section className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[1.4fr_0.9fr] lg:px-8">
         <div className="space-y-4">
-          <section className="rounded-lg border border-stone-300 bg-white">
+          <section id="workspace-focus" className="scroll-mt-4 rounded-lg border border-stone-300 bg-white">
             <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
@@ -1309,7 +1311,7 @@ export function Dashboard({
             </div>
           </section>
 
-          <section className="rounded-lg border border-stone-300 bg-white">
+          <section id="workspace-contributors" className="scroll-mt-4 rounded-lg border border-stone-300 bg-white">
             <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
@@ -1509,7 +1511,7 @@ export function Dashboard({
             </div>
           </section>
 
-          <section className="rounded-lg border border-stone-300 bg-white">
+          <section id="workspace-docs" className="scroll-mt-4 rounded-lg border border-stone-300 bg-white">
             <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
@@ -2063,7 +2065,7 @@ export function Dashboard({
             </div>
           </section>
 
-          <section className="rounded-lg border border-stone-300 bg-white">
+          <section id="workspace-review" className="scroll-mt-4 rounded-lg border border-stone-300 bg-white">
             <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
@@ -2633,7 +2635,7 @@ export function Dashboard({
             </div>
           </section>
 
-          <section className="rounded-lg border border-stone-300 bg-white">
+          <section id="workspace-release" className="scroll-mt-4 rounded-lg border border-stone-300 bg-white">
             <div className="flex items-start justify-between gap-3 border-b border-stone-200 p-4">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">

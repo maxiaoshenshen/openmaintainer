@@ -138,4 +138,29 @@ describe("Dashboard", () => {
     expect(markup).toContain("Safety reviewer");
     expect(markup).toContain("Review risky PR #92");
   });
+
+  it("renders workspace tabs as anchor links to real dashboard sections", () => {
+    const markup = renderDashboard();
+    const sectionSnippet = (id: string) => {
+      const start = markup.indexOf(`id="${id}"`);
+      expect(start).toBeGreaterThan(-1);
+      return markup.slice(start, start + 1600);
+    };
+
+    expect(markup).toContain('href="#workspace-focus"');
+    expect(markup).toContain('href="#workspace-contributors"');
+    expect(markup).toContain('href="#workspace-review"');
+    expect(markup).toContain('href="#workspace-release"');
+    expect(markup).toContain('href="#workspace-docs"');
+    expect(markup).toContain('id="workspace-focus"');
+    expect(markup).toContain('id="workspace-contributors"');
+    expect(markup).toContain('id="workspace-review"');
+    expect(markup).toContain('id="workspace-release"');
+    expect(markup).toContain('id="workspace-docs"');
+    expect(sectionSnippet("workspace-focus")).toContain("Focus plan");
+    expect(sectionSnippet("workspace-contributors")).toContain("Reply outbox");
+    expect(sectionSnippet("workspace-review")).toContain("PR handoff");
+    expect(sectionSnippet("workspace-release")).toContain("Release gate");
+    expect(sectionSnippet("workspace-docs")).toContain("OSS evidence pack");
+  });
 });
