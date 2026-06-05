@@ -84,6 +84,11 @@ import {
   generateShareUrl,
   saveSharedReport,
 } from "@/lib/share-store";
+import {
+  generatePRTemplate,
+  getTemplateTypes,
+  type PRTemplateOptions,
+} from "@/lib/pr-template-generator";
 
 type RepositoryResponse = {
   repository: MaintainerRepository;
@@ -560,6 +565,12 @@ export function Dashboard({
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
   const [sharedUrl, setSharedUrl] = useState<string | null>(null);
+  const [prTemplateType, setPrTemplateType] = useState<string>("approved");
+  const [prTemplateAuthor, setPrTemplateAuthor] = useState("");
+  const [prTemplateNumber, setPrTemplateNumber] = useState("");
+  const [prTemplateTitle, setPrTemplateTitle] = useState("");
+  const [prTemplateSummary, setPrTemplateSummary] = useState("");
+  const [copiedPrTemplate, setCopiedPrTemplate] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -595,6 +606,22 @@ export function Dashboard({
     saveSharedReport(window.localStorage, report);
     await navigator.clipboard.writeText(url);
     setTimeout(() => setSharedUrl(null), 3000);
+  }
+
+  async function generateAndCopyPrTemplate() {
+    if (!prTemplateTitle || !prTemplateAuthor) return;
+    const opts: PRTemplateOptions = {
+      prTitle: prTemplateTitle,
+      prNumber: parseInt(prTemplateNumber) || 1,
+      author: prTemplateAuthor,
+      reviewStatus: prTemplateType as PRTemplateOptions["reviewStatus"],
+      reviewSummary: prTemplateSummary,
+      language: locale,
+    };
+    const template = generatePRTemplate(opts);
+    await navigator.clipboard.writeText(template);
+    setCopiedPrTemplate(true);
+    setTimeout(() => setCopiedPrTemplate(false), 2000);
   }
 
   function removeFromRecent(repo: string, event: React.MouseEvent) {
@@ -1544,6 +1571,101 @@ function importSnapshot() {
                     </div>
                   </article>
                 ))}
+              </div>
+            </div>
+          </section>
+
+          {/* PR Template Generator */}
+          <section className="rounded-lg border border-stone-300 bg-white">
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                  <FileText className="size-5 text-blue-700" />
+                  {locale === "en" ? "PR Response Template" : "PR 回复模板"}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  {locale === "en" 
+                    ? "Generate standard PR response templates for reviewers"
+                    : "为评审者生成标准 PR 回复模板"}
+                </p>
+              </div>
+              <button
+                onClick={generateAndCopyPrTemplate}
+                disabled={!prTemplateTitle || !prTemplateAuthor}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Copy className="size-4" />
+                {copiedPrTemplate ? (locale === "en" ? "Copied!" : "已复制！") : (locale === "en" ? "Copy Template" : "复制模板")}
+              </button>
+            </div>
+            <div className="grid gap-4 p-4 lg:grid-cols-2">
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    {locale === "en" ? "PR Number" : "PR 编号"}
+                  </label>
+                  <input
+                    type="number"
+                    value={prTemplateNumber}
+                    onChange={(e) => setPrTemplateNumber(e.target.value)}
+                    placeholder="123"
+                    className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 placeholder:text-stone-400"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    {locale === "en" ? "Author" : "作者"}
+                  </label>
+                  <input
+                    type="text"
+                    value={prTemplateAuthor}
+                    onChange={(e) => setPrTemplateAuthor(e.target.value)}
+                    placeholder="username"
+                    className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 placeholder:text-stone-400"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    {locale === "en" ? "PR Title" : "PR 标题"}
+                  </label>
+                  <input
+                    type="text"
+                    value={prTemplateTitle}
+                    onChange={(e) => setPrTemplateTitle(e.target.value)}
+                    placeholder="Add new feature"
+                    className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 placeholder:text-stone-400"
+                  />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    {locale === "en" ? "Response Type" : "回复类型"}
+                  </label>
+                  <select
+                    value={prTemplateType}
+                    onChange={(e) => setPrTemplateType(e.target.value)}
+                    className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800"
+                  >
+                    {getTemplateTypes().map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {locale === "en" ? type.label : type.labelZh}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    {locale === "en" ? "Review Summary (optional)" : "评审总结（可选）"}
+                  </label>
+                  <textarea
+                    value={prTemplateSummary}
+                    onChange={(e) => setPrTemplateSummary(e.target.value)}
+                    placeholder={locale === "en" ? "Great implementation!" : "实现得很棒！"}
+                    rows={3}
+                    className="w-full resize-y rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 placeholder:text-stone-400"
+                  />
+                </div>
               </div>
             </div>
           </section>
