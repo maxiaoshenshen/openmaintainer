@@ -22,9 +22,9 @@ import {
   Rocket,
   FileText,
   Sparkles,
+  Clock,
   ChevronRight,
   ChevronDown,
-  Clock,
   Users,
   UserPlus,
 } from "lucide-react";
@@ -75,33 +75,6 @@ import {
 } from "@/lib/snapshot-store";
 import {
   readRecentRepos,
-  addRecentRepo,
-  removeRecentRepo,
-} from "@/lib/recent-repos-store";
-
-type RepositoryResponse = {
-  repository: MaintainerRepository;
-  analysis: MaintainerAnalysis;
-  contributorImpact: ContributorImpactQueue;
-  evidencePack: OssEvidencePack;
-  unblockKit: ContributorUnblockKit;
-  commandQueue: MaintainerCommandQueue;
-  responseSla: ResponseSlaQueue;
-  reproKit: ReproductionRequestKit;
-  reviewHandoff: PullRequestReviewHandoffKit;
-  starterKit: ContributorStarterKit;
-  releaseGate: ReleaseReadinessGate;
-  decisionLog: MaintainerDecisionLog;
-  ownershipRouting: MaintainerOwnershipRouting;
-  focusPlan: MaintainerFocusPlan;
-  statusBrief: ContributorStatusBrief;
-  replyOutbox: ContributorReplyOutbox;
-  source: "demo" | "github";
-  warning?: string;
-};
-
-type AnalyzeResponse = {
-  provider: "openai" | "deterministic";
   analysis: MaintainerAnalysis;
   warning?: string;
 };
@@ -531,6 +504,8 @@ export function Dashboard({
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [copiedRelease, setCopiedRelease] = useState(false);
   const [expandedCommands, setExpandedCommands] = useState<Set<string>>(new Set());
+  const [recentRepos, setRecentRepos] = useState<Array<{repository: string; visitedAt: number}>>([]);
+  const [showRecentRepos, setShowRecentRepos] = useState(false);
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
   const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
   const [copiedDigest, setCopiedDigest] = useState(false);
@@ -542,8 +517,6 @@ export function Dashboard({
   const [copiedReproKit, setCopiedReproKit] = useState(false);
   const [copiedReviewHandoff, setCopiedReviewHandoff] = useState(false);
   const [copiedStarterKit, setCopiedStarterKit] = useState(false);
-  const [recentRepos, setRecentRepos] = useState<string[]>([]);
-  const [showRecentRepos, setShowRecentRepos] = useState(false);
   const [copiedReleaseGate, setCopiedReleaseGate] = useState(false);
   const [decisionLogCopyState, setDecisionLogCopyState] = useState<CopyState>("idle");
   const [ownershipRoutingCopyState, setOwnershipRoutingCopyState] = useState<CopyState>("idle");
@@ -561,23 +534,6 @@ export function Dashboard({
   );
   const text = copy[locale];
 
-  // Load recent repos on mount
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setRecentRepos(readRecentRepos(window.localStorage));
-  }, []);
-
-  async function selectRecentRepo(repo: string) {
-    setRepoInput(repo);
-    setShowRecentRepos(false);
-    await fetchRepositoryAnalysis(repo, false);
-  }
-
-  function removeFromRecent(repo: string, event: React.MouseEvent) {
-    event.stopPropagation();
-    setRecentRepos(removeRecentRepo(window.localStorage, repo));
-  }
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const loadTimer = window.setTimeout(() => {
@@ -587,6 +543,8 @@ export function Dashboard({
       setPreferredLabelsDraft(savedSettings.preferredLabels.join(", "));
       setSettingsLoaded(true);
       window.setTimeout(() => setSettingsLoaded(false), 1800);
+      const recent = readRecentRepos(window.localStorage);
+      setRecentRepos(recent);
     }, 0);
 
     return () => window.clearTimeout(loadTimer);
@@ -668,6 +626,8 @@ export function Dashboard({
           data.repository.identity.fullName,
           createSnapshotFromAnalysis(data.repository, data.analysis),
         );
+        addRecentRepo(window.localStorage, data.repository.identity.fullName);
+        setRecentRepos(readRecentRepos(window.localStorage));
         setSnapshotSaved(true);
         window.setTimeout(() => setSnapshotSaved(false), 1800);
       }
@@ -896,7 +856,11 @@ export function Dashboard({
     URL.revokeObjectURL(url);
   }
 
-  function toggleExpandedCommand(actionId: string) {
+  function removeFromRecent(repo: string) {
+    removeRecentRepo(window.localStorage, repo);
+    setRecentRepos(readRecentRepos(window.localStorage));
+  }
+function toggleExpandedCommand(actionId: string) {
     setExpandedCommands((prev) => {
       const next = new Set(prev);
       if (next.has(actionId)) {
