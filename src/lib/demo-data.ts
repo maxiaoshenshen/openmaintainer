@@ -1,4 +1,4 @@
-import type { MaintainerRepository, RepositoryAnalysisSnapshot } from "./types";
+
 
 export const demoRepository: MaintainerRepository = {
   identity: {
@@ -158,3 +158,82 @@ export const demoPortfolioRepositories: MaintainerRepository[] = [
     pullRequests: [],
   },
 ];
+
+
+import type { MaintainerAnalysis } from "./types";
+
+export function createDemoAnalysis(): MaintainerAnalysis {
+  // Build a basic analysis from demo data
+  const issues = demoRepository.issues.map(issue => ({
+    id: String(issue.id),
+    number: issue.number,
+    title: issue.title,
+    body: issue.body,
+    author: issue.author,
+    state: "open" as const,
+    labels: issue.labels,
+    createdAt: issue.createdAt,
+    updatedAt: issue.updatedAt,
+    url: issue.url,
+    commentCount: issue.comments,
+    assignees: [] as string[],
+    milestone: null,
+    pullRequest: null,
+  }));
+
+  const pullRequests = demoRepository.pullRequests.map(pr => ({
+    id: String(pr.id),
+    number: pr.number,
+    title: pr.title,
+    body: pr.body,
+    author: pr.author,
+    state: "open" as const,
+    labels: pr.labels,
+    createdAt: pr.createdAt,
+    updatedAt: pr.updatedAt,
+    url: pr.url,
+    commentCount: 0,
+    assignees: [] as string[],
+    milestone: null,
+    additions: pr.additions,
+    deletions: pr.deletions,
+    changedFiles: pr.changedFiles,
+    headRef: "main",
+    baseRef: "main",
+    isDraft: false,
+    mergeable: "mergeable" as const,
+    reviewRequests: 0,
+    comments: 0,
+    commits: 0,
+  }));
+
+  return {
+    repository: demoRepository,
+    inbox: {
+      items: [...issues, ...pullRequests],
+      totalCount: issues.length + pullRequests.length,
+      unreadCount: issues.filter(i => i.commentCount === 0).length,
+      issues,
+      pullRequests,
+    },
+    health: {
+      score: demoPreviousSnapshot.healthScore,
+      status: "watch" as const,
+      qualitySignals: demoPreviousSnapshot.qualitySignals,
+      nextActions: [],
+      summary: "Demo analysis for testing",
+    },
+    readiness: {
+      score: demoPreviousSnapshot.readinessScore,
+      status: "needs-work" as const,
+      blockers: [],
+      summary: "Demo readiness analysis",
+    },
+    settings: {
+      preferredLabels: ["bug", "enhancement", "good first issue"],
+      autoAssign: false,
+      triageMode: "ai-assist" as const,
+    },
+    previousSnapshot: demoPreviousSnapshot,
+  };
+}

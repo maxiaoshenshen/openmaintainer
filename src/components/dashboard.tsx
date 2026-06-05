@@ -152,6 +152,27 @@ import {
   getTemplateTypes,
   type PRTemplateOptions,
 } from "@/lib/pr-template-generator";
+import {
+  buildMaintainerPoints,
+  calculateRank,
+  formatPoints,
+  getRankColor,
+  type MaintainerPoints,
+} from "@/lib/maintainer-points";
+import {
+  calculateActionsSummary,
+  generateMockWorkflowRuns,
+  getWorkflowStatusColor,
+  getConclusionColor,
+  formatDuration,
+  type WorkflowRun,
+} from "@/lib/github-actions";
+import {
+  buildKanbanBoard,
+  getPriorityColor as getKanbanPriorityColor,
+  getPriorityLabel,
+  type KanbanBoard,
+} from "@/lib/kanban-board";
 
 type RepositoryResponse = {
   repository: MaintainerRepository;
@@ -616,7 +637,7 @@ export function Dashboard({
   const [copiedReproKit, setCopiedReproKit] = useState(false);
   const [copiedReviewHandoff, setCopiedReviewHandoff] = useState(false);
   const [copiedStarterKit, setCopiedStarterKit] = useState(false);
-  const [recentRepos, setRecentRepos] = useState<string[]>([]);
+  const [recentRepos, setRecentRepos] = useState<RecentRepo[]>([]);
   const [showRecentRepos, setShowRecentRepos] = useState(false);
   const [copiedReleaseGate, setCopiedReleaseGate] = useState(false);
   const [decisionLogCopyState, setDecisionLogCopyState] = useState<CopyState>("idle");
@@ -640,6 +661,9 @@ export function Dashboard({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [maintenanceEvents, setMaintenanceEvents] = useState<MaintenanceEvent[]>([]);
   const [communityStats, setCommunityStats] = useState<CommunityStats | null>(null);
+  const [maintainerPoints, setMaintainerPoints] = useState<MaintainerPoints | null>(null);
+  const [workflowRuns, setWorkflowRuns] = useState<WorkflowRun[]>([]);
+  const [kanbanBoard, setKanbanBoard] = useState<KanbanBoard | null>(null);
   const [isGitHubLoggedIn, setIsGitHubLoggedIn] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
@@ -726,13 +750,13 @@ export function Dashboard({
       number: pr.number,
       title: pr.title,
       author: pr.author,
-      status: pr.status,
+      status: pr.status || pr.state,
       createdAt: pr.createdAt,
       updatedAt: pr.updatedAt,
       url: pr.url,
       labels: pr.labels,
-      reviewStatus: pr.reviewStatus,
-      mergedAt: pr.mergedAt,
+      reviewStatus: pr.reviewStatus || "pending",
+      mergedAt: pr.mergedAt || "",
     }));
     downloadPullRequestsCSV(prs, repository.identity.fullName);
     setShowExportMenu(false);
@@ -768,6 +792,40 @@ export function Dashboard({
     );
     setCommunityStats(stats);
   }, [repository, contributorImpact]);
+
+  // Calculate maintainer points
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const weeklyStats = {
+      prsMerged: repository.pullRequests.filter(pr => pr.status === "merged").length,
+      issuesClosed: repository.closedIssues || 0,
+      reviewsGiven: contributorImpact.totals.uniqueContributors,
+      responsesGiven: (analysis.inbox.pullRequests?.length || 0) + (analysis.inbox.issues?.length || 0),
+    };
+    const allTimeStats = {
+      totalPrsMerged: repository.pullRequests.filter(pr => pr.status === "merged").length * 5,
+      totalIssuesClosed: (repository.closedIssues || 0) * 3,
+      totalReviewsGiven: contributorImpact.totals.uniqueContributors * 3,
+      totalResponsesGiven: ((analysis.inbox.pullRequests?.length || 0) + (analysis.inbox.issues?.length || 0)) * 2,
+      yearsActive: 1,
+    };
+    const points = buildMaintainerPoints(weeklyStats, allTimeStats);
+    setMaintainerPoints(points);
+  }, [repository, contributorImpact, analysis]);
+
+  // Load workflow runs
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const runs = generateMockWorkflowRuns();
+    setWorkflowRuns(runs);
+  }, []);
+
+  // Build kanban board
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const board = buildKanbanBoard(analysis);
+    setKanbanBoard(board);
+  }, [analysis]);
 
   // Check GitHub login status
   useEffect(() => {

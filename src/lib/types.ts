@@ -8,31 +8,50 @@ export type RepositoryIdentity = {
 };
 
 export type MaintainerIssue = {
-  id: number;
+  id: number | string;
   number: number;
   title: string;
   body: string;
   author: string;
+  state?: "open" | "closed";
   labels: string[];
   comments: number;
+  commentCount?: number;
   createdAt: string;
   updatedAt: string;
   url: string;
+  assignees?: string[];
+  milestone?: string | null;
+  pullRequest?: boolean | null;
 };
 
 export type MaintainerPullRequest = {
-  id: number;
+  id: number | string;
   number: number;
   title: string;
   body: string;
   author: string;
-  additions: number;
-  deletions: number;
-  changedFiles: number;
+  state: "open" | "closed" | "merged";
+  status?: "open" | "closed" | "merged";
+  reviewStatus?: "pending" | "approved" | "changes_requested";
+  mergedAt?: string;
   labels: string[];
   createdAt: string;
   updatedAt: string;
   url: string;
+  commentCount?: number;
+  assignees?: string[];
+  milestone?: string | null;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  headRef?: string;
+  baseRef?: string;
+  isDraft?: boolean;
+  mergeable?: "mergeable" | "unmergeable" | "behind" | "unknown";
+  reviewRequests?: number;
+  comments?: number;
+  commits?: number;
 };
 
 export type MaintainerRepository = {
@@ -42,6 +61,7 @@ export type MaintainerRepository = {
   forks: number;
   watchers: number;
   openIssues: number;
+  closedIssues?: number;
   defaultBranch: string;
   license: string | null;
   updatedAt: string;
@@ -260,6 +280,8 @@ export type RepositoryTrend = {
 };
 
 export type MaintainerAnalysis = {
+  repository: MaintainerRepository;
+  inbox: MaintainerInbox;
   settings: MaintainerSettings;
   health: RepositoryHealth;
   readiness: RepositoryReadiness;
@@ -272,6 +294,7 @@ export type MaintainerAnalysis = {
   playbooks: RepositoryPlaybook[];
   digest: MaintainerDigest;
   releaseNotes: string;
+  previousSnapshot?: RepositoryAnalysisSnapshot;
 };
 
 export type MaintainerInboxItem = {
@@ -295,6 +318,10 @@ export type MaintainerInbox = {
     attentionRepositories: number;
   };
   items: MaintainerInboxItem[];
+  issues?: MaintainerIssue[];
+  pullRequests?: MaintainerPullRequest[];
+  totalCount?: number;
+  unreadCount?: number;
 };
 
 export type ContributorImpactItem = {

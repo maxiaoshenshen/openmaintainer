@@ -24,7 +24,7 @@ export interface CalendarMonth {
  * Generate maintenance events from response SLA queue
  */
 export function generateMaintenanceEvents(
-  responseSla: { items: Array<{ contributor: string; waitDays: number; targetDays: number; repository: string }> },
+  responseSla: { items: Array<{ contributor: string; waitDays: number; targetDays: number; repository?: string; title?: string; url?: string }> },
   releaseGate: { items: Array<{ milestone: string; status: string; dueDate?: string }> }
 ): MaintenanceEvent[] {
   const events: MaintenanceEvent[] = [];
@@ -43,7 +43,7 @@ export function generateMaintenanceEvents(
         priority,
         description: `${item.contributor} has been waiting ${item.waitDays} days`,
         descriptionZh: `${item.contributor} 已等待 ${item.waitDays} 天`,
-        repository: item.repository,
+        repository: item.repository || "unknown",
       });
     }
   });
