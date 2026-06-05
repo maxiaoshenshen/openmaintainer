@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  BarChart3,
   Bot,
   Calendar,
   Bell,
@@ -133,6 +134,10 @@ import {
   removeSubscription,
   isSubscribed,
 } from "@/lib/notification-store";
+import {
+  generateHealthReport,
+  formatReportMarkdown,
+} from "@/lib/health-report";
 import {
   generateContributorBadge,
   type ContributorBadge,
@@ -640,6 +645,7 @@ export function Dashboard({
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isSubscribedToRepo, setIsSubscribedToRepo] = useState(false);
+  const [copiedHealthReport, setCopiedHealthReport] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -808,6 +814,15 @@ export function Dashboard({
         url: `https://github.com/${repository.identity.fullName}`,
       });
     }
+  }
+
+  // Generate and copy health report
+  async function copyHealthReport() {
+    const report = generateHealthReport(repository, analysis, contributorImpact);
+    const markdown = formatReportMarkdown(report, locale);
+    await navigator.clipboard.writeText(markdown);
+    setCopiedHealthReport(true);
+    setTimeout(() => setCopiedHealthReport(false), 3000);
   }
 
   async function selectRecentRepo(repo: string) {
