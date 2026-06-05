@@ -93,6 +93,10 @@ import {
   type Theme,
 } from "@/lib/theme-store";
 import {
+  generateContributorBadge,
+  type ContributorBadge,
+} from "@/lib/contributor-badge";
+import {
   useKeyboardShortcuts,
   formatShortcut,
   type KeyboardShortcut,
@@ -586,6 +590,7 @@ export function Dashboard({
   const [copiedPrTemplate, setCopiedPrTemplate] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [theme, setTheme] = useState<Theme>("system");
+  const [contributorBadges, setContributorBadges] = useState<Map<string, ContributorBadge>>(new Map());
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -641,6 +646,24 @@ export function Dashboard({
       applyTheme(newTheme);
     }
   }
+
+  // Generate contributor badges from pullRequests
+  function generateBadgesFromPRs() {
+    const badgeMap = new Map<string, ContributorBadge>();
+    repository.pullRequests.forEach((pr) => {
+      if (!badgeMap.has(pr.author)) {
+        const prCount = repository.pullRequests.filter((p) => p.author === pr.author).length;
+        badgeMap.set(pr.author, generateContributorBadge(pr.author, prCount, locale));
+      }
+    });
+    setContributorBadges(badgeMap);
+  }
+
+  // Generate badges when repository changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    generateBadgesFromPRs();
+  }, [repository.pullRequests, locale]);
 
   async function selectRecentRepo(repo: string) {
     setRepoInput(repo);
@@ -1499,6 +1522,11 @@ function importSnapshot() {
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-sm font-semibold text-stone-950">{item.contributor}</span>
+                          {contributorBadges.get(item.contributor) && (
+                            <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${contributorBadges.get(item.contributor)!.badgeColor}`}>
+                              {contributorBadges.get(item.contributor)!.badge}
+                            </span>
+                          )}
                           <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-800">
                             {item.status}
                           </span>
