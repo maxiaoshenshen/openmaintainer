@@ -85,6 +85,11 @@ import {
   saveSharedReport,
 } from "@/lib/share-store";
 import {
+  useKeyboardShortcuts,
+  formatShortcut,
+  type KeyboardShortcut,
+} from "@/lib/keyboard-shortcuts";
+import {
   generatePRTemplate,
   getTemplateTypes,
   type PRTemplateOptions,
@@ -571,6 +576,7 @@ export function Dashboard({
   const [prTemplateTitle, setPrTemplateTitle] = useState("");
   const [prTemplateSummary, setPrTemplateSummary] = useState("");
   const [copiedPrTemplate, setCopiedPrTemplate] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -584,6 +590,26 @@ export function Dashboard({
     if (typeof window === "undefined") return;
     setRecentRepos(readRecentRepos(window.localStorage));
   }, []);
+
+  // Register keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+        return;
+      }
+      // Escape to close modals
+      if (e.key === "Escape" && showKeyboardShortcuts) {
+        setShowKeyboardShortcuts(false);
+      }
+      // ? to show shortcuts help
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+        setShowKeyboardShortcuts((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showKeyboardShortcuts]);
 
   async function selectRecentRepo(repo: string) {
     setRepoInput(repo);
