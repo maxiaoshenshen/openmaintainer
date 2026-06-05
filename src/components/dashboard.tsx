@@ -3,6 +3,7 @@
 import {
   Activity,
   Bot,
+  Calendar,
   CheckCircle2,
   CircleAlert,
   ClipboardList,
@@ -96,6 +97,15 @@ import {
   downloadPullRequestsCSV,
   downloadIssuesCSV,
 } from "@/lib/export-csv";
+import {
+  generateMaintenanceEvents,
+  groupEventsByMonth,
+  formatMonthName,
+  formatEventDate,
+  getPriorityColor,
+  getEventTypeIcon,
+  type MaintenanceEvent,
+} from "@/lib/maintenance-calendar";
 import {
   generateContributorBadge,
   type ContributorBadge,
@@ -596,6 +606,7 @@ export function Dashboard({
   const [theme, setTheme] = useState<Theme>("system");
   const [contributorBadges, setContributorBadges] = useState<Map<string, ContributorBadge>>(new Map());
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [maintenanceEvents, setMaintenanceEvents] = useState<MaintenanceEvent[]>([]);
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -693,6 +704,13 @@ export function Dashboard({
     alert(locale === "en" ? "Issue export coming soon!" : "Issue 导出即将推出！");
     setShowExportMenu(false);
   }
+
+  // Generate maintenance calendar events
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const events = generateMaintenanceEvents(responseSla, releaseGate);
+    setMaintenanceEvents(events);
+  }, [responseSla, releaseGate]);
 
   async function selectRecentRepo(repo: string) {
     setRepoInput(repo);
@@ -2118,6 +2136,51 @@ function importSnapshot() {
               ))}
             </div>
           </section>
+
+          {/* Maintenance Calendar */}
+          {maintenanceEvents.length > 0 && (
+            <section className="rounded-lg border border-stone-300 bg-white">
+              <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-950">
+                    <Calendar className="size-5 text-blue-700" />
+                    {locale === "en" ? "Maintenance Calendar" : "维护日历"}
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-stone-600">
+                    {locale === "en" 
+                      ? `${maintenanceEvents.length} upcoming maintenance events`
+                      : `${maintenanceEvents.length} 个即将到来的维护事件`}
+                  </p>
+                </div>
+              </div>
+              <div className="divide-y divide-stone-200">
+                {maintenanceEvents.slice(0, 5).map((event) => (
+                  <div key={event.id} className="flex items-center gap-4 p-4">
+                    <div className="flex h-12 w-12 flex-col items-center justify-center rounded-lg border border-stone-200 bg-stone-50">
+                      <span className="text-lg">{getEventTypeIcon(event.type)}</span>
+                      <span className="text-xs font-semibold text-stone-600">
+                        {event.date.getDate()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${getPriorityColor(event.priority)}`}>
+                          {event.priority}
+                        </span>
+                        <span className="text-sm font-semibold text-stone-950">
+                          {locale === "en" ? event.title : event.titleZh}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-stone-500">
+                        {formatEventDate(event.date, locale)}
+                        {event.repository && ` · ${event.repository}`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="rounded-lg border border-stone-300 bg-white">
             <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-start sm:justify-between">
