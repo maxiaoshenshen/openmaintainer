@@ -102,6 +102,20 @@ function renderDashboard() {
 }
 
 describe("Dashboard", () => {
+  it("renders a first maintainer session guide with anchored next steps", () => {
+    const markup = renderDashboard();
+
+    expect(markup).toContain("First maintainer session");
+    expect(markup).toContain("Inspect repository");
+    expect(markup).toContain("Pick today&#x27;s focus");
+    expect(markup).toContain("Copy a human-approved handoff");
+    expect(markup).toContain('href="#workspace-focus"');
+    expect(markup).toContain('href="#workspace-contributors"');
+    expect(markup).toContain('href="#workspace-review"');
+    expect(markup).toContain("No credentials required");
+    expect(markup).toContain("Human approval gate");
+  });
+
   it("renders the contributor reply outbox with copyable GitHub handoff commands", () => {
     const markup = renderDashboard();
 

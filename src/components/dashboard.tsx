@@ -219,6 +219,14 @@ const copy = {
     maxOpenPullRequests: "Max open PRs",
     releaseCadenceDays: "Release cadence days",
     preferredLabels: "Preferred labels",
+    firstSession: "First maintainer session",
+    firstSessionSummary: "Run one calm maintenance loop before touching GitHub.",
+    firstStepInspect: "Inspect repository",
+    firstStepInspectBody: "Enter demo or owner/repo. No credentials required.",
+    firstStepFocus: "Pick today's focus",
+    firstStepFocusBody: "Open Focus and choose one blocker that reduces waiting or release risk.",
+    firstStepHandoff: "Copy a human-approved handoff",
+    firstStepHandoffBody: "Use Contributors or Review to copy a reply, PR handoff, or GitHub CLI draft.",
   },
   zh: {
     queue: "维护队列",
@@ -306,6 +314,14 @@ const copy = {
     maxOpenPullRequests: "最多打开 PR",
     releaseCadenceDays: "发布节奏天数",
     preferredLabels: "偏好标签",
+    firstSession: "首次维护会话",
+    firstSessionSummary: "先完成一次冷静的维护闭环，再动 GitHub。",
+    firstStepInspect: "检查仓库",
+    firstStepInspectBody: "输入 demo 或 owner/repo。无需凭证。",
+    firstStepFocus: "选择今日焦点",
+    firstStepFocusBody: "打开焦点区，选择一个能降低等待或发布风险的阻塞项。",
+    firstStepHandoff: "复制人工审核交接",
+    firstStepHandoffBody: "在贡献者或评审区复制回复、PR 交接或 GitHub CLI 草稿。",
   },
 };
 
@@ -946,6 +962,57 @@ export function Dashboard({
               </span>
             ) : null}
           </div>
+
+          <section
+            aria-label={text.firstSession}
+            className="grid gap-0 overflow-hidden rounded-lg border border-stone-300 bg-white shadow-sm lg:grid-cols-[0.8fr_1fr]"
+          >
+            <div className="border-b border-stone-200 bg-stone-950 p-4 text-white lg:border-r lg:border-b-0">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-stone-300">
+                <ClipboardList className="size-4 text-emerald-300" />
+                {text.firstSession}
+              </div>
+              <p className="mt-2 max-w-md text-sm leading-6 text-stone-200">
+                {text.firstSessionSummary}
+              </p>
+            </div>
+            <div className="grid divide-y divide-stone-200 md:grid-cols-3 md:divide-x md:divide-y-0">
+              {[
+                {
+                  href: "#workspace-focus",
+                  icon: Search,
+                  title: text.firstStepInspect,
+                  body: text.firstStepInspectBody,
+                },
+                {
+                  href: "#workspace-focus",
+                  icon: LayoutDashboard,
+                  title: text.firstStepFocus,
+                  body: text.firstStepFocusBody,
+                },
+                {
+                  href: "#workspace-contributors",
+                  icon: Copy,
+                  title: text.firstStepHandoff,
+                  body: text.firstStepHandoffBody,
+                },
+              ].map(({ href, icon: Icon, title, body }) => (
+                <a
+                  key={title}
+                  href={href}
+                  className="group block min-h-32 p-4 transition hover:bg-stone-50"
+                >
+                  <div className="flex items-center gap-2 text-sm font-semibold text-stone-950">
+                    <Icon className="size-4 text-blue-700 transition group-hover:text-stone-950" />
+                    {title}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">
+                    {body}
+                  </p>
+                </a>
+              ))}
+            </div>
+          </section>
         </div>
       </section>
 
