@@ -107,6 +107,14 @@ import {
   type MaintenanceEvent,
 } from "@/lib/maintenance-calendar";
 import {
+  calculateCommunityStats,
+  getScoreColor,
+  getScoreBgColor,
+  formatStatValue,
+  getStatDescription,
+  type CommunityStats,
+} from "@/lib/community-stats";
+import {
   generateContributorBadge,
   type ContributorBadge,
 } from "@/lib/contributor-badge";
@@ -607,6 +615,7 @@ export function Dashboard({
   const [contributorBadges, setContributorBadges] = useState<Map<string, ContributorBadge>>(new Map());
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [maintenanceEvents, setMaintenanceEvents] = useState<MaintenanceEvent[]>([]);
+  const [communityStats, setCommunityStats] = useState<CommunityStats | null>(null);
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -712,6 +721,24 @@ export function Dashboard({
     setMaintenanceEvents(events);
   }, [responseSla, releaseGate]);
 
+  // Calculate community stats
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mergedPRs = repository.pullRequests.filter((pr) => pr.status === "merged").length;
+    const stats = calculateCommunityStats(
+      repository.stars,
+      contributorImpact.totals.uniqueContributors,
+      repository.openIssues,
+      repository.pullRequests.length,
+      mergedPRs,
+      2, // avg response days
+      5, // returning contributors
+      contributorImpact.totals.uniqueContributors,
+      3 // reviewers
+    );
+    setCommunityStats(stats);
+  }, [repository, contributorImpact]);
+
   async function selectRecentRepo(repo: string) {
     setRepoInput(repo);
     setShowRecentRepos(false);
@@ -777,8 +804,11 @@ export function Dashboard({
       { label: "Pull requests", value: repository.pullRequests.length.toString(), icon: GitPullRequest },
       { label: "Health", value: `${analysis.health.score}/100`, icon: Gauge },
       { label: "Readiness", value: `${analysis.readiness.score}/100`, icon: ShieldCheck },
+      ...(communityStats
+        ? [{ label: "Community", value: `${communityStats.communityScore}/100`, icon: Users, highlight: true }]
+        : []),
     ],
-    [analysis.health.score, analysis.readiness.score, repository],
+    [analysis.health.score, analysis.readiness.score, repository, communityStats],
   );
 
   const leadingInboxItem = inbox.items[0];
