@@ -93,6 +93,10 @@ import {
   type Theme,
 } from "@/lib/theme-store";
 import {
+  downloadPullRequestsCSV,
+  downloadIssuesCSV,
+} from "@/lib/export-csv";
+import {
   generateContributorBadge,
   type ContributorBadge,
 } from "@/lib/contributor-badge";
@@ -591,6 +595,7 @@ export function Dashboard({
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [theme, setTheme] = useState<Theme>("system");
   const [contributorBadges, setContributorBadges] = useState<Map<string, ContributorBadge>>(new Map());
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -664,6 +669,30 @@ export function Dashboard({
     if (typeof window === "undefined") return;
     generateBadgesFromPRs();
   }, [repository.pullRequests, locale]);
+
+  // Export handlers
+  function handleExportPRs() {
+    const prs = repository.pullRequests.map((pr) => ({
+      number: pr.number,
+      title: pr.title,
+      author: pr.author,
+      status: pr.status,
+      createdAt: pr.createdAt,
+      updatedAt: pr.updatedAt,
+      url: pr.url,
+      labels: pr.labels,
+      reviewStatus: pr.reviewStatus,
+      mergedAt: pr.mergedAt,
+    }));
+    downloadPullRequestsCSV(prs, repository.identity.fullName);
+    setShowExportMenu(false);
+  }
+
+  function handleExportIssues() {
+    // This would need issues data - for now just show a placeholder
+    alert(locale === "en" ? "Issue export coming soon!" : "Issue 导出即将推出！");
+    setShowExportMenu(false);
+  }
 
   async function selectRecentRepo(repo: string) {
     setRepoInput(repo);
