@@ -15,6 +15,8 @@ import {
   Languages,
   Loader2,
   MessageSquareText,
+  Moon,
+  Sun,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -84,6 +86,12 @@ import {
   generateShareUrl,
   saveSharedReport,
 } from "@/lib/share-store";
+import {
+  readTheme,
+  writeTheme,
+  applyTheme,
+  type Theme,
+} from "@/lib/theme-store";
 import {
   useKeyboardShortcuts,
   formatShortcut,
@@ -577,6 +585,7 @@ export function Dashboard({
   const [prTemplateSummary, setPrTemplateSummary] = useState("");
   const [copiedPrTemplate, setCopiedPrTemplate] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [theme, setTheme] = useState<Theme>("system");
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -589,6 +598,16 @@ export function Dashboard({
   useEffect(() => {
     if (typeof window === "undefined") return;
     setRecentRepos(readRecentRepos(window.localStorage));
+  }, []);
+
+  // Initialize theme
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedTheme = readTheme(window.localStorage);
+    setTheme(savedTheme);
+    if (savedTheme !== "system") {
+      applyTheme(savedTheme);
+    }
   }, []);
 
   // Register keyboard shortcuts
@@ -610,6 +629,18 @@ export function Dashboard({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showKeyboardShortcuts]);
+
+  // Theme change handler
+  function handleThemeChange(newTheme: Theme) {
+    setTheme(newTheme);
+    writeTheme(window.localStorage, newTheme);
+    if (newTheme === "system") {
+      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      applyTheme(isDark ? "dark" : "light");
+    } else {
+      applyTheme(newTheme);
+    }
+  }
 
   async function selectRecentRepo(repo: string) {
     setRepoInput(repo);
