@@ -18,6 +18,9 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  LayoutDashboard,
+  Rocket,
+  FileText,
   Sparkles,
   Users,
   UserPlus,
@@ -127,6 +130,7 @@ type DashboardProps = {
 
 type Locale = "en" | "zh";
 type CopyState = "idle" | "copied" | "failed";
+type ActiveTab = "focus" | "contributors" | "review" | "release" | "docs";
 
 const copy = {
   en: {
@@ -168,6 +172,11 @@ const copy = {
     ownershipRouting: "Ownership routing",
     copyOwnershipRouting: "Copy routing",
     copyFailed: "Copy failed",
+    tabFocus: "Focus",
+    tabContributors: "Contributors",
+    tabReview: "Review",
+    tabRelease: "Release",
+    tabDocs: "Docs",
     readyDecisions: "ready",
     reviewDecisions: "review",
     blockedDecisions: "blocked",
@@ -250,6 +259,11 @@ const copy = {
     ownershipRouting: "负责人路由",
     copyOwnershipRouting: "复制路由",
     copyFailed: "复制失败",
+    tabFocus: "焦点",
+    tabContributors: "贡献者",
+    tabReview: "审查",
+    tabRelease: "发布",
+    tabDocs: "文档",
     readyDecisions: "就绪",
     reviewDecisions: "审核",
     blockedDecisions: "阻塞",
@@ -498,6 +512,7 @@ export function Dashboard({
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [snapshotImportText, setSnapshotImportText] = useState("");
   const [locale, setLocale] = useState<Locale>("en");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
   const [preferredLabelsDraft, setPreferredLabelsDraft] = useState(
     initialAnalysis.settings.preferredLabels.join(", "),
@@ -933,6 +948,30 @@ export function Dashboard({
           </div>
         </div>
       </section>
+
+      {/* Tab Navigation */}
+      <nav className="mx-auto mt-4 grid w-full max-w-7xl grid-cols-5 gap-1 px-4 sm:px-6 lg:px-8">
+        {[
+          { id: "focus", icon: LayoutDashboard, label: text.tabFocus },
+          { id: "contributors", icon: Users, label: text.tabContributors },
+          { id: "review", icon: GitPullRequest, label: text.tabReview },
+          { id: "release", icon: Rocket, label: text.tabRelease },
+          { id: "docs", icon: FileText, label: text.tabDocs },
+        ].map(({ id, icon: Icon, label }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id as ActiveTab)}
+            className={`flex flex-col items-center gap-1 rounded-lg p-3 transition ${
+              activeTab === id
+                ? "bg-stone-950 text-white shadow-md"
+                : "bg-white text-stone-600 hover:bg-stone-100"
+            }`}
+          >
+            <Icon className="size-5" />
+            <span className="text-xs font-semibold">{label}</span>
+          </button>
+        ))}
+      </nav>
 
       <section className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[1.4fr_0.9fr] lg:px-8">
         <div className="space-y-4">

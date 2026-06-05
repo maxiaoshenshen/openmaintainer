@@ -1,5 +1,9 @@
 # OpenMaintainer
 
+[![Tests](https://img.shields.io/badge/Tests-53%20passed-22c55e)](https://github.com/maxiaoshenshen/openmaintainer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000)](https://vercel.com)
+
 **The AI-native workbench that turns OSS maintenance chaos into calm control.**
 
 Every open-source maintainer knows the grind: endless issue triage, PR reviews that pile up, contributors waiting for replies, release checklists that never end. OpenMaintainer is the cockpit that makes it all visible, manageable, and human.
@@ -7,6 +11,8 @@ Every open-source maintainer knows the grind: endless issue triage, PR reviews t
 > "Finally, a tool that understands what maintainers actually do." — OSS contributor (anonymized)
 
 ![OpenMaintainer dashboard](public/screenshots/dashboard.png)
+
+<!-- Screen recording: https://openmaintainer.vercel.app/demo.mp4 -->
 
 ## Live
 
