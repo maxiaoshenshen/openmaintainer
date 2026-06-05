@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Dashboard } from "@/components/dashboard";
 import { demoPortfolioRepositories, demoPreviousSnapshot, demoRepository } from "@/lib/demo-data";
 import { buildContributorImpactQueue } from "@/lib/contributor-impact";
@@ -16,6 +17,34 @@ import { buildContributorStatusBrief } from "@/lib/contributor-status-brief";
 import { buildContributorReplyOutbox } from "@/lib/contributor-reply-outbox";
 import { buildMaintainerDecisionLog } from "@/lib/maintainer-decision-log";
 import { buildMaintainerOwnershipRouting } from "@/lib/maintainer-ownership-routing";
+
+export const metadata: Metadata = {
+  title: "OpenMaintainer - AI-Powered OSS Maintenance Workbench",
+  description: "The all-in-one workbench for open source maintainers. Analyze repositories, manage contributors, and ship with confidence.",
+  keywords: [
+    "open source",
+    "maintainer",
+    "GitHub",
+    "repository management",
+    "OSS",
+    "contributors",
+    "pull requests",
+    "issues",
+  ],
+  authors: [{ name: "OpenMaintainer" }],
+  openGraph: {
+    title: "OpenMaintainer - OSS Maintenance Workbench",
+    description: "AI-powered tools for open source maintainers",
+    type: "website",
+    locale: "en_US",
+    siteName: "OpenMaintainer",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "OpenMaintainer",
+    description: "AI-powered OSS maintenance workbench",
+  },
+};
 
 export default function Home() {
   const observedAt = new Date("2026-06-03T00:00:00Z");
