@@ -22,6 +22,8 @@ import {
   Rocket,
   FileText,
   Sparkles,
+  ChevronRight,
+  ChevronDown,
   Users,
   UserPlus,
 } from "lucide-react";
@@ -522,6 +524,7 @@ export function Dashboard({
   const [loadingInbox, setLoadingInbox] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [copiedRelease, setCopiedRelease] = useState(false);
+  const [expandedCommands, setExpandedCommands] = useState<Set<string>>(new Set());
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
   const [copiedPlaybook, setCopiedPlaybook] = useState<string | null>(null);
   const [copiedDigest, setCopiedDigest] = useState(false);
@@ -868,7 +871,18 @@ export function Dashboard({
     URL.revokeObjectURL(url);
   }
 
-  function importSnapshot() {
+  function toggleExpandedCommand(actionId: string) {
+    setExpandedCommands((prev) => {
+      const next = new Set(prev);
+      if (next.has(actionId)) {
+        next.delete(actionId);
+      } else {
+        next.add(actionId);
+      }
+      return next;
+    });
+  }
+function importSnapshot() {
     if (typeof window === "undefined") return;
     const bundle = importSnapshotBundle(snapshotImportText);
     if (!bundle) {
@@ -2098,40 +2112,69 @@ export function Dashboard({
             <div className="grid gap-0 md:grid-cols-[1fr_260px]">
               <div className="divide-y divide-stone-200">
                 {commandQueue.items.slice(0, 4).map((item) => (
-                  <article key={item.actionId} className="grid gap-3 p-4 md:grid-cols-[1fr_150px]">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="truncate text-sm font-semibold text-stone-950 hover:text-blue-700"
-                        >
-                          {item.title}
-                        </a>
-                        <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${priorityColor(item.priority)}`}>
-                          {item.priority}
-                        </span>
+                  <article key={item.actionId} className="p-4">
+                    <div className="flex items-start gap-3">
+                      <button
+                        onClick={() => toggleExpandedCommand(item.actionId)}
+                        className="mt-1 flex-shrink-0 rounded-md border border-stone-300 p-1 hover:bg-stone-100"
+                        title={expandedCommands.has(item.actionId) ? "Collapse" : "Expand"}
+                      >
+                        {expandedCommands.has(item.actionId) ? (
+                          <ChevronDown className="size-4 text-stone-600" />
+                        ) : (
+                          <ChevronRight className="size-4 text-stone-600" />
+                        )}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="truncate text-sm font-semibold text-stone-950 hover:text-blue-700"
+                          >
+                            {item.title}
+                          </a>
+                          <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${priorityColor(item.priority)}`}>
+                            {item.priority}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${commandSafetyColor(item.safetyLevel)}`}>
+                            {item.safetyLevel}
+                          </span>
+                          <span className="rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs font-semibold text-stone-600">
+                            {item.safetyReason}
+                          </span>
+                        </div>
+                        {expandedCommands.has(item.actionId) && (
+                          <div className="mt-3 rounded-md border border-stone-200 bg-stone-950 p-3">
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-stone-400">
+                              GitHub CLI commands
+                            </div>
+                            <pre className="overflow-auto whitespace-pre-wrap font-mono text-xs leading-5 text-stone-100">
+                              {item.commands.join('\n')}
+                            </pre>
+                            <button
+                              onClick={() => {
+                                copyTextToClipboard(item.commands.join('\n'));
+                              }}
+                              className="mt-3 inline-flex h-8 items-center gap-2 rounded-md border border-stone-600 bg-stone-800 px-3 text-xs font-semibold text-stone-200 hover:bg-stone-700"
+                            >
+                              <Copy className="size-3" />
+                              Copy commands
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <div className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
-                        {item.commandCount} command{item.commandCount === 1 ? "" : "s"}
+                      <div className={`mt-1 flex-shrink-0 rounded-md border p-2 text-center text-xs font-semibold ${
+                        item.requiresReview
+                          ? "border-amber-200 bg-amber-50 text-amber-900"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      }`}
+                      >
+                        {item.requiresReview ? "Review first" : "Ready"}
                       </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${commandSafetyColor(item.safetyLevel)}`}>
-                          {item.safetyLevel}
-                        </span>
-                        <span className="rounded-full border border-stone-300 bg-stone-50 px-2 py-0.5 text-xs font-semibold text-stone-600">
-                          {item.safetyReason}
-                        </span>
-                      </div>
-                    </div>
-                    <div className={`rounded-md border p-3 text-sm font-semibold ${
-                      item.requiresReview
-                        ? "border-amber-200 bg-amber-50 text-amber-900"
-                        : "border-emerald-200 bg-emerald-50 text-emerald-800"
-                    }`}
-                    >
-                      {item.requiresReview ? "Review first" : "Ready"}
                     </div>
                   </article>
                 ))}

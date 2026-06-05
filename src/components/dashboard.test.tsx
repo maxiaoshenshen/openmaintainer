@@ -164,6 +164,42 @@ describe("Dashboard", () => {
     expect(markup).toContain("Review risky PR #92");
   });
 
+  it("renders command queue items with expand/collapse to reveal all commands", () => {
+    const markup = renderDashboard();
+
+    expect(markup).toContain("Command queue");
+    expect(markup).toContain("16 GitHub commands");
+    expect(markup).toContain("safe");
+    expect(markup).toContain("review");
+    expect(markup).toContain("Destructive");
+    expect(markup).toContain("1 command");
+    expect(markup).toContain("2 commands");
+  });
+
+  it("includes safety reason in each command queue item", () => {
+    const markup = renderDashboard();
+
+    expect(markup).toContain("Writes labels or comments");
+    expect(markup).toContain("Contains close, delete, or release command");
+  });
+  it("renders command queue items with expand/collapse to reveal all commands", () => {
+    const markup = renderDashboard();
+
+    expect(markup).toContain("Command queue");
+    expect(markup).toContain("16 GitHub commands");
+    expect(markup).toContain("safe");
+    expect(markup).toContain("review");
+    expect(markup).toContain("Destructive");
+    expect(markup).toContain("1 command");
+    expect(markup).toContain("2 commands");
+  });
+
+  it("includes safety reason in each command queue item", () => {
+    const markup = renderDashboard();
+
+    expect(markup).toContain("Writes labels or comments");
+    expect(markup).toContain("Contains close, delete, or release command");
+  });
   it("renders workspace tabs as anchor links to real dashboard sections", () => {
     const markup = renderDashboard();
     const sectionSnippet = (id: string) => {
