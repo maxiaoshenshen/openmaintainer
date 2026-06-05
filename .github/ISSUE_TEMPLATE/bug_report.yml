@@ -1,31 +1,56 @@
-name: Bug report
-description: Report a reproducible problem in OpenMaintainer
-title: "[Bug]: "
-labels: ["bug", "needs-triage"]
+name: Bug Report 🐛
+description: Report a bug in OpenMaintainer
+labels: ["bug"]
 body:
-  - type: textarea
-    id: summary
+  - type: markdown
     attributes:
-      label: Summary
-      description: What happened?
+      value: |
+        Thanks for reporting a bug! Please fill out the sections below.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe what you were trying to do and what went wrong.
+      placeholder: "I tried to inspect a repo and got an error..."
     validations:
       required: true
+
   - type: textarea
-    id: reproduction
+    id: steps
     attributes:
-      label: Reproduction steps
-      description: Include exact commands and inputs.
+      label: Steps to reproduce
+      description: List the exact steps to reproduce the bug.
+      placeholder: |
+        1. Go to '...'
+        2. Enter '...'
+        3. Click '...'
     validations:
       required: true
+
   - type: input
+    id: repo
+    attributes:
+      label: Repository you were inspecting
+      description: Optional - the GitHub repo that caused the issue.
+      placeholder: "owner/repo"
+
+  - type: dropdown
     id: environment
     attributes:
-      label: Environment
-      placeholder: "OS, Node version, browser"
-    validations:
-      required: true
-  - type: textarea
-    id: logs
+      label: How are you running OpenMaintainer?
+      options:
+        - Local development
+        - Vercel deployment
+        - Self-hosted
+        - Demo mode (no credentials)
+
+  - type: checkboxes
+    id: browser
     attributes:
-      label: Logs or screenshots
-      description: Remove secrets before sharing.
+      label: Browser
+      options:
+        - label: Chrome
+        - label: Firefox
+        - label: Safari
+        - label: Edge

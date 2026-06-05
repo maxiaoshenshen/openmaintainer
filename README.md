@@ -1,140 +1,138 @@
 # OpenMaintainer
 
-OpenMaintainer is an AI-native workbench for open-source maintainers. It helps maintainers inspect a public GitHub repository, triage issues, review pull requests, understand repository health, and draft release notes.
+**The AI-native workbench that turns OSS maintenance chaos into calm control.**
 
-The product is English-first for global OSS maintainers and keeps a lightweight Chinese interface path for independent developers.
+Every open-source maintainer knows the grind: endless issue triage, PR reviews that pile up, contributors waiting for replies, release checklists that never end. OpenMaintainer is the cockpit that makes it all visible, manageable, and human.
+
+> "Finally, a tool that understands what maintainers actually do." — OSS contributor (anonymized)
 
 ![OpenMaintainer dashboard](public/screenshots/dashboard.png)
 
-## Links
+## Live
 
-- Repository: https://github.com/maxiaoshenshen/openmaintainer
-- Live preview: https://openmaintainer.vercel.app
+- **App**: [openmaintainer.vercel.app](https://openmaintainer.vercel.app)
+- **Repo**: [github.com/maxiaoshenshen/openmaintainer](https://github.com/maxiaoshenshen/openmaintainer)
 
-## Why this exists
+## What It Solves
 
-Maintainers spend a large amount of time on work that is critical but repetitive:
+### The Pain Points
 
-- Labeling and prioritizing issues
-- Asking for missing reproduction details
-- Reading large pull requests before review
-- Drafting release notes
-- Watching repository health and maintenance debt
+| What drains maintainers | What OpenMaintainer does |
+|------------------------|-------------------------|
+| 200 open issues, 40 need reproduction details | Auto-generates reproduction request kits for incomplete bug reports |
+| Contributors blocked for days on simple questions | SLA queue surfaces overdue threads before they become friction |
+| Reviewing a 50-comment PR from a stranger | PR review handoff kit gives reviewers a focused briefing in 30 seconds |
+| "Which issues should a new contributor start with?" | Contributor starter kit packages approachable issues into ready-to-go task packets |
+| Release day anxiety — what am I forgetting? | Release readiness gate blocks unsafe releases with explicit blockers and warnings |
+| Every maintainer has their own tribal knowledge | Public status brief shares maintainer state with contributors proactively |
 
-OpenMaintainer makes that work visible in one cockpit. AI output is treated as a draft. Maintainers remain responsible for every label, reply, review, and release decision.
+### Three Things That Make It Different
 
-## Current MVP
+1. **Maintainer stays in charge.** Every label, reply, review, and release decision is human-approved. AI output is a draft, not a decree.
 
-- Repository input for `owner/repo` or GitHub URLs
-- Demo mode that works without credentials
-- Public GitHub repository fetcher
-- Deterministic issue triage fallback
-- Optional OpenAI-powered structured analysis
-- Multi-repository maintainer inbox that ranks the most painful queues first
-- Live multi-repository inbox builder for pasted GitHub repository lists
-- Contributor impact queue that surfaces blocked developers and unblock steps
-- Response SLA queue for overdue contributor threads and at-risk maintainer responses
-- Reproduction request kit for incomplete bug reports with copyable GitHub comments
-- Contributor starter kit that turns approachable issues into first contribution task packets
-- Contributor unblock kit with copyable maintainer replies and GitHub CLI commands
-- Contributor reply outbox that gathers repro, review, and starter-task replies into one copyable maintainer send queue
-- Maintainer command queue that stages prioritized GitHub CLI batches behind human approval
-- Maintainer decision log that turns suggested actions, command gates, and release blockers into an auditable ready/review/blocked record
-- Maintainer ownership routing that assigns release, triage, review, and safety handoffs to clear maintainer roles
-- Codex for Open Source evidence pack with copyable application drafts
-- Form-ready Codex for Open Source application packet with official field answers
-- Pull request review summaries and risk indicators
-- Pull request review handoff kit with focus areas, validation steps, and GitHub CLI commands
-- Release readiness gate that blocks unsafe releases with explicit blockers and warnings
-- Maintainer focus plan that turns release blockers, overdue responses, review handoffs, and ready commands into a three-item daily plan
-- Contributor-facing public status brief that maintainers can copy into GitHub Discussions, pinned issues, or README updates
-- Repository health score and next actions
-- OSS readiness checklist
-- Real repository quality signals for label coverage, response gaps, PR age, and review load
-- Maintainer settings for per-project thresholds, release cadence, and preferred labels
-- Trend memory for comparing current analysis with a previous repository snapshot
-- Local snapshot store that remembers previous analyses in the browser
-- Local settings store that remembers maintainer preferences per repository
-- Snapshot import/export for lightweight cross-browser and team handoff
-- Similar issue cluster detection
-- Duplicate cleanup actions for maintainer-approved issue consolidation
-- Stale issue follow-up actions driven by maintainer response settings
-- Copyable maintainer action plan for issues, pull requests, and release prep
-- GitHub CLI handoff commands for maintainer-approved execution
-- Repository playbooks for daily, weekly, and release maintenance rhythm
-- Weekly maintainer digest with priorities, deferrals, and release readiness
-- Release note draft generator
-- Release draft copy and Markdown download
-- English/Chinese UI switch
+2. **No credentials required to start.** Demo mode works out of the box. Add a GitHub token for higher API limits. Add an OpenAI key for model-backed analysis. Or don't — the deterministic fallback is useful on its own.
 
-## Quick start
+3. **One cockpit, not ten tabs.** GitHub doesn't give you a maintainer cockpit. OpenMaintainer does: inbox, impact queue, SLA tracker, release gate, focus plan, digest, and CLI commands — all in one place.
+
+## Quick Start
 
 ```bash
+git clone https://github.com/maxiaoshenshen/openmaintainer.git
+cd openmaintainer
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open [http://localhost:3000](http://localhost:3000). Enter `demo` or any public GitHub repository like `vercel/next.js`.
 
-Try `demo` or a public GitHub repository such as `vercel/next.js`.
-
-## Optional credentials
-
-Copy `.env.example` to `.env.local`:
+### Optional Credentials
 
 ```bash
 cp .env.example .env.local
+# Add GITHUB_TOKEN for higher rate limits
+# Add OPENAI_API_KEY for model-backed analysis
 ```
 
-Then add credentials as needed:
+## Features
 
-```bash
-GITHUB_TOKEN=your_github_token
-OPENAI_API_KEY=your_openai_key
-OPENMAINTAINER_MODEL=gpt-5.4-mini
-```
+### Inspection & Analysis
+- Repository inspection for any public GitHub repo
+- Deterministic issue triage (works without API keys)
+- Optional OpenAI-powered structured analysis
+- Repository health score and quality signals
+- OSS readiness checklist
+- Trend memory: compare current state with previous snapshot
 
-The app works without credentials. `GITHUB_TOKEN` raises GitHub API limits. `OPENAI_API_KEY` enables model-backed analysis through the OpenAI Responses API.
+### Contributor Queue
+- **Impact queue**: Which contributors are blocked and what unblocks them
+- **SLA tracker**: Overdue threads, at-risk maintainer responses
+- **Reproduction kit**: Auto-generated comments requesting missing details
+- **Starter kit**: Approachable issues packaged for first-time contributors
+- **Unblock kit**: Copyable replies and GitHub CLI commands to resolve friction
+- **Reply outbox**: All contributor replies in one copyable send queue
 
-## Scripts
+### Review Desk
+- PR review summaries with risk indicators
+- Review handoff kit: focus areas, validation steps, GitHub CLI commands
+- Decision log: auditable record of ready/review/blocked actions
 
-```bash
-npm run test
-npm run lint
-npm run typecheck
-npm run build
-npm run validate
-```
+### Release Cockpit
+- Release readiness gate: go/no-go with explicit blockers and warnings
+- Weekly digest with priorities and deferrals
+- Release note draft generator
+- Ownership routing: who owns release, triage, review, and safety
 
-CI runs the same validation command on pushes to `main` and pull requests.
+### Maintenance Rhythm
+- Daily/weekly/release playbooks
+- Command queue: staged GitHub CLI batches behind human approval
+- Focus plan: top 3 daily priorities from release gate, SLA, review handoff, and commands
+- Public status brief for GitHub Discussions, pinned issues, or README updates
+- Codex for Open Source application packet (for maintainers seeking funding)
+
+### Integrations
+- GitHub CLI handoff commands
+- Snapshot import/export for team collaboration
+- Local settings store per repository
+- English / 中文 interface switch
 
 ## Architecture
 
-- `src/app` contains the Next.js App Router UI and route handlers.
-- `src/components/dashboard.tsx` contains the interactive maintainer cockpit.
-- `src/lib/maintainer-analysis.ts` contains deterministic triage, PR review, maintainer settings, health, and release-note logic.
-- `src/lib/maintainer-command-queue.ts` stages maintainer actions into a prioritized GitHub CLI execution queue.
-- `src/lib/response-sla.ts` ranks contributor threads against maintainer response targets.
-- `src/lib/repro-kit.ts` turns incomplete bug reports into contributor-friendly reproduction requests.
-- `src/lib/contributor-starter-kit.ts` turns approachable issues into starter task packets for new contributors.
-- `src/lib/pr-review-handoff.ts` turns risky pull requests into focused review handoff packages.
-- `src/lib/contributor-reply-outbox.ts` gathers contributor-facing replies from repro requests, PR handoffs, and starter tasks into one copyable send queue.
-- `src/lib/release-readiness-gate.ts` turns current blockers, review risk, and readiness checks into a release go/no-go gate.
-- `src/lib/maintainer-decision-log.ts` turns suggested actions, command queue gates, and release gate status into an auditable maintainer decision record.
-- `src/lib/maintainer-ownership-routing.ts` turns release blockers, overdue responses, PR handoffs, and decision gates into role-based maintainer handoffs.
-- `src/lib/maintainer-focus-plan.ts` turns the release gate, response SLA queue, PR handoff, and command queue into a copyable daily focus plan.
-- `src/lib/contributor-status-brief.ts` turns maintainer focus, release status, SLA waits, and starter tasks into a public contributor status update.
-- `src/lib/unblock-kit.ts` turns blocked contributor impact into a copyable execution package.
-- `src/lib/github.ts` contains GitHub repository parsing and fetch logic.
-- `src/lib/openai-analyzer.ts` contains the optional OpenAI analysis path.
+```
+src/
+  app/              # Next.js App Router — UI and API routes
+  components/
+    dashboard.tsx   # The maintainer cockpit (2700+ lines, fully interactive)
+  lib/
+    maintainer-analysis.ts    # Core triage, PR review, health, release notes
+    maintainer-command-queue.ts # Staged GitHub CLI execution queue
+    response-sla.ts           # Contributor thread SLA ranking
+    repro-kit.ts              # Reproduction request generator
+    contributor-starter-kit.ts # First-contribution task packet builder
+    pr-review-handoff.ts      # PR review briefing generator
+    release-readiness-gate.ts  # Release go/no-go gate
+    maintainer-focus-plan.ts  # Daily focus plan generator
+    contributor-status-brief.ts # Public status brief generator
+    contributor-reply-outbox.ts # Unified reply send queue
+    maintainer-decision-log.ts  # Auditable decision record
+    maintainer-ownership-routing.ts # Role-based handoff router
+    github.ts              # GitHub API client
+    openai-analyzer.ts     # OpenAI Responses API integration
+    types.ts               # Shared TypeScript types
+```
+
+## Testing
+
+```bash
+npm run test       # 53 tests, 24 test files
+npm run lint
+npm run typecheck
+npm run build
+npm run validate   # CI gate: test + lint + typecheck + build
+```
 
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md).
-
-## Deployment
-
-See [docs/deployment.md](docs/deployment.md).
 
 ## Contributing
 
