@@ -115,6 +115,13 @@ import {
   type CommunityStats,
 } from "@/lib/community-stats";
 import {
+  isLoggedIn,
+  getUserDisplayName,
+  readGitHubUser,
+  getGitHubAuthUrl,
+  clearGitHubToken,
+} from "@/lib/github-oauth";
+import {
   generateContributorBadge,
   type ContributorBadge,
 } from "@/lib/contributor-badge";
@@ -616,6 +623,8 @@ export function Dashboard({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [maintenanceEvents, setMaintenanceEvents] = useState<MaintenanceEvent[]>([]);
   const [communityStats, setCommunityStats] = useState<CommunityStats | null>(null);
+  const [isGitHubLoggedIn, setIsGitHubLoggedIn] = useState(false);
+  const [userDisplayName, setUserDisplayName] = useState("");
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -738,6 +747,25 @@ export function Dashboard({
     );
     setCommunityStats(stats);
   }, [repository, contributorImpact]);
+
+  // Check GitHub login status
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setIsGitHubLoggedIn(isLoggedIn(window.localStorage));
+    setUserDisplayName(getUserDisplayName(window.localStorage));
+  }, []);
+
+  // GitHub login handler
+  function handleGitHubLogin() {
+    window.location.href = getGitHubAuthUrl();
+  }
+
+  // GitHub logout handler
+  function handleGitHubLogout() {
+    clearGitHubToken(window.localStorage);
+    setIsGitHubLoggedIn(false);
+    setUserDisplayName("");
+  }
 
   async function selectRecentRepo(repo: string) {
     setRepoInput(repo);
