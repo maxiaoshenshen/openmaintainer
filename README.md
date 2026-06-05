@@ -1,46 +1,54 @@
 # OpenMaintainer
 
-[![Tests](https://img.shields.io/badge/Tests-57%20passed-22c55e)](https://github.com/maxiaoshenshen/openmaintainer)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000)](https://vercel.com)
+**AI-Powered OSS Maintenance Workbench** — The all-in-one platform for open source maintainers who want to work smarter, not harder.
 
-**The AI-native workbench that turns OSS maintenance chaos into calm control.**
+[![GitHub stars](https://img.shields.io/github/stars/maxiaoshenshen/openmaintainer)](https://github.com/maxiaoshenshen/openmaintainer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Every open-source maintainer knows the grind: endless issue triage, PR reviews that pile up, contributors waiting for replies, release checklists that never end. OpenMaintainer is the cockpit that makes it all visible, manageable, and human.
+## Why OpenMaintainer?
 
-> "Finally, a tool that understands what maintainers actually do." — OSS contributor (anonymized)
+Being an OSS maintainer is rewarding but relentless. You're drowning in issues, PRs, and community demands. OpenMaintainer helps you:
 
-![OpenMaintainer dashboard](public/screenshots/dashboard.png)
+- **Triage Faster** — AI-powered issue categorization and duplicate detection
+- **Ship with Confidence** — Release readiness gates and health scores
+- **Grow Your Community** — Starter kit management and contributor nurturing
+- **Protect Your Time** — SLA tracking and intelligent prioritization
 
-<!-- Screen recording: https://openmaintainer.vercel.app/demo.mp4 -->
+## Live Demo
 
-## Live
+Try it now: [https://openmaintainer.vercel.app](https://openmaintainer.vercel.app)
 
-- **App**: [openmaintainer.vercel.app](https://openmaintainer.vercel.app)
-- **Repo**: [github.com/maxiaoshenshen/openmaintainer](https://github.com/maxiaoshenshen/openmaintainer)
+No signup required. Works with any public GitHub repository.
 
-## What It Solves
+## Key Features
 
-### The Pain Points
+### 📨 Maintainer Inbox
+Unified view of all your repositories. See urgent issues, pending PRs, and community questions at a glance.
 
-| What drains maintainers | What OpenMaintainer does |
-|------------------------|-------------------------|
-| 200 open issues, 40 need reproduction details | Auto-generates reproduction request kits for incomplete bug reports |
-| Contributors blocked for days on simple questions | SLA queue surfaces overdue threads before they become friction |
-| Reviewing a 50-comment PR from a stranger | PR review handoff kit gives reviewers a focused briefing in 30 seconds |
-| "Which issues should a new contributor start with?" | Contributor starter kit packages approachable issues into ready-to-go task packets |
-| Release day anxiety — what am I forgetting? | Release readiness gate blocks unsafe releases with explicit blockers and warnings |
-| Every maintainer has their own tribal knowledge | Public status brief shares maintainer state with contributors proactively |
+### 🔍 AI Triage
+Intelligent issue categorization using OpenAI. Questions → Contributors, Bugs → Triaged, Features → Prioritized.
 
-### Three Things That Make It Different
+### 📊 Health Dashboard
+Repository health scores with quality signals: label coverage, response times, PR age, review load.
 
-1. **Maintainer stays in charge.** Every label, reply, review, and release decision is human-approved. AI output is a draft, not a decree.
+### 🛡️ Release Readiness Gate
+Know exactly what's blocking your next release. No surprises on release day.
 
-2. **No credentials required to start.** Demo mode works out of the box. Add a GitHub token for higher API limits. Add an OpenAI key for model-backed analysis. Or don't — the deterministic fallback is useful on its own.
+### 👥 Contributor Management
+Track contributor health, identify at-risk contributors, and nurture your community.
 
-3. **One cockpit, not ten tabs.** GitHub doesn't give you a maintainer cockpit. OpenMaintainer does: inbox, impact queue, SLA tracker, release gate, focus plan, digest, and CLI commands — all in one place.
+### ⏰ SLA Tracking
+Never let threads go dark. Track response times and get alerts for overdue items.
 
-## Quick Start
+### 🎯 Focus Plan
+Daily maintainer rhythm. Know what to do first, second, and third.
+
+### 🏆 Points & Achievements
+Earn points for community contributions. Unlock achievements as you grow.
+
+## Getting Started
+
+### Quick Start
 
 ```bash
 git clone https://github.com/maxiaoshenshen/openmaintainer.git
@@ -49,110 +57,39 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Enter `demo` or any public GitHub repository like `vercel/next.js`.
+Visit `http://localhost:3000` and enter any public GitHub repository URL.
 
-### Optional Credentials
+### GitHub OAuth (Optional)
+
+For full functionality:
+
+1. Create a GitHub OAuth App at `https://github.com/settings/applications/new`
+2. Set callback URL to `http://localhost:3000/api/auth/callback`
+3. Add credentials to `.env.local`:
 
 ```bash
-cp .env.example .env.local
-# Add GITHUB_TOKEN for higher rate limits
-# Add OPENAI_API_KEY for model-backed analysis
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
 ```
-
-For a maintainer-focused walkthrough, see [Maintainer Quickstart](docs/maintainer-quickstart.md).
-
-## Features
-
-### Inspection & Analysis
-- Repository inspection for any public GitHub repo
-- Deterministic issue triage (works without API keys)
-- Optional OpenAI-powered structured analysis
-- Repository health score and quality signals
-- OSS readiness checklist
-- Trend memory: compare current state with previous snapshot
-
-### Contributor Queue
-- **Impact queue**: Which contributors are blocked and what unblocks them
-- **SLA tracker**: Overdue threads, at-risk maintainer responses
-- **Reproduction kit**: Auto-generated comments requesting missing details
-- **Starter kit**: Approachable issues packaged for first-time contributors
-- **Unblock kit**: Copyable replies and GitHub CLI commands to resolve friction
-- **Reply outbox**: All contributor replies in one copyable send queue
-
-### Review Desk
-- PR review summaries with risk indicators
-- Review handoff kit: focus areas, validation steps, GitHub CLI commands
-- Decision log: auditable record of ready/review/blocked actions
-
-### Release Cockpit
-- Release readiness gate: go/no-go with explicit blockers and warnings
-- Weekly digest with priorities and deferrals
-- Release note draft generator
-- Ownership routing: who owns release, triage, review, and safety
-
-### Maintenance Rhythm
-- Daily/weekly/release playbooks
-- Command queue: staged GitHub CLI batches behind human approval
-- Focus plan: top 3 daily priorities from release gate, SLA, review handoff, and commands
-- Public status brief for GitHub Discussions, pinned issues, or README updates
-- Codex for Open Source application packet (for maintainers seeking funding)
-
-### Integrations
-- GitHub CLI handoff commands
-- Snapshot import/export for team collaboration
-- Local settings store per repository
-- English / 中文 interface switch
 
 ## Architecture
 
-```
-src/
-  app/              # Next.js App Router — UI and API routes
-  components/
-    dashboard.tsx   # The maintainer cockpit (2700+ lines, fully interactive)
-  lib/
-    maintainer-analysis.ts    # Core triage, PR review, health, release notes
-    maintainer-command-queue.ts # Staged GitHub CLI execution queue
-    response-sla.ts           # Contributor thread SLA ranking
-    repro-kit.ts              # Reproduction request generator
-    contributor-starter-kit.ts # First-contribution task packet builder
-    pr-review-handoff.ts      # PR review briefing generator
-    release-readiness-gate.ts  # Release go/no-go gate
-    maintainer-focus-plan.ts  # Daily focus plan generator
-    contributor-status-brief.ts # Public status brief generator
-    contributor-reply-outbox.ts # Unified reply send queue
-    maintainer-decision-log.ts  # Auditable decision record
-    maintainer-ownership-routing.ts # Role-based handoff router
-    github.ts              # GitHub API client
-    openai-analyzer.ts     # OpenAI Responses API integration
-    types.ts               # Shared TypeScript types
-```
+OpenMaintainer is built with:
 
-## Testing
-
-```bash
-npm run test       # 57 tests, 24 test files
-npm run lint
-npm run typecheck
-npm run build
-npm run validate   # CI gate: test + lint + typecheck + build
-```
-
-## Evaluator & Launch Materials
-
-- [Maintainer Quickstart](docs/maintainer-quickstart.md): how an OSS maintainer can use the workbench in 10 minutes.
-- [Launch Checklist](docs/launch-checklist.md): repository, deployment, trust, and community launch readiness.
-- [OpenAI Pro Reward Application](docs/openai-pro-application.md): application packet for the OpenAI Pro reward.
-- [Codex for OSS Application](docs/codex-for-oss-application.md): support narrative for OSS-focused programs.
-
-## Roadmap
-
-See [ROADMAP.md](ROADMAP.md).
+- **Next.js 16** — App Router with React Server Components
+- **TypeScript** — Full type safety
+- **Tailwind CSS** — Beautiful, responsive UI
+- **OpenAI API** — AI-powered analysis and categorization
+- **GitHub API** — Repository data and OAuth
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions welcome! This project is itself maintained with OpenMaintainer.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT — Do whatever you want with it.
+
+---
+
+**Built with ❤️ for the OSS community by maintainers who understand the struggle.**
