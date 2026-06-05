@@ -4,6 +4,7 @@ import {
   Activity,
   Bot,
   Calendar,
+  Bell,
   CheckCircle2,
   CircleAlert,
   ClipboardList,
@@ -121,6 +122,17 @@ import {
   getGitHubAuthUrl,
   clearGitHubToken,
 } from "@/lib/github-oauth";
+import {
+  readNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  getUnreadCount,
+  addNotification,
+  readSubscriptions,
+  addSubscription,
+  removeSubscription,
+  isSubscribed,
+} from "@/lib/notification-store";
 import {
   generateContributorBadge,
   type ContributorBadge,
@@ -625,6 +637,9 @@ export function Dashboard({
   const [communityStats, setCommunityStats] = useState<CommunityStats | null>(null);
   const [isGitHubLoggedIn, setIsGitHubLoggedIn] = useState(false);
   const [userDisplayName, setUserDisplayName] = useState("");
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isSubscribedToRepo, setIsSubscribedToRepo] = useState(false);
   const [locale, setLocale] = useState<Locale>("en");
   const [activeTab, setActiveTab] = useState<ActiveTab>("focus");
   const [settings, setSettings] = useState<MaintainerSettings>(initialAnalysis.settings);
@@ -765,6 +780,34 @@ export function Dashboard({
     clearGitHubToken(window.localStorage);
     setIsGitHubLoggedIn(false);
     setUserDisplayName("");
+  }
+
+  // Check notification status
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setUnreadCount(getUnreadCount(window.localStorage));
+    setIsSubscribedToRepo(isSubscribed(window.localStorage, repository.identity.fullName));
+  }, [repository.identity.fullName]);
+
+  // Toggle subscription
+  function toggleSubscription() {
+    if (typeof window === "undefined") return;
+    if (isSubscribedToRepo) {
+      removeSubscription(window.localStorage, repository.identity.fullName);
+      setIsSubscribedToRepo(false);
+    } else {
+      addSubscription(window.localStorage, repository.identity.fullName);
+      setIsSubscribedToRepo(true);
+      addNotification(window.localStorage, {
+        repository: repository.identity.fullName,
+        type: "contributor_joined",
+        title: `Subscribed to ${repository.identity.fullName}`,
+        titleZh: `已订阅 ${repository.identity.fullName}`,
+        message: "You will receive notifications for this repository",
+        messageZh: "您将收到此仓库的通知",
+        url: `https://github.com/${repository.identity.fullName}`,
+      });
+    }
   }
 
   async function selectRecentRepo(repo: string) {
