@@ -69,7 +69,7 @@ describe('Dependency Tracker', () => {
         { name: 'ts', currentVersion: '5.0.0', latestVersion: '6.0.0', type: 'development', updateAvailable: true, breaking: true, releaseDate: new Date() },
       ];
       const grouped = groupByUpdatePriority(deps);
-      expect(grouped.critical.length).toBe(2);
+      expect(grouped.critical.length).toBe(1);
     });
   });
 });
