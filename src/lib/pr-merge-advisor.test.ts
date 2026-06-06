@@ -1,106 +1,132 @@
-import { describe, it, expect } from "vitest";
-import { analyzeMergeReadiness } from "./pr-merge-advisor";
-import type { MaintainerPullRequest } from "./types";
+import { describe, it, expect } from 'vitest';
+import {
+  calculatePRScore,
+  getRiskLevel,
+  getMergeRecommendation,
+  analyzeCodeQuality,
+  generateMergeChecklist,
+  generatePRSummary,
+} from './pr-merge-advisor';
 
-const createPR = (overrides: Partial<MaintainerPullRequest> = {}): MaintainerPullRequest => ({
-  id: 1,
-  number: 1,
-  title: "Test PR",
-  body: "Test PR body",
-  author: "test-user",
-  state: "open",
-  status: "open",
-  labels: [],
-  createdAt: "2026-06-01T10:00:00Z",
-  updatedAt: "2026-06-01T10:00:00Z",
-  url: "https://github.com/test/repo/pull/1",
-  additions: 50,
-  deletions: 10,
-  changedFiles: 3,
-  ...overrides,
-});
+describe('PR Merge Advisor', () => {
+  describe('calculatePRScore', () => {
+    it('calculates base score', () => {
+      expect(calculatePRScore([])).toBe(70);
+    });
 
-describe("analyzeMergeReadiness", () => {
-  it("returns empty report for no PRs", () => {
-    const result = analyzeMergeReadiness([]);
-    expect(result.totalPRs).toBe(0);
-    expect(result.mergeable).toHaveLength(0);
+    it('applies positive impacts', () => {
+      const factors = [
+        { name: 'test', impact: 10, description: 'tests' },
+        { name: 'docs', impact: 15, description: 'docs' },
+      ];
+      expect(calculatePRScore(factors)).toBe(95);
+    });
+
+    it('applies negative impacts', () => {
+      const factors = [
+        { name: 'security', impact: -20, description: 'vuln' },
+      ];
+      expect(calculatePRScore(factors)).toBe(50);
+    });
+
+    it('clamps to 0-100 range', () => {
+      const factors = [
+        { name: 'a', impact: 50, description: '' },
+        { name: 'b', impact: 50, description: '' },
+      ];
+      expect(calculatePRScore(factors)).toBe(100);
+    });
   });
 
-  it("marks approved PRs as mergeable", () => {
-    const prs = [
-      createPR({
-        number: 1,
-        title: "Add feature X",
-        reviewStatus: "approved",
-        mergeable: "mergeable",
-      }),
-    ];
+  describe('getRiskLevel', () => {
+    it('returns low for score >= 80', () => {
+      expect(getRiskLevel(80)).toBe('low');
+      expect(getRiskLevel(100)).toBe('low');
+    });
 
-    const result = analyzeMergeReadiness(prs);
-    expect(result.mergeable).toHaveLength(1);
-    expect(result.readyToMerge).toBe(1);
+    it('returns medium for score >= 60', () => {
+      expect(getRiskLevel(60)).toBe('medium');
+      expect(getRiskLevel(79)).toBe('medium');
+    });
+
+    it('returns high for score >= 40', () => {
+      expect(getRiskLevel(40)).toBe('high');
+      expect(getRiskLevel(59)).toBe('high');
+    });
+
+    it('returns critical for score < 40', () => {
+      expect(getRiskLevel(0)).toBe('critical');
+      expect(getRiskLevel(39)).toBe('critical');
+    });
   });
 
-  it("marks PRs with conflicts as blocked", () => {
-    const prs = [
-      createPR({
-        number: 1,
-        title: "Fix conflict",
-        mergeable: "unmergeable",
-      }),
-    ];
+  describe('getMergeRecommendation', () => {
+    it('approves high score PRs', () => {
+      expect(getMergeRecommendation(90, [])).toBe('approve');
+    });
 
-    const result = analyzeMergeReadiness(prs);
-    expect(result.blocked).toHaveLength(1);
+    it('blocks PRs with blocking factors', () => {
+      const factors = [{ name: 'security', impact: -25, description: '' }];
+      expect(getMergeRecommendation(50, factors)).toBe('block');
+    });
+
+    it('requests changes for major concerns', () => {
+      const factors = [{ name: 'logic', impact: -15, description: '' }];
+      expect(getMergeRecommendation(60, factors)).toBe('request_changes');
+    });
   });
 
-  it("marks PRs needing review as needsReview", () => {
-    const prs = [
-      createPR({
-        number: 1,
-        title: "New feature",
-        reviewStatus: "pending",
-        mergeable: "mergeable", // Must be mergeable to not be blocked
-      }),
-    ];
+  describe('analyzeCodeQuality', () => {
+    it('analyzes code quality metrics', () => {
+      const code = 'const x = 1; // comment';
+      const quality = analyzeCodeQuality(code);
+      expect(quality).toHaveProperty('testCoverage');
+      expect(quality).toHaveProperty('lintScore');
+      expect(quality).toHaveProperty('complexity');
+      expect(quality).toHaveProperty('documentation');
+    });
 
-    const result = analyzeMergeReadiness(prs);
-    expect(result.needsReview).toHaveLength(1);
+    it('detects lint issues', () => {
+      const code = 'console.log("test"); var x = 1;';
+      const quality = analyzeCodeQuality(code);
+      expect(quality.lintScore).toBeLessThan(100);
+    });
   });
 
-  it("skips draft PRs", () => {
-    const prs = [
-      createPR({ number: 1, isDraft: true }),
-      createPR({ number: 2, reviewStatus: "approved", mergeable: "mergeable" }),
-    ];
-
-    const result = analyzeMergeReadiness(prs);
-    expect(result.totalPRs).toBe(1);
+  describe('generateMergeChecklist', () => {
+    it('generates checklist items', () => {
+      const analysis = {
+        prNumber: 1,
+        title: 'Test',
+        score: 85,
+        riskLevel: 'low' as const,
+        recommendation: 'approve' as const,
+        factors: [],
+        suggestions: [],
+      };
+      const checklist = generateMergeChecklist(analysis);
+      expect(checklist.length).toBeGreaterThan(0);
+      expect(checklist[0]).toHaveProperty('title');
+      expect(checklist[0]).toHaveProperty('passed');
+      expect(checklist[0]).toHaveProperty('required');
+    });
   });
 
-  it("marks large PRs as high risk", () => {
-    const prs = [
-      createPR({
-        number: 1,
-        additions: 600,
-        changedFiles: 25,
-        reviewStatus: "approved",
-        mergeable: "mergeable",
-      }),
-    ];
-
-    const result = analyzeMergeReadiness(prs);
-    expect(result.mergeable[0]?.riskLevel).toBe("high");
-  });
-
-  it("calculates average confidence", () => {
-    const prs = [
-      createPR({ number: 1, reviewStatus: "approved", mergeable: "mergeable" }),
-      createPR({ number: 2, reviewStatus: "pending", mergeable: "mergeable" }),
-    ];
-
-    const result = analyzeMergeReadiness(prs);
-    expect(result.averageConfidence).toBeGreaterThan(0);
+  describe('generatePRSummary', () => {
+    it('generates formatted summary', () => {
+      const analysis = {
+        prNumber: 123,
+        title: 'Add feature',
+        score: 85,
+        riskLevel: 'low' as const,
+        recommendation: 'approve' as const,
+        factors: [],
+        suggestions: ['Add tests'],
+      };
+      const summary = generatePRSummary(analysis);
+      expect(summary).toContain('123');
+      expect(summary).toContain('Add feature');
+      expect(summary).toContain('85');
+    });
   });
 });

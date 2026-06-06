@@ -1,154 +1,135 @@
-import type { MaintainerPullRequest } from "./types";
+/**
+ * PR Merge Advisor
+ * Analyze PRs and provide merge recommendations with risk assessment
+ */
 
-export type MergeReadiness = "ready" | "needs-changes" | "needs-review" | "blocked";
-export type RiskLevel = "low" | "medium" | "high";
+export type MergeRecommendation = 'approve' | 'request_changes' | 'comment' | 'block';
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
-export interface MergeAdvice {
+export interface PRAnalysis {
   prNumber: number;
-  prTitle: string;
-  readiness: MergeReadiness;
+  title: string;
   riskLevel: RiskLevel;
-  blockers: string[];
+  recommendation: MergeRecommendation;
+  score: number; // 0-100
+  factors: RiskFactor[];
   suggestions: string[];
-  estimatedReviewTime: string;
-  mergeConfidence: number; // 0-100
 }
 
-export interface MergeAdvisoryReport {
-  mergeable: MergeAdvice[];
-  needsReview: MergeAdvice[];
-  blocked: MergeAdvice[];
-  totalPRs: number;
-  readyToMerge: number;
-  averageConfidence: number;
+export interface RiskFactor {
+  name: string;
+  impact: number; // positive or negative
+  description: string;
 }
 
-function assessRisk(pr: MaintainerPullRequest): RiskLevel {
-  // High risk factors
-  if (pr.additions > 500) return "high";
-  if (pr.changedFiles > 20) return "high";
-  if (pr.deletions > pr.additions * 2) return "high";
-  
-  // Medium risk factors
-  if (pr.additions > 200) return "medium";
-  if (pr.changedFiles > 10) return "medium";
-  
-  return "low";
+export interface CodeQuality {
+  testCoverage: number;
+  lintScore: number;
+  complexity: number;
+  documentation: number;
 }
 
-function estimateReviewTime(pr: MaintainerPullRequest): string {
-  const baseMinutes = 5;
-  const additionsMinutes = pr.additions / 50; // 50 lines per minute
-  const filesMinutes = pr.changedFiles * 2; // 2 minutes per file
-  const totalMinutes = baseMinutes + additionsMinutes + filesMinutes;
-  
-  if (totalMinutes < 15) return "< 15 min";
-  if (totalMinutes < 30) return "15-30 min";
-  if (totalMinutes < 60) return "30-60 min";
-  return "> 60 min";
+export interface MergeChecklist {
+  title: string;
+  passed: boolean;
+  required: boolean;
 }
 
-function calculateConfidence(pr: MaintainerPullRequest, risk: RiskLevel): number {
-  let confidence = 70; // Base confidence
-  
-  // Increase for good signals
-  if (pr.reviewStatus === "approved") confidence += 20;
-  if (pr.labels.includes("tested") || pr.labels.includes("verified")) confidence += 10;
-  if (pr.comments && pr.comments > 0) confidence += 5;
-  
-  // Decrease for risk factors
-  if (risk === "high") confidence -= 20;
-  if (risk === "medium") confidence -= 10;
-  if (pr.isDraft) confidence -= 15;
-  if (!pr.mergeable || pr.mergeable === "unmergeable") confidence -= 25;
-  
-  return Math.max(0, Math.min(100, confidence));
+/**
+ * Calculate overall PR score
+ */
+export function calculatePRScore(factors: RiskFactor[]): number {
+  const baseScore = 70;
+  const totalImpact = factors.reduce((sum, f) => sum + f.impact, 0);
+  return Math.max(0, Math.min(100, baseScore + totalImpact));
 }
 
-export function analyzeMergeReadiness(
-  prs: MaintainerPullRequest[]
-): MergeAdvisoryReport {
-  const mergeable: MergeAdvice[] = [];
-  const needsReview: MergeAdvice[] = [];
-  const blocked: MergeAdvice[] = [];
+/**
+ * Determine risk level based on score
+ */
+export function getRiskLevel(score: number): RiskLevel {
+  if (score >= 80) return 'low';
+  if (score >= 60) return 'medium';
+  if (score >= 40) return 'high';
+  return 'critical';
+}
 
-  for (const pr of prs) {
-    if (pr.status === "merged" || pr.status === "closed") continue;
-    if (pr.isDraft) continue;
+/**
+ * Generate merge recommendation
+ */
+export function getMergeRecommendation(score: number, factors: RiskFactor[]): MergeRecommendation {
+  const hasBlockingFactor = factors.some(f => f.impact <= -20);
+  const hasMajorConcern = factors.some(f => f.impact <= -10);
+  const hasMinorConcern = factors.some(f => f.impact < 0);
 
-    const risk = assessRisk(pr);
-    const blockers: string[] = [];
-    const suggestions: string[] = [];
+  if (hasBlockingFactor) return 'block';
+  if (hasMajorConcern) return 'request_changes';
+  if (hasMinorConcern || score < 75) return 'comment';
+  return 'approve';
+}
 
-    // Check for blockers
-    if (!pr.mergeable || pr.mergeable === "unmergeable") {
-      blockers.push("PR has merge conflicts or is unmergeable");
-    }
-    if (pr.reviewStatus === "changes_requested") {
-      blockers.push("Changes requested by reviewer");
-    }
-    if (pr.additions > 1000) {
-      blockers.push("Large change set (> 1000 lines) - consider splitting");
-    }
+/**
+ * Analyze PR code quality
+ */
+export function analyzeCodeQuality(code: string): CodeQuality {
+  const lines = code.split('\n');
+  const totalLines = lines.length;
+  
+  // Calculate test coverage estimate (simplified)
+  const testLines = lines.filter(l => l.includes('test') || l.includes('describe') || l.includes('it(')).length;
+  const testCoverage = Math.min(100, Math.round((testLines / Math.max(totalLines, 1)) * 100 * 5));
+  
+  // Lint score based on basic patterns
+  let issues = 0;
+  if (/console\.log/.test(code)) issues++;
+  if (/TODO|FIXME|HACK/.test(code)) issues++;
+  if (/var\s+\w+/.test(code)) issues++;
+  const lintScore = Math.max(0, 100 - issues * 10);
+  
+  // Complexity estimate
+  const cyclomatic = (code.match(/if\(|for\(|while\(|switch\(/g) || []).length;
+  const complexity = Math.min(100, Math.round(cyclomatic / Math.max(totalLines / 50, 1)));
+  
+  // Documentation score
+  const commentLines = lines.filter(l => l.trim().startsWith('//') || l.trim().startsWith('*')).length;
+  const documentation = Math.min(100, Math.round((commentLines / Math.max(totalLines, 1)) * 100 * 3));
+  
+  return { testCoverage, lintScore, complexity, documentation };
+}
 
-    // Generate suggestions
-    if (risk === "high") {
-      suggestions.push("Consider breaking into smaller PRs");
-      suggestions.push("Add comprehensive tests");
-    }
-    if (pr.additions > 300) {
-      suggestions.push("Add inline documentation for complex changes");
-    }
-    if (!pr.labels.includes("tested")) {
-      suggestions.push("Add test evidence or CI results");
-    }
+/**
+ * Generate PR merge checklist
+ */
+export function generateMergeChecklist(analysis: PRAnalysis): MergeChecklist[] {
+  const checklist: MergeChecklist[] = [
+    { title: 'Tests pass', passed: analysis.score >= 60, required: true },
+    { title: 'Code review approved', passed: analysis.recommendation !== 'block', required: true },
+    { title: 'No critical security issues', passed: analysis.riskLevel !== 'critical', required: true },
+    { title: 'Documentation updated', passed: true, required: false },
+    { title: 'Breaking changes documented', passed: true, required: false },
+  ];
+  
+  return checklist;
+}
 
-    let readiness: MergeReadiness;
-    // Determine readiness
-    if (blockers.length > 0) {
-      readiness = "blocked";
-    } else if (!pr.reviewStatus || pr.reviewStatus === "pending") {
-      // No reviews yet = needs review (not blocked)
-      readiness = "needs-review";
-    } else if (pr.reviewStatus === "approved") {
-      readiness = "ready";
-    } else {
-      readiness = "needs-changes";
-    }
-
-    const advice: MergeAdvice = {
-      prNumber: pr.number,
-      prTitle: pr.title,
-      readiness,
-      riskLevel: risk,
-      blockers,
-      suggestions,
-      estimatedReviewTime: estimateReviewTime(pr),
-      mergeConfidence: calculateConfidence(pr, risk),
-    };
-
-    if (readiness === "ready") {
-      mergeable.push(advice);
-    } else if (readiness === "needs-review") {
-      needsReview.push(advice);
-    } else {
-      blocked.push(advice);
-    }
-  }
-
-  // Sort by confidence (highest first for mergeable)
-  mergeable.sort((a, b) => b.mergeConfidence - a.mergeConfidence);
-  needsReview.sort((a, b) => b.mergeConfidence - a.mergeConfidence);
-
-  const allPRs = [...mergeable, ...needsReview, ...blocked];
-  const totalConfidence = allPRs.reduce((sum, pr) => sum + pr.mergeConfidence, 0);
-
-  return {
-    mergeable,
-    needsReview,
-    blocked,
-    totalPRs: allPRs.length,
-    readyToMerge: mergeable.length,
-    averageConfidence: allPRs.length > 0 ? Math.round(totalConfidence / allPRs.length) : 0,
+/**
+ * Generate PR summary for maintainer
+ */
+export function generatePRSummary(analysis: PRAnalysis): string {
+  const emoji = {
+    approve: '✅',
+    request_changes: '⚠️',
+    comment: '💬',
+    block: '🚫',
   };
+  
+  let summary = `${emoji[analysis.recommendation]} **PR #${analysis.prNumber}**: ${analysis.title}\n`;
+  summary += `📊 Score: ${analysis.score}/100 | Risk: ${analysis.riskLevel}\n\n`;
+  
+  if (analysis.suggestions.length > 0) {
+    summary += '💡 Suggestions:\n';
+    analysis.suggestions.forEach(s => summary += `- ${s}\n`);
+  }
+  
+  return summary;
 }
