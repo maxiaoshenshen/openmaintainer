@@ -1,92 +1,122 @@
 import { describe, it, expect } from "vitest";
-import { ContributorOnboarding } from "./contributor-onboarding";
+import {
+  generateOnboardingPath,
+  getChecklistProgress,
+} from "./contributor-onboarding";
+import type { Repository, Issue, Contributor } from "./types";
 
-describe("ContributorOnboarding", () => {
-  const onboarding = new ContributorOnboarding();
+describe("contributor-onboarding", () => {
+  describe("generateOnboardingPath", () => {
+    it("should suggest beginner-friendly issues first", () => {
+      const repo = createMockRepo("owner/repo");
+      const issues = [
+        createMockIssue(1, "Simple typo fix", "open", ["good first issue"]),
+        createMockIssue(2, "Complex refactor", "open", ["refactor"]),
+      ];
+      const contributors: Contributor[] = [];
 
-  it("returns default steps for unknown profile", () => {
-    const steps = onboarding.getOnboardingSteps();
-    expect(steps.length).toBeGreaterThan(0);
-    expect(steps[0].id).toBe("readme");
-  });
+      const path = generateOnboardingPath(repo, issues, contributors);
 
-  it("generates personalized guide for beginner", () => {
-    const guide = onboarding.generatePersonalizedGuide({
-      username: "newbie",
-      experienceLevel: "beginner",
-      interests: [],
-      preferredLanguages: ["JavaScript"],
+      expect(path.suggestedStartIssues.length).toBeGreaterThan(0);
+      expect(path.suggestedStartIssues[0].difficulty).toBe("beginner");
     });
 
-    expect(guide.join("\n")).toContain("good first issue");
-    expect(guide.join("\n")).toContain("newbie");
-  });
+    it("should include learning resources", () => {
+      const repo = createMockRepo("owner/repo");
+      const path = generateOnboardingPath(repo, [], []);
 
-  it("generates welcome message for advanced contributor", () => {
-    const msg = onboarding.generateWelcomeMessage({
-      username: "expert",
-      experienceLevel: "advanced",
-      interests: [],
-      preferredLanguages: ["Rust"],
+      expect(path.learningResources.length).toBeGreaterThan(0);
+      expect(path.learningResources.some((r) => r.type === "documentation")).toBe(
+        true
+      );
     });
 
-    expect(msg).toContain("expert");
-    expect(msg).toContain("roadmap");
+    it("should generate a complete checklist", () => {
+      const repo = createMockRepo("owner/repo");
+      const path = generateOnboardingPath(repo, [], []);
+
+      expect(path.checklist.length).toBeGreaterThan(5);
+      expect(path.checklist.every((step) => !step.completed)).toBe(true);
+    });
+
+    it("should estimate time to first PR", () => {
+      const repo = createMockRepo("owner/repo");
+      const path = generateOnboardingPath(repo, [], []);
+
+      expect(path.estimatedTimeToFirstPR).toBeTruthy();
+    });
   });
 
-  it("tracks progress correctly", () => {
-    const progress = onboarding.trackProgress({
-      userId: "user1",
-      repoId: "repo1",
-      currentStep: 0,
-      completedSteps: [],
-      startedAt: "",
-      lastActivityAt: "",
-    }, "readme");
+  describe("getChecklistProgress", () => {
+    it("should return 0 for empty checklist", () => {
+      const progress = getChecklistProgress([]);
+      expect(progress).toBe(0);
+    });
 
-    expect(progress.completedSteps).toContain("readme");
-    expect(progress.currentStep).toBe(1);
-  });
+    it("should return 100 for all completed checklist", () => {
+      const checklist = [
+        { id: "1", title: "Step 1", completed: true, dependsOn: [] },
+        { id: "2", title: "Step 2", completed: true, dependsOn: [] },
+      ];
+      const progress = getChecklistProgress(checklist);
+      expect(progress).toBe(100);
+    });
 
-  it("calculates completion percentage", () => {
-    const progress = {
-      userId: "user1",
-      repoId: "repo1",
-      currentStep: 5,
-      completedSteps: ["readme", "code-of-conduct", "setup"],
-      startedAt: "",
-      lastActivityAt: "",
-    };
-
-    const pct = onboarding.calculateCompletionPercentage(progress);
-    expect(pct).toBeGreaterThan(0);
-    expect(pct).toBeLessThan(100);
-  });
-
-  it("returns next step", () => {
-    const progress = {
-      userId: "user1",
-      repoId: "repo1",
-      currentStep: 0,
-      completedSteps: [],
-      startedAt: "",
-      lastActivityAt: "",
-    };
-
-    const next = onboarding.getNextStep(progress);
-    expect(next?.id).toBe("readme");
-  });
-
-  it("detects completion", () => {
-    const complete = {
-      userId: "user1",
-      repoId: "repo1",
-      currentStep: 6,
-      completedSteps: ["readme", "code-of-conduct", "setup", "good-first-issue", "first-commit", "review-process"],
-      startedAt: "",
-      lastActivityAt: "",
-    };
-
-    expect(onboarding.isOnboardingComplete(complete)).toBe(true);
+    it("should return correct percentage for partial completion", () => {
+      const checklist = [
+        { id: "1", title: "Step 1", completed: true, dependsOn: [] },
+        { id: "2", title: "Step 2", completed: false, dependsOn: [] },
+        { id: "3", title: "Step 3", completed: true, dependsOn: [] },
+        { id: "4", title: "Step 4", completed: false, dependsOn: [] },
+      ];
+      const progress = getChecklistProgress(checklist);
+      expect(progress).toBe(50);
+    });
   });
 });
+
+function createMockRepo(name: string): Repository {
+  return {
+    id: 1,
+    name: name.split("/")[1],
+    full_name: name,
+    owner: { login: name.split("/")[0], id: 1, avatar_url: "", url: "" },
+    description: "A test repository",
+    html_url: `https://github.com/${name}`,
+    stargazers_count: 100,
+    forks_count: 20,
+    open_issues_count: 10,
+    watchers_count: 50,
+    language: "TypeScript",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    pushed_at: new Date().toISOString(),
+    topics: ["typescript", "react"],
+    has_wiki: true,
+    homepage: "https://example.com",
+    private: false,
+    default_branch: "main",
+  };
+}
+
+function createMockIssue(
+  id: number,
+  title: string,
+  state: string,
+  labels: string[]
+): Issue {
+  return {
+    id,
+    number: id,
+    title,
+    body: "Test body",
+    state: state as "open" | "closed",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    user: { login: "testuser", id: 1, avatar_url: "", url: "" },
+    labels,
+    assignees: [],
+    comments: 0,
+    url: "",
+  };
+}
