@@ -1,138 +1,225 @@
-/**
- * Contributor Onboarding Wizard
- * Step-by-step guide for new contributors
- */
+// Onboarding Wizard for OpenMaintainer
+// Guides new users through initial setup
+
+import type { Repository } from './types';
+
 export interface OnboardingStep {
-  step: number;
+  id: string;
   title: string;
-  titleZh: string;
   description: string;
-  descriptionZh: string;
-  completed: boolean;
+  icon: string;
+  action: string;
   optional: boolean;
-  estimatedTime: string;
+  completed: boolean;
+}
+
+export interface OnboardingProfile {
+  userId: string;
+  username: string;
+  email?: string;
+  githubConnected: boolean;
+  preferences: {
+    language: string;
+    theme: 'light' | 'dark' | 'system';
+    notifications: boolean;
+  };
+  repositories: string[];
+  role: 'solo' | 'small-team' | 'large-project';
 }
 
 export interface OnboardingProgress {
   totalSteps: number;
   completedSteps: number;
-  currentStep: number;
   percentage: number;
+  currentStep: string;
+  estimatedTimeMinutes: number;
 }
 
-export interface OnboardingWizard {
-  contributor: string;
-  startedAt: Date;
-  lastActiveAt: Date;
-  steps: OnboardingStep[];
-  progress: OnboardingProgress;
-  recommendedNextSteps: string[];
-}
+class OnboardingWizard {
+  private profile: OnboardingProfile | null = null;
 
-export function createOnboardingWizard(contributor: string): OnboardingWizard {
-  const steps: OnboardingStep[] = [
-    {
-      step: 1,
-      title: "Read the README",
-      titleZh: "阅读 README",
-      description: "Understand the project purpose, features, and basic usage",
-      descriptionZh: "了解项目目的、功能和基本用法",
-      completed: false,
-      optional: false,
-      estimatedTime: "10 min",
-    },
-    {
-      step: 2,
-      title: "Review Contribution Guidelines",
-      titleZh: "查看贡献指南",
-      description: "Learn the coding standards, PR process, and code of conduct",
-      descriptionZh: "了解编码标准、PR流程和行为准则",
-      completed: false,
-      optional: false,
-      estimatedTime: "15 min",
-    },
-    {
-      step: 3,
-      title: "Set Up Development Environment",
-      titleZh: "设置开发环境",
-      description: "Clone the repo, install dependencies, and run the test suite",
-      descriptionZh: "克隆仓库、安装依赖并运行测试套件",
-      completed: false,
-      optional: false,
-      estimatedTime: "30 min",
-    },
-    {
-      step: 4,
-      title: "Find a Good First Issue",
-      titleZh: "寻找适合新手的Issue",
-      description: "Look for issues labeled 'good-first-issue' or 'help-wanted'",
-      descriptionZh: "查找标记为 'good-first-issue' 或 'help-wanted' 的问题",
-      completed: false,
-      optional: false,
-      estimatedTime: "15 min",
-    },
-    {
-      step: 5,
-      title: "Make Your First PR",
-      titleZh: "提交你的第一个PR",
-      description: "Implement the fix, add tests, and submit for review",
-      descriptionZh: "实现修复、添加测试并提交审核",
-      completed: false,
-      optional: false,
-      estimatedTime: "1-2 hours",
-    },
-    {
-      step: 6,
-      title: "Join Community Channels",
-      titleZh: "加入社区频道",
-      description: "Connect with other contributors on Discord, Slack, or forums",
-      descriptionZh: "在 Discord、Slack 或论坛上与其他贡献者联系",
-      completed: false,
-      optional: true,
-      estimatedTime: "10 min",
-    },
-  ];
+  getDefaultSteps(): OnboardingStep[] {
+    return [
+      {
+        id: 'welcome',
+        title: 'Welcome to OpenMaintainer',
+        description: 'Your AI-powered OSS maintenance workbench',
+        icon: '🎉',
+        action: 'Get Started',
+        optional: false,
+        completed: false,
+      },
+      {
+        id: 'github-connect',
+        title: 'Connect GitHub',
+        description: 'Link your GitHub account to analyze your repositories',
+        icon: '🔗',
+        action: 'Connect GitHub',
+        optional: false,
+        completed: false,
+      },
+      {
+        id: 'add-repo',
+        title: 'Add Your Repository',
+        description: 'Select a repository to analyze and manage',
+        icon: '📦',
+        action: 'Add Repository',
+        optional: false,
+        completed: false,
+      },
+      {
+        id: 'configure-alerts',
+        title: 'Configure Alerts',
+        description: 'Set up notifications for critical events',
+        icon: '🔔',
+        action: 'Configure Alerts',
+        optional: true,
+        completed: false,
+      },
+      {
+        id: 'invite-team',
+        title: 'Invite Your Team',
+        description: 'Collaborate with other maintainers and contributors',
+        icon: '👥',
+        action: 'Invite Team',
+        optional: true,
+        completed: false,
+      },
+      {
+        id: 'customize',
+        title: 'Customize Dashboard',
+        description: 'Set your preferences and theme',
+        icon: '⚙️',
+        action: 'Customize',
+        optional: true,
+        completed: false,
+      },
+      {
+        id: 'complete',
+        title: 'You\'re All Set!',
+        description: 'Start using OpenMaintainer',
+        icon: '🚀',
+        action: 'Launch Dashboard',
+        optional: false,
+        completed: false,
+      },
+    ];
+  }
 
-  return {
-    contributor,
-    startedAt: new Date(),
-    lastActiveAt: new Date(),
-    steps,
-    progress: {
-      totalSteps: steps.length,
-      completedSteps: 0,
-      currentStep: 1,
-      percentage: 0,
-    },
-    recommendedNextSteps: [
-      "Look for 'good-first-issue' labeled issues",
-      "Check recent merged PRs to understand the code style",
-      "Ask questions in the community channel",
-    ],
-  };
-}
+  createProfile(data: Partial<OnboardingProfile>): OnboardingProfile {
+    this.profile = {
+      userId: data.userId || `user_${Date.now()}`,
+      username: data.username || 'New User',
+      email: data.email,
+      githubConnected: data.githubConnected || false,
+      preferences: {
+        language: data.preferences?.language || 'en',
+        theme: data.preferences?.theme || 'system',
+        notifications: data.preferences?.notifications ?? true,
+      },
+      repositories: data.repositories || [],
+      role: data.role || 'solo',
+    };
+    return this.profile;
+  }
 
-export function updateStepCompletion(
-  wizard: OnboardingWizard,
-  stepNumber: number,
-  completed: boolean
-): OnboardingWizard {
-  const steps = wizard.steps.map(s => 
-    s.step === stepNumber ? { ...s, completed } : s
-  );
-  
-  const completedSteps = steps.filter(s => s.completed).length;
-  const percentage = Math.floor((completedSteps / steps.length) * 100);
-  
-  return {
-    ...wizard,
-    steps,
-    lastActiveAt: new Date(),
-    progress: {
-      ...wizard.progress,
+  updateProfile(updates: Partial<OnboardingProfile>): OnboardingProfile | null {
+    if (!this.profile) return null;
+    this.profile = { ...this.profile, ...updates };
+    return this.profile;
+  }
+
+  completeStep(stepId: string, steps: OnboardingStep[]): OnboardingStep[] {
+    return steps.map(step =>
+      step.id === stepId ? { ...step, completed: true } : step
+    );
+  }
+
+  calculateProgress(steps: OnboardingStep[]): OnboardingProgress {
+    const requiredSteps = steps.filter(s => !s.optional);
+    const completedRequired = requiredSteps.filter(s => s.completed).length;
+    const completedAll = steps.filter(s => s.completed).length;
+
+    const totalSteps = steps.length;
+    const completedSteps = completedAll;
+    const percentage = Math.round((completedSteps / totalSteps) * 100);
+
+    const currentStep = steps.find(s => !s.completed);
+    const estimatedTimeMinutes = Math.ceil(
+      steps.filter(s => !s.completed).reduce((sum, s) => {
+        if (s.id === 'welcome') return sum + 1;
+        if (s.id === 'github-connect') return sum + 3;
+        if (s.id === 'add-repo') return sum + 2;
+        if (s.id === 'configure-alerts') return sum + 5;
+        if (s.id === 'invite-team') return sum + 3;
+        if (s.id === 'customize') return sum + 2;
+        if (s.id === 'complete') return sum + 1;
+        return sum + 2;
+      }, 0)
+    );
+
+    return {
+      totalSteps,
       completedSteps,
-      currentStep: Math.min(completedSteps + 1, steps.length),
       percentage,
-    },
-  };
+      currentStep: currentStep?.id || 'complete',
+      estimatedTimeMinutes,
+    };
+  }
+
+  getPersonalizedTips(profile: OnboardingProfile): string[] {
+    const tips: string[] = [];
+
+    if (profile.role === 'solo') {
+      tips.push('Use the Focus Plan to prioritize your daily tasks');
+      tips.push('Enable Vacation Mode before taking time off');
+      tips.push('Use templates to save time on routine responses');
+    }
+
+    if (profile.role === 'small-team') {
+      tips.push('Share the Evidence Pack with your team weekly');
+      tips.push('Use the Contributor Recognition system to celebrate contributors');
+      tips.push('Set up review rotations with the PR Handoff Kit');
+    }
+
+    if (profile.role === 'large-project') {
+      tips.push('Set up automated triage with the Maintainer Inbox');
+      tips.push('Use the Crisis Alert System for critical issues');
+      tips.push('Export analytics for stakeholder reports');
+    }
+
+    if (profile.preferences.notifications) {
+      tips.push('Configure Slack/Discord notifications for urgent items');
+    }
+
+    tips.push('Review the Repository Health Score weekly');
+    tips.push('Check the Contributor Impact Queue daily');
+
+    return tips;
+  }
+
+  generateWelcomeMessage(profile: OnboardingProfile): string {
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
+    return `${greeting}, ${profile.username}!
+
+Welcome to OpenMaintainer, your AI-powered OSS maintenance workbench.
+
+${profile.role === 'solo' 
+  ? 'As a solo maintainer, we\'ll help you stay organized and avoid burnout.'
+  : profile.role === 'small-team'
+  ? 'With your small team, we\'ll help you coordinate and celebrate contributions.'
+  : 'For your large project, we\'ll help you scale maintainer operations.'}
+
+Let\'s get you set up and start making your OSS journey more sustainable.`;
+  }
 }
+
+export const onboardingWizard = new OnboardingWizard();
+
+export function createOnboardingWizard(): OnboardingWizard {
+  return new OnboardingWizard();
+}
+
+export { OnboardingWizard };
