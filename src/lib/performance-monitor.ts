@@ -1,190 +1,229 @@
-// Performance Monitor for OpenMaintainer
-// Tracks and optimizes maintainer productivity metrics
+import type { Repository, Issue, PullRequest } from "./types";
 
-export interface PerformanceMetric {
-  name: string;
-  value: number;
-  unit: string;
-  trend: 'up' | 'down' | 'stable';
-  benchmark?: number;
+export interface PerformanceMetrics {
+  repository: string;
+  timestamp: Date;
+  responseTime: ResponseTimeMetric;
+  quality: QualityMetric;
+  productivity: ProductivityMetric;
+  overallScore: number;
+}
+
+export interface ResponseTimeMetric {
+  averageIssueResponse: number; // hours
+  averagePRReviewTime: number; // hours
+  firstResponseRate: number; // percentage
+  trend: "improving" | "declining" | "stable";
+}
+
+export interface QualityMetric {
+  codeReviewCoverage: number; // percentage
+  testCoverage: number; // percentage
+  documentationScore: number; // percentage
+  bugEscapeRate: number; // percentage
+}
+
+export interface ProductivityMetric {
+  commitsPerWeek: number;
+  issuesResolvedPerWeek: number;
+  prsMergedPerWeek: number;
+  activeContributors: number;
+}
+
+export interface PerformanceAlert {
+  id: string;
+  type: "warning" | "critical";
+  metric: string;
+  message: string;
+  suggestion: string;
   timestamp: Date;
 }
 
-export interface PerformanceSnapshot {
-  period: 'daily' | 'weekly' | 'monthly';
-  startDate: Date;
-  endDate: Date;
-  metrics: PerformanceMetric[];
-  score: number;
-  insights: string[];
+export function analyzePerformance(
+  repo: Repository,
+  issues: Issue[],
+  prs: PullRequest[]
+): PerformanceMetrics {
+  const responseTime = calculateResponseTime(issues, prs);
+  const quality = calculateQuality(repo);
+  const productivity = calculateProductivity(issues, prs);
+
+  const overallScore = Math.round(
+    (responseTime.averageIssueResponse / 72) * 30 +
+    quality.codeReviewCoverage * 0.3 +
+    productivity.prsMergedPerWeek * 2
+  );
+
+  return {
+    repository: repo.full_name,
+    timestamp: new Date(),
+    responseTime,
+    quality,
+    productivity,
+    overallScore: Math.min(100, Math.max(0, overallScore)),
+  };
 }
 
-export interface TaskMetrics {
-  completed: number;
-  avgDurationMinutes: number;
-  onTimeRate: number;
-  priority: 'high' | 'medium' | 'low';
+function calculateResponseTime(
+  issues: Issue[],
+  prs: PullRequest[]
+): ResponseTimeMetric {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const recentIssues = issues.filter(
+    (i) => new Date(i.created_at) > thirtyDaysAgo
+  );
+
+  let totalResponseTime = 0;
+  let responseCount = 0;
+  let firstResponseCount = 0;
+
+  recentIssues.forEach((issue) => {
+    if (issue.comments > 0) {
+      totalResponseTime += issue.comments * 2; // Simplified calculation
+      responseCount++;
+      firstResponseCount++;
+    }
+  });
+
+  const averageIssueResponse = responseCount > 0
+    ? totalResponseTime / responseCount
+    : 48;
+
+  const recentPRs = prs.filter((p) => new Date(p.created_at) > thirtyDaysAgo);
+  const avgPRReviewTime = recentPRs.length > 0
+    ? recentPRs.reduce((sum, pr) => sum + pr.commits * 3, 0) / recentPRs.length
+    : 24;
+
+  return {
+    averageIssueResponse: Math.round(averageIssueResponse),
+    averagePRReviewTime: Math.round(avgPRReviewTime),
+    firstResponseRate: recentIssues.length > 0
+      ? Math.round((firstResponseCount / recentIssues.length) * 100)
+      : 50,
+    trend: averageIssueResponse < 24 ? "improving" : averageIssueResponse > 72 ? "declining" : "stable",
+  };
 }
 
-class PerformanceMonitor {
-  private metricsHistory: Map<string, PerformanceMetric[]> = new Map();
-  private benchmarks: Map<string, number> = new Map([
-    ['response_time', 24], // hours
-    ['pr_review_time', 12], // hours
-    ['issue_resolution_rate', 0.7], // percentage
-    ['test_coverage', 0.8], // percentage
-    ['documentation_coverage', 0.6], // percentage
+function calculateQuality(repo: Repository): QualityMetric {
+  let score = 50;
+
+  if (repo.has_wiki) score += 15;
+  if (repo.homepage) score += 10;
+  if (repo.topics && repo.topics.length > 3) score += 15;
+
+  return {
+    codeReviewCoverage: Math.min(100, score + 10),
+    testCoverage: Math.min(100, score - 10),
+    documentationScore: Math.min(100, score),
+    bugEscapeRate: Math.max(0, 100 - score),
+  };
+}
+
+function calculateProductivity(
+  issues: Issue[],
+  prs: PullRequest[]
+): ProductivityMetric {
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const recentIssues = issues.filter(
+    (i) => new Date(i.updated_at) > sevenDaysAgo && i.state === "closed"
+  );
+  const recentPRs = prs.filter(
+    (p) => new Date(p.updated_at) > sevenDaysAgo && p.merged
+  );
+
+  const uniqueContributors = new Set([
+    ...issues.map((i) => i.user.login),
+    ...prs.map((p) => p.user.login),
   ]);
 
-  recordMetric(name: string, value: number, unit: string): PerformanceMetric {
-    const metric: PerformanceMetric = {
-      name,
-      value,
-      unit,
-      trend: 'stable',
-      benchmark: this.benchmarks.get(name),
+  return {
+    commitsPerWeek: recentPRs.reduce((sum, pr) => sum + pr.commits, 0),
+    issuesResolvedPerWeek: recentIssues.length,
+    prsMergedPerWeek: recentPRs.length,
+    activeContributors: uniqueContributors.size,
+  };
+}
+
+export function generateAlerts(metrics: PerformanceMetrics): PerformanceAlert[] {
+  const alerts: PerformanceAlert[] = [];
+
+  // Response time alerts
+  if (metrics.responseTime.averageIssueResponse > 72) {
+    alerts.push({
+      id: `alert-response-${Date.now()}`,
+      type: "critical",
+      metric: "Response Time",
+      message: `Average issue response time is ${metrics.responseTime.averageIssueResponse} hours`,
+      suggestion: "Consider setting up automated responses or recruiting more maintainers",
       timestamp: new Date(),
-    };
-
-    const history = this.metricsHistory.get(name) || [];
-    if (history.length > 1) {
-      const prev = history[history.length - 1];
-      metric.trend = value > prev.value ? 'up' : value < prev.value ? 'down' : 'stable';
-    }
-
-    history.push(metric);
-    this.metricsHistory.set(name, history.slice(-100)); // Keep last 100
-
-    return metric;
-  }
-
-  getMetricHistory(name: string): PerformanceMetric[] {
-    return this.metricsHistory.get(name) || [];
-  }
-
-  getCurrentScore(): number {
-    let totalScore = 0;
-    let count = 0;
-
-    this.metricsHistory.forEach((history, name) => {
-      if (history.length > 0 && this.benchmarks.has(name)) {
-        const latest = history[history.length - 1];
-        const benchmark = this.benchmarks.get(name)!;
-        
-        // Normalize score based on benchmark
-        if (name.includes('rate') || name.includes('coverage')) {
-          totalScore += Math.min(100, (latest.value / benchmark) * 100);
-        } else {
-          totalScore += Math.min(100, (benchmark / Math.max(latest.value, 1)) * 100);
-        }
-        count++;
-      }
     });
-
-    return count > 0 ? Math.round(totalScore / count) : 50;
-  }
-
-  generateInsights(): string[] {
-    const insights: string[] = [];
-    
-    this.metricsHistory.forEach((history, name) => {
-      if (history.length < 3) return;
-
-      const recent = history.slice(-5);
-      const avg = recent.reduce((sum, m) => sum + m.value, 0) / recent.length;
-      const trend = recent[recent.length - 1].trend;
-
-      if (name === 'response_time' && avg > 48) {
-        insights.push('Your average response time is above 48 hours. Consider setting up automated triage.');
-      }
-      
-      if (name === 'pr_review_time' && avg > 24) {
-        insights.push('PR reviews are taking longer than 24 hours. Try batch review sessions.');
-      }
-
-      if (trend === 'down' && name.includes('rate')) {
-        insights.push(`${name} has been improving. Keep up the good work!`);
-      }
-
-      if (trend === 'down' && name.includes('time')) {
-        insights.push(`${name} has been increasing. Consider delegating or automating.`);
-      }
+  } else if (metrics.responseTime.averageIssueResponse > 48) {
+    alerts.push({
+      id: `alert-response-${Date.now()}`,
+      type: "warning",
+      metric: "Response Time",
+      message: `Issue response time is slowing down`,
+      suggestion: "Try to respond to newer issues first to maintain engagement",
+      timestamp: new Date(),
     });
-
-    if (insights.length === 0) {
-      insights.push('Your performance metrics are stable. Keep doing what you\'re doing!');
-    }
-
-    return insights;
   }
 
-  calculateProductivityScore(tasks: TaskMetrics[]): number {
-    if (tasks.length === 0) return 0;
-
-    let score = 0;
-    
-    const completionScore = Math.min(100, (tasks.filter(t => t.completed > 0).length / tasks.length) * 100);
-    score += completionScore * 0.4;
-
-    const avgDuration = tasks.reduce((sum, t) => sum + t.avgDurationMinutes, 0) / tasks.length;
-    const durationScore = Math.max(0, 100 - (avgDuration / 2)); // Penalize long tasks
-    score += durationScore * 0.3;
-
-    const onTimeRate = tasks.reduce((sum, t) => sum + t.onTimeRate, 0) / tasks.length;
-    score += onTimeRate * 100 * 0.3;
-
-    return Math.round(score);
-  }
-
-  createSnapshot(period: 'daily' | 'weekly' | 'monthly'): PerformanceSnapshot {
-    const metrics: PerformanceMetric[] = [];
-    let score = 50;
-
-    this.metricsHistory.forEach((history, name) => {
-      if (history.length > 0) {
-        const latest = history[history.length - 1];
-        metrics.push(latest);
-      }
+  // First response rate alerts
+  if (metrics.responseTime.firstResponseRate < 50) {
+    alerts.push({
+      id: `alert-first-response-${Date.now()}`,
+      type: "warning",
+      metric: "First Response Rate",
+      message: `Only ${metrics.responseTime.firstResponseRate}% of issues get a response`,
+      suggestion: "Set up GitHub Actions to automatically acknowledge new issues",
+      timestamp: new Date(),
     });
-
-    score = this.getCurrentScore();
-
-    const now = new Date();
-    const periodDays = period === 'daily' ? 1 : period === 'weekly' ? 7 : 30;
-
-    return {
-      period,
-      startDate: new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000),
-      endDate: now,
-      metrics,
-      score,
-      insights: this.generateInsights(),
-    };
   }
 
-  exportMetricsJSON(): string {
-    const data: Record<string, any> = {};
-    
-    this.metricsHistory.forEach((history, name) => {
-      data[name] = history.map(m => ({
-        value: m.value,
-        unit: m.unit,
-        timestamp: m.timestamp.toISOString(),
-      }));
+  // Productivity alerts
+  if (metrics.productivity.prsMergedPerWeek < 1) {
+    alerts.push({
+      id: `alert-productivity-${Date.now()}`,
+      type: "warning",
+      metric: "Productivity",
+      message: "No PRs merged in the last week",
+      suggestion: "Review open PRs and prioritize merging contributions",
+      timestamp: new Date(),
     });
-
-    return JSON.stringify({
-      exportedAt: new Date().toISOString(),
-      metrics: data,
-      currentScore: this.getCurrentScore(),
-    }, null, 2);
   }
+
+  // Quality alerts
+  if (metrics.quality.documentationScore < 40) {
+    alerts.push({
+      id: `alert-docs-${Date.now()}`,
+      type: "warning",
+      metric: "Documentation",
+      message: "Documentation coverage is low",
+      suggestion: "Consider adding a README, contributing guide, or API documentation",
+      timestamp: new Date(),
+    });
+  }
+
+  return alerts;
 }
 
-export const performanceMonitor = new PerformanceMonitor();
-
-export function createPerformanceMonitor(): PerformanceMonitor {
-  return new PerformanceMonitor();
+export function getPerformanceTrend(
+  current: PerformanceMetrics,
+  previous: PerformanceMetrics
+): "improving" | "declining" | "stable" {
+  const diff = current.overallScore - previous.overallScore;
+  if (diff > 5) return "improving";
+  if (diff < -5) return "declining";
+  return "stable";
 }
 
-export { PerformanceMonitor };
+export function formatMetricValue(value: number, unit: string): string {
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(1)}k${unit}`;
+  }
+  return `${value}${unit}`;
+}
