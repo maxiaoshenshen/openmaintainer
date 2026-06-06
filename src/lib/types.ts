@@ -682,3 +682,66 @@ export type WeeklyRhythmReport = {
   patterns: string[];
   recommendations: string[];
 };
+
+// Community Health Radar Types
+export type RadarDimension = {
+  name: string;
+  score: number;
+  description: string;
+};
+
+export type RadarData = {
+  dimensions: RadarDimension[];
+  overallScore: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+};
+
+// AI Summarizer Types
+export type SummaryType = "brief" | "detailed" | "actionable";
+
+export interface SummarizedItem {
+  id: string;
+  type: "issue" | "pr";
+  number: number;
+  title: string;
+  summary: string;
+  keyPoints: string[];
+  actionNeeded: boolean;
+  suggestedLabels: string[];
+  sentiment: "positive" | "neutral" | "negative" | "urgent";
+  effort: "low" | "medium" | "high";
+}
+
+export interface BatchSummary {
+  items: SummarizedItem[];
+  totalCount: number;
+  urgentCount: number;
+  actionRequiredCount: number;
+  categoryBreakdown: Record<string, number>;
+}
+
+// Efficiency Types
+export type EfficiencyMetric = {
+  name: string;
+  value: number;
+  unit: string;
+  trend: "up" | "down" | "stable";
+  benchmark: number;
+  status: "excellent" | "good" | "needs-improvement" | "critical";
+};
+
+export type EfficiencyReport = {
+  metrics: EfficiencyMetric[];
+  overallScore: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+  strengths: string[];
+  improvements: string[];
+  recommendations: string[];
+};
+
+export interface EfficiencyStreak {
+  currentStreak: number;
+  longestStreak: number;
+  itemsProcessed: number;
+  lastProcessedDate: string;
+}
