@@ -1,45 +1,72 @@
-# OpenMaintainer - AI-Powered OSS Maintenance Workbench
+# OpenMaintainer
 
-[![Tests](https://img.shields.io/badge/tests-383%20passing-brightgreen)](./src/lib)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-[![Twitter](https://img.shields.io/twitter/follow/openmaintainer?style=social)](https://twitter.com/openmaintainer)
+**The all-in-one AI-powered workbench for open source maintainers.**
 
-**OpenMaintainer** is an all-in-one workbench for open source maintainers. Analyze repositories, manage contributors, ship releases with confidence, and build a thriving OSS community.
+OpenMaintainer helps OSS maintainers analyze repositories, manage contributors, track performance, and ship with confidence.
 
 ## Features
 
-### Core Modules
+### Dashboard
+- Real-time repository health monitoring
+- Maintainer inbox with prioritized tasks
+- Contributor impact tracking
+- Response SLA management
 
-- **Repository Analysis** - Comprehensive health metrics and insights
-- **Contributor Impact Queue** - Prioritized list of contributors needing attention
-- **PR Review Handoff** - Streamlined code review workflows
-- **Release Readiness Gate** - Pre-release checklist and validation
-- **Maintainer Inbox** - Unified view of all repository activity
-- **Evidence Pack Export** - Generate audit-ready documentation
+### Analysis Tools
+- **Community Health Analysis** - 5 key metrics: response time, diversity, issue resolution, engagement, documentation
+- **Performance Monitoring** - Track response times, quality metrics, and productivity
+- **Repository Scoring** - Comprehensive health score based on multiple factors
 
-### Advanced Tools
-
-- **GitHub API Integration** - Real-time data sync with GitHub
-- **Webhook Handler** - Process GitHub webhooks for real-time updates
-- **Crisis Alert System** - Emergency notifications and escalation
-- **Security Vulnerability Tracker** - Monitor and respond to CVEs
+### Contributor Management
+- **Onboarding System** - Smart starter issue suggestions, learning resources, 10-step checklist
 - **Contributor Journey Map** - Track contributor growth and engagement
-- **Maintainer Vacation Mode** - Automatic responses during absences
+- **Unblock Kit** - Tools to help contributors get unstuck
 
-### Developer Tools
+### Release Management
+- **Release Planning** - Automated version calculation, feature extraction
+- **Changelog Generation** - Automatic changelog creation
+- **Release Readiness** - Checklist and scoring for release preparation
 
-- **Prometheus Metrics** - `/api/metrics` for monitoring
-- **Health Check API** - `/api/health` for service status
-- **Search API** - `/api/search?q=query` for finding resources
-- **Stats API** - `/api/stats` for platform analytics
+### Code Review
+- **AI Code Review Assistant** - Automated PR analysis and scoring
+- **Finding Categorization** - Issues, suggestions, and praise
+- **Approval Recommendations** - Approve, request changes, or comment
+
+### Incident Response
+- **Security Detection** - Automatic security vulnerability detection
+- **Bug Tracking** - Comprehensive bug and regression monitoring
+- **Severity Classification** - Critical, high, medium, low prioritization
+
+### Sprint Planning
+- **Issue Prioritization** - AI-powered issue ranking
+- **Velocity Tracking** - Team capacity and velocity metrics
+- **Release Estimation** - Predict release dates based on backlog
+
+### Dependencies
+- **Dependency Tracking** - Monitor outdated and vulnerable dependencies
+- **License Analysis** - Ensure open source compliance
+- **Risk Scoring** - Supply chain security assessment
+
+## API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/repo/analyze` | Full repository analysis |
+| `GET /api/health-report` | Community health report |
+| `GET /api/sprint-plan` | Sprint planning data |
+| `GET /api/performance` | Performance metrics |
+| `GET /api/code-review` | PR code review |
+| `GET /api/release` | Release planning |
+| `GET /api/dependencies` | Dependency analysis |
+| `GET /api/health` | API health check |
+| `GET /api/metrics` | Prometheus metrics |
+| `GET /api/search` | Repository search |
 
 ## Quick Start
 
-```bash
-# Clone the repository
-git clone https://github.com/maxiaoshenshen/openmaintainer.git
-cd openmaintainer
+### Development
 
+```bash
 # Install dependencies
 npm install
 
@@ -48,95 +75,68 @@ npm run dev
 
 # Run tests
 npm test
+
+# Build for production
+npm run build
 ```
 
-## Demo
+### Environment Variables
 
-Visit [https://openmaintainer.vercel.app](https://openmaintainer.vercel.app) to try the live demo.
+```bash
+GITHUB_TOKEN=your_github_token_here
+```
 
 ## Architecture
 
 ```
 src/
 ├── app/                    # Next.js App Router
-│   ├── api/               # API routes
-│   │   ├── health/        # Health check endpoint
-│   │   ├── metrics/       # Prometheus metrics
-│   │   ├── search/        # Search API
-│   │   └── stats/         # Statistics API
-│   └── page.tsx          # Main dashboard
-├── components/
-│   └── dashboard.tsx     # Main dashboard component (3417 lines)
+│   ├── api/               # API Routes
+│   │   ├── repo/
+│   │   ├── health/
+│   │   ├── metrics/
+│   │   └── ...
+│   └── page.tsx           # Main dashboard
+├── components/            # React components
+│   └── dashboard/         # Dashboard components
 └── lib/                   # Core business logic
-    ├── maintainer-analysis.ts     # Repository analysis engine
-    ├── contributor-impact.ts     # Contributor prioritization
-    ├── maintainer-inbox.ts       # Unified inbox
-    ├── release-readiness-gate.ts  # Release validation
-    ├── github-api.ts             # GitHub API client
-    ├── webhook-handler.ts        # Webhook processing
-    ├── health-checker.ts        # Service monitoring
-    ├── metrics-exporter.ts      # Prometheus exporter
-    └── notification-preferences.ts # Notification management
+    ├── github-api.ts      # GitHub API integration
+    ├── maintainer-inbox.ts
+    ├── community-health.ts
+    ├── performance-monitor.ts
+    ├── release-manager.ts
+    ├── code-review-assistant.ts
+    └── ...
 ```
 
-## API Endpoints
+## Tech Stack
 
-### Health Check
-```bash
-curl https://openmaintainer.vercel.app/api/health
-```
-
-### Prometheus Metrics
-```bash
-curl https://openmaintainer.vercel.app/api/metrics
-```
-
-### Repository Search
-```bash
-curl "https://openmaintainer.vercel.app/api/search?q=react&limit=5"
-```
-
-### Platform Stats
-```bash
-curl https://openmaintainer.vercel.app/api/stats
-```
-
-### Analyze Repository (POST)
-```bash
-curl -X POST https://openmaintainer.vercel.app/api/repo/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"owner": "facebook", "repo": "react"}'
-```
+- **Framework**: Next.js 15
+- **Language**: TypeScript
+- **Testing**: Vitest
+- **Styling**: Tailwind CSS
+- **Deployment**: Vercel
 
 ## Test Coverage
 
-The project has comprehensive test coverage with 383 passing tests:
-
-```bash
-npm test
-# Test Files  71 passed (71)
-# Tests  383 passed (383)
 ```
-
-## Modules Overview
-
-| Module | Lines | Description |
-|--------|-------|-------------|
-| `dashboard.tsx` | 3,417 | Main UI component |
-| `maintainer-analysis.ts` | 864 | Analysis engine |
-| `i18n.ts` | 451 | Internationalization |
-| `openai-analyzer.ts` | 398 | AI-powered analysis |
-| `kanban-view.ts` | 339 | Kanban board view |
-| `types.ts` | 747 | TypeScript definitions |
+Test Files  82 passed
+Tests      476 passed
+```
 
 ## Contributing
 
-Contributions are welcome! Please read our contributing guidelines and submit PRs.
+Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## Acknowledgments
+## Links
 
-Built with love for the OSS community. Special thanks to all contributors and maintainers who keep open source thriving.
+- **Production**: https://openmaintainer.vercel.app
+- **GitHub**: https://github.com/maxiaoshenshen/openmaintainer
+
+---
+
+Built with ❤️ for the OSS community
