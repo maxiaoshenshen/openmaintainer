@@ -1,184 +1,274 @@
-/**
- * Code Review Assistant
- * Helps maintainers review PRs efficiently with AI-powered suggestions
- */
-export interface ReviewCriteria {
-  testCoverage?: boolean;
-  documentation?: boolean;
-  breakingChanges?: boolean;
-  performance?: boolean;
-  security?: boolean;
-  backwardsCompatibility?: boolean;
+import type { PullRequest, Repository, Contributor } from "./types";
+
+export interface CodeReviewRequest {
+  pr: PullRequest;
+  repo: Repository;
+  reviewer: Contributor | null;
 }
 
-export interface ReviewSuggestion {
-  type: 'approve' | 'request-changes' | 'comment' | 'praise';
-  priority: 'critical' | 'high' | 'medium' | 'low';
-  category: 'code-quality' | 'testing' | 'docs' | 'security' | 'performance' | 'style';
+export interface CodeReviewResult {
+  request: CodeReviewRequest;
+  score: number;
+  findings: CodeReviewFinding[];
+  suggestions: CodeReviewSuggestion[];
+  approvalRecommendation: "approve" | "request_changes" | "comment";
+  summary: string;
+}
+
+export interface CodeReviewFinding {
+  type: "issue" | "suggestion" | "praise";
+  severity: "critical" | "warning" | "info";
+  category: string;
   title: string;
   description: string;
-  file?: string;
   line?: number;
-  effort: number; // estimated minutes to address
+  file?: string;
 }
 
-export interface ReviewAnalysis {
-  pr: {
-    title: string;
-    description: string;
-    additions: number;
-    deletions: number;
-    changedFiles: number;
-    author: string;
-    isNewContributor: boolean;
-  };
-  suggestions: ReviewSuggestion[];
-  summary: string;
-  estimatedReviewTime: number; // minutes
-  riskLevel: 'low' | 'medium' | 'high';
+export interface CodeReviewSuggestion {
+  category: string;
+  title: string;
+  description: string;
+  codeSnippet?: string;
+  rationale: string;
 }
 
-export function analyzePRForReview(
-  pr: ReviewAnalysis['pr'],
-  criteria: ReviewCriteria,
-): ReviewAnalysis {
-  const suggestions: ReviewSuggestion[] = [];
-  const now = new Date();
-
-  // Check for breaking changes
-  if (criteria.breakingChanges !== false && (pr.additions > 500 || pr.deletions > 200)) {
-    suggestions.push({
-      type: 'comment',
-      priority: 'high',
-      category: 'code-quality',
-      title: 'Large PR - Verify Breaking Changes',
-      description: 'This PR makes significant changes. Please confirm no breaking changes to existing APIs.',
-      effort: 5,
-    });
-  }
-
-  // New contributor handling
-  if (pr.isNewContributor) {
-    suggestions.push({
-      type: 'praise',
-      priority: 'low',
-      category: 'code-quality',
-      title: 'Welcome New Contributor',
-      description: 'This is a new contributor. Consider being extra encouraging in your review.',
-      effort: 2,
-    });
-  }
-
-  // Test coverage check
-  if (criteria.testCoverage) {
-    suggestions.push({
-      type: 'request-changes',
-      priority: 'high',
-      category: 'testing',
-      title: 'Add Tests',
-      description: 'PR description does not mention test coverage. Please add relevant tests.',
-      effort: 30,
-    });
-  }
-
-  // Documentation check
-  if (criteria.documentation && pr.changedFiles > 3) {
-    suggestions.push({
-      type: 'comment',
-      priority: 'medium',
-      category: 'docs',
-      title: 'Update Documentation',
-      description: 'Multiple files changed. Ensure documentation is updated accordingly.',
-      effort: 15,
-    });
-  }
-
-  // Security check for large PRs
-  if (criteria.security && (pr.additions > 200 || pr.deletions > 100)) {
-    suggestions.push({
-      type: 'request-changes',
-      priority: 'critical',
-      category: 'security',
-      title: 'Security Review Required',
-      description: 'Large changes detected. Please verify no security vulnerabilities introduced.',
-      effort: 20,
-    });
-  }
-
-  // Performance check
-  if (criteria.performance) {
-    suggestions.push({
-      type: 'comment',
-      priority: 'medium',
-      category: 'performance',
-      title: 'Check Performance Impact',
-      description: 'Consider running benchmarks if this affects core functionality.',
-      effort: 10,
-    });
-  }
-
-  // Calculate estimated review time
-  const baseTime = 5;
-  const effortTime = suggestions.reduce((sum, s) => sum + s.effort, 0);
-  const estimatedReviewTime = baseTime + effortTime;
-
-  // Determine risk level
-  const criticalCount = suggestions.filter(s => s.priority === 'critical').length;
-  const highCount = suggestions.filter(s => s.priority === 'high').length;
-  const riskLevel = criticalCount > 0 ? 'high' : highCount > 2 ? 'high' : highCount > 0 ? 'medium' : 'low';
-
-  // Generate summary
-  const needsChanges = suggestions.filter(s => s.type === 'request-changes').length;
-  const summary = needsChanges > 0
-    ? `${needsChanges} change request(s) needed. Estimated review time: ${estimatedReviewTime} minutes.`
-    : `Looks good! Estimated review time: ${estimatedReviewTime} minutes.`;
+export function performCodeReview(request: CodeReviewRequest): CodeReviewResult {
+  const findings = analyzeCode(request.pr);
+  const suggestions = generateSuggestions(request.pr, findings);
+  const score = calculateReviewScore(findings);
+  const recommendation = determineRecommendation(score, findings);
 
   return {
-    pr,
+    request,
+    score,
+    findings,
     suggestions,
-    summary,
-    estimatedReviewTime,
-    riskLevel,
+    approvalRecommendation: recommendation,
+    summary: generateSummary(findings, score),
   };
 }
 
-export function generateReviewComment(analysis: ReviewAnalysis): string {
-  const lines: string[] = [
-    '## Code Review Analysis',
-    '',
-  ];
+function analyzeCode(pr: PullRequest): CodeReviewFinding[] {
+  const findings: CodeReviewFinding[] = [];
 
-  // Risk badge
-  const riskEmoji = analysis.riskLevel === 'high' ? '🔴' : analysis.riskLevel === 'medium' ? '🟡' : '🟢';
-  lines.push(`**Risk Level:** ${riskEmoji} ${analysis.riskLevel.toUpperCase()}`);
-  lines.push(`**Estimated Review Time:** ${analysis.estimatedReviewTime} minutes`);
-  lines.push('');
-
-  // Group by type
-  const byType = {
-    'request-changes': analysis.suggestions.filter(s => s.type === 'request-changes'),
-    'comment': analysis.suggestions.filter(s => s.type === 'comment'),
-    'approve': analysis.suggestions.filter(s => s.type === 'approve'),
-    'praise': analysis.suggestions.filter(s => s.type === 'praise'),
-  };
-
-  if (byType['request-changes'].length > 0) {
-    lines.push('### Changes Requested');
-    for (const s of byType['request-changes']) {
-      lines.push(`- **[${s.category}]** ${s.title}: ${s.description}`);
-    }
-    lines.push('');
+  // Check PR size
+  if (pr.additions > 500) {
+    findings.push({
+      type: "suggestion",
+      severity: "info",
+      category: "Size",
+      title: "Large PR - consider splitting",
+      description: `This PR adds ${pr.additions} lines. Consider breaking it into smaller, focused PRs for easier review.`,
+    });
+  } else if (pr.additions < 50) {
+    findings.push({
+      type: "praise",
+      severity: "info",
+      category: "Size",
+      title: "Small, focused PR",
+      description: `Good job keeping this PR small with ${pr.additions} additions.`,
+    });
   }
 
-  if (byType['praise'].length > 0) {
-    lines.push('### Praise');
-    for (const s of byType['praise']) {
-      lines.push(`- ${s.title}: ${s.description}`);
-    }
-    lines.push('');
+  // Check file changes
+  if (pr.changed_files > 20) {
+    findings.push({
+      type: "suggestion",
+      severity: "warning",
+      category: "Scope",
+      title: "Many files changed",
+      description: `${pr.changed_files} files modified. Ensure each change is related and necessary.`,
+    });
   }
 
-  lines.push(`_${analysis.summary}_`);
+  // Check description
+  if (!pr.body || pr.body.length < 20) {
+    findings.push({
+      type: "warning",
+      severity: "warning",
+      category: "Documentation",
+      title: "PR description is missing or too brief",
+      description: "A clear PR description helps reviewers understand the context and motivation.",
+    });
+  }
 
-  return lines.join('\n');
+  // Check commits
+  if (pr.commits > 10) {
+    findings.push({
+      type: "suggestion",
+      severity: "info",
+      category: "History",
+      title: "Many commits in PR",
+      description: `${pr.commits} commits. Consider squashing for a cleaner history.`,
+    });
+  } else if (pr.commits === 1) {
+    findings.push({
+      type: "praise",
+      severity: "info",
+      category: "History",
+      title: "Single commit PR",
+      description: "Great! This makes the PR easy to revert if needed.",
+    });
+  }
+
+  // Simulate code quality findings based on additions/deletions ratio
+  const changeRatio = pr.additions / (pr.deletions || 1);
+  if (changeRatio > 10) {
+    findings.push({
+      type: "warning",
+      severity: "warning",
+      category: "Code Quality",
+      title: "High additions to deletions ratio",
+      description: "The ratio suggests refactoring might be needed. Consider cleaning up unused code first.",
+    });
+  }
+
+  // Check for test coverage (simulated)
+  if (pr.additions > 100 && !pr.labels.some((l) => l.toLowerCase().includes("test"))) {
+    findings.push({
+      type: "suggestion",
+      severity: "info",
+      category: "Testing",
+      title: "Consider adding tests",
+      description: "This substantial change might benefit from test coverage.",
+    });
+  }
+
+  return findings;
+}
+
+function generateSuggestions(
+  pr: PullRequest,
+  findings: CodeReviewFinding[]
+): CodeReviewSuggestion[] {
+  const suggestions: CodeReviewSuggestion[] = [];
+
+  // Generate suggestions based on findings
+  findings.forEach((finding) => {
+    if (finding.type === "suggestion" || finding.type === "warning") {
+      suggestions.push({
+        category: finding.category,
+        title: `Address: ${finding.title}`,
+        description: finding.description,
+        rationale: "Following this suggestion improves code quality and maintainability.",
+      });
+    }
+  });
+
+  // Add generic good practices
+  if (!pr.labels.some((l) => l.toLowerCase().includes("breaking"))) {
+    suggestions.push({
+      category: "Documentation",
+      title: "Update relevant documentation",
+      description: "Ensure README, API docs, or guides are updated if needed.",
+      rationale: "Keeping documentation in sync prevents user confusion.",
+    });
+  }
+
+  suggestions.push({
+    category: "Security",
+    title: "Security review for external inputs",
+    description: "If this PR handles user input or external data, ensure proper validation.",
+    rationale: "Security is easier to address during development than after release.",
+  });
+
+  return suggestions;
+}
+
+function calculateReviewScore(findings: CodeReviewFinding[]): number {
+  let score = 100;
+
+  findings.forEach((finding) => {
+    switch (finding.severity) {
+      case "critical":
+        score -= 25;
+        break;
+      case "warning":
+        score -= 10;
+        break;
+      case "info":
+        if (finding.type === "praise") {
+          score += 5;
+        } else {
+          score -= 3;
+        }
+        break;
+    }
+  });
+
+  return Math.max(0, Math.min(100, score));
+}
+
+function determineRecommendation(
+  score: number,
+  findings: CodeReviewFinding[]
+): CodeReviewResult["approvalRecommendation"] {
+  const hasCritical = findings.some((f) => f.severity === "critical");
+  const hasWarnings = findings.some((f) => f.severity === "warning");
+
+  if (hasCritical) return "request_changes";
+  if (hasWarnings || score < 70) return "request_changes";
+  if (score >= 85) return "approve";
+  return "comment";
+}
+
+function generateSummary(
+  findings: CodeReviewFinding[],
+  score: number
+): string {
+  const criticalCount = findings.filter((f) => f.severity === "critical").length;
+  const warningCount = findings.filter((f) => f.severity === "warning").length;
+  const praiseCount = findings.filter((f) => f.type === "praise").length;
+
+  let summary = `Review Score: ${score}/100. `;
+
+  if (praiseCount > 0) {
+    summary += `Notable positives: ${praiseCount} items. `;
+  }
+
+  if (criticalCount > 0) {
+    summary += `${criticalCount} critical issue(s) must be addressed. `;
+  } else if (warningCount > 0) {
+    summary += `${warningCount} warning(s) to consider. `;
+  } else {
+    summary += "No issues detected. ";
+  }
+
+  return summary.trim();
+}
+
+export function formatFindingIcon(finding: CodeReviewFinding): string {
+  switch (finding.type) {
+    case "praise":
+      return "✅";
+    case "suggestion":
+      return "💡";
+    case "issue":
+      return "❌";
+  }
+}
+
+export function formatSeverityColor(severity: CodeReviewFinding["severity"]): string {
+  switch (severity) {
+    case "critical":
+      return "text-red-600 bg-red-100";
+    case "warning":
+      return "text-yellow-600 bg-yellow-100";
+    case "info":
+      return "text-blue-600 bg-blue-100";
+  }
+}
+
+export function formatRecommendationBadge(
+  recommendation: CodeReviewResult["approvalRecommendation"]
+): { label: string; color: string } {
+  switch (recommendation) {
+    case "approve":
+      return { label: "Approve", color: "bg-green-100 text-green-800" };
+    case "request_changes":
+      return { label: "Request Changes", color: "bg-red-100 text-red-800" };
+    case "comment":
+      return { label: "Comment", color: "bg-gray-100 text-gray-800" };
+  }
 }
