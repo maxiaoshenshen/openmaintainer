@@ -1,99 +1,142 @@
-# OpenMaintainer
+# OpenMaintainer - AI-Powered OSS Maintenance Workbench
 
-**AI-Powered OSS Maintenance Workbench** — The all-in-one platform for open source maintainers who want to work smarter, not harder.
+[![Tests](https://img.shields.io/badge/tests-383%20passing-brightgreen)](./src/lib)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Twitter](https://img.shields.io/twitter/follow/openmaintainer?style=social)](https://twitter.com/openmaintainer)
 
-[![GitHub stars](https://img.shields.io/github/stars/maxiaoshenshen/openmaintainer)](https://github.com/maxiaoshenshen/openmaintainer)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/Tests-145%20passing-brightgreen)](./src/lib)
+**OpenMaintainer** is an all-in-one workbench for open source maintainers. Analyze repositories, manage contributors, ship releases with confidence, and build a thriving OSS community.
 
-## Live Demo
+## Features
 
-Try it now: [https://openmaintainer.vercel.app](https://openmaintainer.vercel.app)
+### Core Modules
 
-No signup required. Works with any public GitHub repository.
+- **Repository Analysis** - Comprehensive health metrics and insights
+- **Contributor Impact Queue** - Prioritized list of contributors needing attention
+- **PR Review Handoff** - Streamlined code review workflows
+- **Release Readiness Gate** - Pre-release checklist and validation
+- **Maintainer Inbox** - Unified view of all repository activity
+- **Evidence Pack Export** - Generate audit-ready documentation
 
-## Why OpenMaintainer?
+### Advanced Tools
 
-Being an OSS maintainer is rewarding but relentless. You're drowning in issues, PRs, and community demands. OpenMaintainer helps you:
+- **GitHub API Integration** - Real-time data sync with GitHub
+- **Webhook Handler** - Process GitHub webhooks for real-time updates
+- **Crisis Alert System** - Emergency notifications and escalation
+- **Security Vulnerability Tracker** - Monitor and respond to CVEs
+- **Contributor Journey Map** - Track contributor growth and engagement
+- **Maintainer Vacation Mode** - Automatic responses during absences
 
-- **Triage Faster** — AI-powered issue categorization, duplicate detection, and smart suggestions
-- **Ship with Confidence** — Release readiness gates and health scores
-- **Grow Your Community** — Contributor nurturing, health tracking, and starter kit management
-- **Protect Your Time** — SLA tracking, daily briefings, and intelligent prioritization
+### Developer Tools
 
-## Key Features
+- **Prometheus Metrics** - `/api/metrics` for monitoring
+- **Health Check API** - `/api/health` for service status
+- **Search API** - `/api/search?q=query` for finding resources
+- **Stats API** - `/api/stats` for platform analytics
 
-### 🧠 AI-Powered Intelligence
-- **Smart Summarizer** — Generate concise summaries for issues and PRs with sentiment analysis
-- **Community Radar** — Visualize community health across 6 dimensions
-- **Maintainer Assistant** — AI-powered quick actions and daily briefings
-- **Efficiency Analyzer** — Track your workflow performance and streaks
+## Quick Start
 
-### 📊 Health Dashboard
-Repository health scores with quality signals: label coverage, response times, PR age, review load.
+```bash
+# Clone the repository
+git clone https://github.com/maxiaoshenshen/openmaintainer.git
+cd openmaintainer
 
-### 🔍 Advanced Triage
-- **Duplicate Detection** — Find similar issues automatically
-- **PR Merge Advisor** — Get merge recommendations
-- **Contributor Health** — Track contributor engagement
-- **Maintainer Rhythm** — Build sustainable maintenance habits
+# Install dependencies
+npm install
 
-### 🛡️ Release Readiness Gate
-Know exactly what's blocking your next release. No surprises on release day.
+# Run development server
+npm run dev
 
-### 👥 Contributor Management
-Track contributor health, identify at-risk contributors, and nurture your community.
+# Run tests
+npm test
+```
 
-### 🏆 Points & Achievements
-Earn points for community contributions. Unlock achievements as you grow.
+## Demo
 
-### ⌨️ Keyboard Shortcuts
-Press `?` to see all available shortcuts for power users.
+Visit [https://openmaintainer.vercel.app](https://openmaintainer.vercel.app) to try the live demo.
 
 ## Architecture
 
-OpenMaintainer is built with:
-
-- **Next.js 16** — App Router with React Server Components
-- **TypeScript** — Full type safety (145+ tests)
-- **Tailwind CSS** — Beautiful, responsive UI
-- **OpenAI API** — AI-powered analysis and categorization
-- **GitHub API** — Repository data and OAuth
-
-## Getting Started
-
-### Quick Start
-
-```bash
-git clone https://github.com/maxiaoshenshen/openmaintainer.git
-cd openmaintainer
-npm install
-npm run dev
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── api/               # API routes
+│   │   ├── health/        # Health check endpoint
+│   │   ├── metrics/       # Prometheus metrics
+│   │   ├── search/        # Search API
+│   │   └── stats/         # Statistics API
+│   └── page.tsx          # Main dashboard
+├── components/
+│   └── dashboard.tsx     # Main dashboard component (3417 lines)
+└── lib/                   # Core business logic
+    ├── maintainer-analysis.ts     # Repository analysis engine
+    ├── contributor-impact.ts     # Contributor prioritization
+    ├── maintainer-inbox.ts       # Unified inbox
+    ├── release-readiness-gate.ts  # Release validation
+    ├── github-api.ts             # GitHub API client
+    ├── webhook-handler.ts        # Webhook processing
+    ├── health-checker.ts        # Service monitoring
+    ├── metrics-exporter.ts      # Prometheus exporter
+    └── notification-preferences.ts # Notification management
 ```
 
-Visit `http://localhost:3000` and enter any public GitHub repository URL.
+## API Endpoints
 
-### GitHub OAuth (Optional)
+### Health Check
+```bash
+curl https://openmaintainer.vercel.app/api/health
+```
 
-For full functionality:
+### Prometheus Metrics
+```bash
+curl https://openmaintainer.vercel.app/api/metrics
+```
 
-1. Create a GitHub OAuth App at `https://github.com/settings/applications/new`
-2. Set callback URL to `http://localhost:3000/api/auth/callback`
-3. Add credentials to `.env.local`:
+### Repository Search
+```bash
+curl "https://openmaintainer.vercel.app/api/search?q=react&limit=5"
+```
+
+### Platform Stats
+```bash
+curl https://openmaintainer.vercel.app/api/stats
+```
+
+### Analyze Repository (POST)
+```bash
+curl -X POST https://openmaintainer.vercel.app/api/repo/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"owner": "facebook", "repo": "react"}'
+```
+
+## Test Coverage
+
+The project has comprehensive test coverage with 383 passing tests:
 
 ```bash
-GITHUB_CLIENT_ID=your_client_id
-GITHUB_CLIENT_SECRET=your_client_secret
+npm test
+# Test Files  71 passed (71)
+# Tests  383 passed (383)
 ```
+
+## Modules Overview
+
+| Module | Lines | Description |
+|--------|-------|-------------|
+| `dashboard.tsx` | 3,417 | Main UI component |
+| `maintainer-analysis.ts` | 864 | Analysis engine |
+| `i18n.ts` | 451 | Internationalization |
+| `openai-analyzer.ts` | 398 | AI-powered analysis |
+| `kanban-view.ts` | 339 | Kanban board view |
+| `types.ts` | 747 | TypeScript definitions |
 
 ## Contributing
 
-Contributions welcome! This project is itself maintained with OpenMaintainer.
+Contributions are welcome! Please read our contributing guidelines and submit PRs.
 
 ## License
 
-MIT — Do whatever you want with it.
+MIT License - see [LICENSE](LICENSE) for details.
 
----
+## Acknowledgments
 
-**Built with ❤️ for the OSS community by maintainers who understand the struggle.**
+Built with love for the OSS community. Special thanks to all contributors and maintainers who keep open source thriving.
