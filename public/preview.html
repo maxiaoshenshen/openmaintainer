@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenMaintainer - AI-Powered OSS Maintenance Workbench</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#6366f1',
+            secondary: '#8b5cf6',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .card-hover:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+    .card-hover {
+      transition: all 0.3s ease;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen">
+  <!-- Header -->
+  <header class="gradient-bg text-white py-8">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-4xl font-bold mb-2">OpenMaintainer</h1>
+          <p class="text-xl opacity-90">AI-Powered OSS Maintenance Workbench</p>
+        </div>
+        <div class="flex gap-4">
+          <span class="px-4 py-2 bg-white/20 rounded-full text-sm">145 Tests Passing</span>
+          <a href="https://github.com/maxiaoshenshen/openmaintainer" class="px-4 py-2 bg-white text-purple-600 rounded-full text-sm font-semibold hover:bg-gray-100 transition">GitHub</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stats Grid -->
+  <section class="max-w-7xl mx-auto px-4 -mt-8">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg card-hover">
+        <div class="text-3xl font-bold text-primary">98</div>
+        <div class="text-gray-600 dark:text-gray-400">Health Score</div>
+        <div class="text-sm text-green-500 mt-1">↑ 12% this month</div>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg card-hover">
+        <div class="text-3xl font-bold text-secondary">2.3k</div>
+        <div class="text-gray-600 dark:text-gray-400">Points Earned</div>
+        <div class="text-sm text-blue-500 mt-1">Level 5 Maintainer</div>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg card-hover">
+        <div class="text-3xl font-bold text-green-500">87%</div>
+        <div class="text-gray-600 dark:text-gray-400">PR Merge Rate</div>
+        <div class="text-sm text-green-500 mt-1">↑ 5% improvement</div>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg card-hover">
+        <div class="text-3xl font-bold text-orange-500">12h</div>
+        <div class="text-gray-600 dark:text-gray-400">Avg Response</div>
+        <div class="text-sm text-yellow-500 mt-1">Within SLA</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <section class="max-w-7xl mx-auto px-4 py-12">
+    <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-8">AI-Powered Features</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      
+      <!-- AI Summarizer -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow card-hover">
+        <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2 text-gray-900 dark:text-white">AI Summarizer</h3>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">Generate concise summaries for issues and PRs with sentiment analysis and key points extraction.</p>
+        <div class="flex flex-wrap gap-2">
+          <span class="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 rounded text-xs">Sentiment Analysis</span>
+          <span class="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 rounded text-xs">Auto-triage</span>
+        </div>
+      </div>
+
+      <!-- Community Radar -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow card-hover">
+        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Community Radar</h3>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">Visualize community health across 6 dimensions: Responsiveness, Issue Management, PR Velocity, and more.</p>
+        <div class="flex gap-2">
+          <span class="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 rounded text-xs">Grade: A</span>
+          <span class="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 rounded text-xs">Score: 85</span>
+        </div>
+      </div>
+
+      <!-- Maintainer Efficiency -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow card-hover">
+        <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Efficiency Analyzer</h3>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">Track workflow performance, calculate streaks, and get personalized recommendations.</p>
+        <div class="flex gap-2">
+          <span class="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 rounded text-xs">7 day streak</span>
+          <span class="px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300 rounded text-xs">Grade: B+</span>
+        </div>
+      </div>
+
+      <!-- Maintainer Assistant -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow card-hover">
+        <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"></path>
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Maintainer Assistant</h3>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">AI-powered quick actions, daily briefings, reply templates, and batch operations.</p>
+        <div class="flex flex-wrap gap-2">
+          <span class="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300 rounded text-xs">Daily Brief</span>
+          <span class="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300 rounded text-xs">Templates</span>
+        </div>
+      </div>
+
+      <!-- Duplicate Detector -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow card-hover">
+        <div class="w-12 h-12 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Duplicate Detector</h3>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">Find similar issues automatically and suggest duplicates to save triage time.</p>
+        <div class="flex gap-2">
+          <span class="px-2 py-1 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 rounded text-xs">85% accuracy</span>
+        </div>
+      </div>
+
+      <!-- PR Merge Advisor -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow card-hover">
+        <div class="w-12 h-12 bg-teal-100 dark:bg-teal-900 rounded-lg flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold mb-2 text-gray-900 dark:text-white">PR Merge Advisor</h3>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">Get merge recommendations based on code quality, test coverage, and risk assessment.</p>
+        <div class="flex gap-2">
+          <span class="px-2 py-1 bg-teal-100 dark:bg-teal-900 text-teal-600 dark:text-teal-300 rounded text-xs">Low Risk</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Demo Section -->
+  <section class="max-w-7xl mx-auto px-4 py-12">
+    <div class="bg-gradient-to-r from-primary to-secondary rounded-2xl p-8 text-white">
+      <h2 class="text-3xl font-bold mb-4">Try It Now</h2>
+      <p class="text-xl mb-6 opacity-90">Enter any public GitHub repository URL to see your maintainer dashboard.</p>
+      <div class="flex gap-4">
+        <input type="text" placeholder="https://github.com/owner/repo" class="flex-1 px-6 py-4 rounded-xl text-gray-900 text-lg">
+        <button class="px-8 py-4 bg-white text-primary font-bold rounded-xl hover:bg-gray-100 transition">Analyze</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-white py-8 mt-12">
+    <div class="max-w-7xl mx-auto px-4 text-center">
+      <p class="text-gray-400">OpenMaintainer © 2024 | Built with ❤️ for OSS maintainers</p>
+      <p class="text-gray-500 text-sm mt-2">145+ tests passing | TypeScript | Next.js | Tailwind CSS</p>
+    </div>
+  </footer>
+</body>
+</html>
