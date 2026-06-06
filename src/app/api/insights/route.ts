@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateInsights } from "@/lib/ai-insights-engine";
+import { generateInsights, InsightsContext } from "@/lib/ai-insights-engine";
 import { getRepository, getContributors, getIssues, getPullRequests } from "@/lib/github-api";
 
 export async function GET(request: NextRequest) {
@@ -20,10 +20,54 @@ export async function GET(request: NextRequest) {
       getRepository(owner, repo),
       getContributors(owner, repo),
       getIssues(owner, repo),
-      getPullRequests(owner, repo, "all"),
+      getPullRequests(owner, repo, { state: "all" }),
     ]);
 
-    const insights = generateInsights(repoData, contributors, issues, prs);
+    // Calculate context metrics
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const recentIssues = issues.filter(i => new Date(i.createdAt) > thirtyDaysAgo);
+    const recentPRs = prs.filter(p => new Date(p.createdAt) > thirtyDaysAgo);
+    
+    const closedIssues = issues.filter(i => i.state === 'closed');
+    const mergedPRs = prs.filter(p => p.mergedAt);
+    
+    // Calculate contributor stats from array
+    const totalContributors = contributors.length;
+    const activeContributors = contributors.filter(c => c.contributions > 10).length;
+    const newContributors = contributors.filter(c => c.contributions <= 5).length;
+    
+    // Build context object
+    const context: InsightsContext = {
+      repository: {
+        name: repoData.fullName,
+        stars: repoData.stars,
+        forks: repoData.forks,
+        openIssues: repoData.openIssues,
+        openPRs: repoData.openPRs,
+        lastReleaseAt: repoData.lastRelease ? new Date(repoData.lastRelease) : undefined,
+      },
+      contributors: {
+        total: totalContributors,
+        active: activeContributors,
+        newThisMonth: newContributors,
+        churned: 0,
+      },
+      activity: {
+        issuesPerWeek: recentIssues.length / 4,
+        prsPerWeek: recentPRs.length / 4,
+        avgResponseTime: 24,
+        reviewTime: 48,
+      },
+      health: {
+        issueResolutionRate: issues.length > 0 ? closedIssues.length / issues.length : 0.5,
+        prMergeRate: prs.length > 0 ? mergedPRs.length / prs.length : 0.5,
+        communityEngagement: totalContributors > 0 ? Math.min(activeContributors / totalContributors, 1) : 0.5,
+      },
+    };
+
+    const insights = generateInsights(context);
 
     return NextResponse.json(insights);
   } catch (error) {

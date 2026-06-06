@@ -3,6 +3,30 @@
 
 import type { Repository, Contributor, PullRequest, Issue } from './types';
 
+// Convenience exports - delegate to GitHubAPIClient
+export async function getRepository(owner: string, repo: string): Promise<GitHubRepoData> {
+  return getGitHubClient().getRepository(owner, repo);
+}
+export async function getContributors(owner: string, repo: string): Promise<GitHubContributorData[]> {
+  return getGitHubClient().getContributors(owner, repo);
+}
+export async function getIssues(owner: string, repo: string, options?: { state?: 'open' | 'closed' | 'all'; perPage?: number; page?: number }): Promise<GitHubIssueData[]> {
+  return getGitHubClient().getIssues(owner, repo, options);
+}
+export async function getPullRequests(owner: string, repo: string, options?: { state?: 'open' | 'closed' | 'all'; perPage?: number; page?: number }): Promise<GitHubPRData[]> {
+  return getGitHubClient().getPullRequests(owner, repo, options);
+}
+export async function getPullRequest(owner: string, repo: string, number: number): Promise<GitHubPRData | null> {
+  const prs = await getGitHubClient().getPullRequests(owner, repo, { state: 'all', perPage: 100 });
+  return prs.find(pr => pr.number === number) || null;
+}
+export async function getReleases(owner: string, repo: string, perPage?: number): Promise<any[]> {
+  return getGitHubClient().getReleases(owner, repo, perPage);
+}
+export async function getCommits(owner: string, repo: string, options?: { since?: string; until?: string; perPage?: number }): Promise<any[]> {
+  return getGitHubClient().getCommits(owner, repo, options);
+}
+
 export interface GitHubConfig {
   token?: string;
   owner: string;

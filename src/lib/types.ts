@@ -745,3 +745,66 @@ export interface EfficiencyStreak {
   itemsProcessed: number;
   lastProcessedDate: string;
 }
+
+// Legacy type aliases for backward compatibility
+export type Repository = {
+  id: number;
+  name: string;
+  fullName: string;
+  description: string;
+  stars: number;
+  forks: number;
+  openIssues: number;
+  openPRs: number;
+  language: string;
+  license: string | null;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+};
+
+export type Contributor = {
+  id: number;
+  username: string;
+  avatarUrl: string;
+  contributions: number;
+  type: "User" | "Bot";
+};
+
+export type Issue = {
+  id: number;
+  number: number;
+  title: string;
+  body: string;
+  state: "open" | "closed";
+  author: string;
+  labels: string[];
+  comments: number;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+};
+
+export type PullRequest = {
+  id: number;
+  number: number;
+  title: string;
+  body: string;
+  state: "open" | "closed" | "merged";
+  author: string;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  labels: string[];
+  createdAt: string;
+  updatedAt: string;
+  mergedAt?: string;
+  url: string;
+};
+
+export type Analysis = {
+  repository: Repository;
+  contributors: Contributor[];
+  issues: Issue[];
+  pullRequests: PullRequest[];
+};

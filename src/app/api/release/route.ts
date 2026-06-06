@@ -19,11 +19,11 @@ export async function GET(request: NextRequest) {
 
     const [repoData, prs, issues] = await Promise.all([
       getRepository(owner, repo),
-      getPullRequests(owner, repo, "closed"),
-      getIssues(owner, repo, "closed"),
+      getPullRequests(owner, repo, { state: "closed" }),
+      getIssues(owner, repo, { state: "closed" }),
     ]);
 
-    const mergedPRs = prs.filter((pr) => pr.merged);
+    const mergedPRs = prs.filter((pr) => pr.mergedAt);
     const closedIssues = issues.filter((i) => i.state === "closed");
 
     const releasePlan = planRelease(repoData, mergedPRs, closedIssues, currentVersion);

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       getRepository(owner, repo),
       getContributors(owner, repo),
       getIssues(owner, repo),
-      getPullRequests(owner, repo, "all"),
+      getPullRequests(owner,  repo, { state: "all" }),
     ]);
 
     const healthReport = analyzeCommunityHealth(repoData, contributors, issues, prs);

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const [repoData, issues, prs] = await Promise.all([
       getRepository(owner, repo),
       getIssues(owner, repo),
-      getPullRequests(owner, repo, "all"),
+      getPullRequests(owner,  repo, { state: "all" }),
     ]);
 
     const metrics = analyzePerformance(repoData, issues, prs);
