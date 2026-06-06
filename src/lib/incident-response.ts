@@ -1,103 +1,225 @@
-/**
- * Incident Response System
- * Handle security vulnerabilities and critical bugs
- */
-import type { Repository } from "./types";
-
-export type IncidentSeverity = "critical" | "high" | "medium" | "low";
-export type IncidentStatus = "detected" | "investigating" | "mitigating" | "resolved" | "closed";
+import type { Issue, PullRequest, Repository } from "./types";
 
 export interface Incident {
   id: string;
+  type: "bug" | "security" | "regression" | "performance" | "outage";
+  severity: "critical" | "high" | "medium" | "low";
   title: string;
   description: string;
-  severity: IncidentSeverity;
-  status: IncidentStatus;
-  discoveredAt: Date;
   affectedVersions: string[];
-  reporter: string;
-  assignees: string[];
-  timeline: { action: string; timestamp: Date; actor: string }[];
+  status: "investigating" | "identified" | "monitoring" | "resolved";
+  createdAt: Date;
+  resolvedAt?: Date;
+  relatedIssues: number[];
+  relatedPRs: number[];
 }
 
-export interface IncidentReport {
+export interface IncidentResponsePlan {
   repository: string;
-  generatedAt: Date;
+  incidents: Incident[];
   activeIncidents: Incident[];
-  resolvedIncidents: Incident[];
-  averageResolutionTime: number;
-  securityScore: number;
+  recentResolutions: Incident[];
   recommendations: string[];
+  timeline: IncidentTimelineEntry[];
 }
 
-const sampleIncidents: Incident[] = [
-  {
-    id: "INC-001",
-    title: "SQL Injection in user search endpoint",
-    description: "User-provided search query not properly sanitized",
-    severity: "critical",
-    status: "resolved",
-    discoveredAt: new Date("2026-05-01"),
-    affectedVersions: ["1.0.0", "1.1.0"],
-    reporter: "security-researcher@example.com",
-    assignees: ["maintainer1"],
-    timeline: [
-      { action: "Issue reported via private security channel", timestamp: new Date("2026-05-01"), actor: "reporter" },
-      { action: "Acknowledged and started investigation", timestamp: new Date("2026-05-01"), actor: "maintainer1" },
-      { action: "Hotfix deployed to production", timestamp: new Date("2026-05-02"), actor: "maintainer1" },
-      { action: "CVE-2026-1234 published", timestamp: new Date("2026-05-05"), actor: "maintainer1" },
-    ],
-  },
-  {
-    id: "INC-002",
-    title: "Memory leak in WebSocket handler",
-    description: "Connections not properly cleaned up on disconnect",
-    severity: "high",
-    status: "mitigating",
-    discoveredAt: new Date("2026-06-01"),
-    affectedVersions: ["2.0.0", "2.1.0"],
-    reporter: "user@example.com",
-    assignees: ["maintainer2", "contributor1"],
-    timeline: [
-      { action: "Bug report received", timestamp: new Date("2026-06-01"), actor: "user" },
-      { action: "Reproduced and confirmed", timestamp: new Date("2026-06-02"), actor: "maintainer2" },
-    ],
-  },
-];
+export interface IncidentTimelineEntry {
+  timestamp: Date;
+  type: "created" | "escalated" | "status_change" | "comment" | "resolved";
+  description: string;
+  actor: string;
+}
 
-export function generateIncidentReport(repository: Repository): IncidentReport {
-  const activeIncidents = sampleIncidents.filter(i => 
-    i.status !== "resolved" && i.status !== "closed"
-  );
-  const resolvedIncidents = sampleIncidents.filter(i => 
-    i.status === "resolved" || i.status === "closed"
-  );
-
-  // Calculate average resolution time (in hours)
-  const avgResolution = resolvedIncidents.length > 0 
-    ? resolvedIncidents.reduce((sum, i) => {
-        const timeline = i.timeline;
-        const start = timeline[0].timestamp;
-        const end = timeline[timeline.length - 1].timestamp;
-        return sum + (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      }, 0) / resolvedIncidents.length
-    : 0;
-
-  const securityScore = Math.floor(100 - activeIncidents.length * 15 - activeIncidents.filter(i => i.severity === "critical").length * 30);
-
-  const recommendations = [
-    "Enable automated security scanning in CI pipeline",
-    "Subscribe to security advisories for direct dependencies",
-    "Implement bug bounty program for future vulnerability disclosures",
-  ];
+export function analyzeIncidents(
+  repo: Repository,
+  issues: Issue[],
+  prs: PullRequest[]
+): IncidentResponsePlan {
+  const incidents = detectIncidents(issues, prs);
+  const activeIncidents = incidents.filter((i) => i.status !== "resolved");
+  const recentResolutions = incidents
+    .filter((i) => i.status === "resolved")
+    .slice(0, 5);
 
   return {
-    repository: repository.name,
-    generatedAt: new Date(),
+    repository: repo.full_name,
+    incidents,
     activeIncidents,
-    resolvedIncidents,
-    averageResolutionTime: Math.floor(avgResolution),
-    securityScore,
-    recommendations,
+    recentResolutions,
+    recommendations: generateIncidentRecommendations(activeIncidents),
+    timeline: buildTimeline(incidents),
   };
+}
+
+function detectIncidents(issues: Issue[], prs: PullRequest[]): Incident[] {
+  const incidents: Incident[] = [];
+
+  // Detect security issues
+  const securityIssues = issues.filter(
+    (i) =>
+      i.labels.some((l) =>
+        ["security", "vulnerability", "cve", "security-alert"].some(
+          (s) => l.toLowerCase().includes(s)
+        )
+      ) || i.title.toLowerCase().includes("security")
+  );
+
+  securityIssues.forEach((issue) => {
+    incidents.push({
+      id: `incident-sec-${issue.id}`,
+      type: "security",
+      severity: detectSeverity(issue, "security"),
+      title: issue.title,
+      description: issue.body || "",
+      affectedVersions: extractVersions(issue.body || ""),
+      status: issue.state === "closed" ? "resolved" : "investigating",
+      createdAt: new Date(issue.created_at),
+      resolvedAt: issue.state === "closed" ? new Date(issue.updated_at) : undefined,
+      relatedIssues: [issue.id],
+      relatedPRs: [],
+    });
+  });
+
+  // Detect bugs
+  const bugIssues = issues.filter(
+    (i) =>
+      i.labels.some((l) =>
+        ["bug", "bug-report", "defect"].some((b) => l.toLowerCase().includes(b))
+      ) && !securityIssues.some((s) => s.id === i.id)
+  );
+
+  bugIssues.slice(0, 10).forEach((issue) => {
+    incidents.push({
+      id: `incident-bug-${issue.id}`,
+      type: "bug",
+      severity: detectSeverity(issue, "bug"),
+      title: issue.title,
+      description: issue.body || "",
+      affectedVersions: extractVersions(issue.body || ""),
+      status: issue.state === "closed" ? "resolved" : "investigating",
+      createdAt: new Date(issue.created_at),
+      resolvedAt: issue.state === "closed" ? new Date(issue.updated_at) : undefined,
+      relatedIssues: [issue.id],
+      relatedPRs: [],
+    });
+  });
+
+  // Detect regressions
+  const regressionIssues = issues.filter(
+    (i) =>
+      i.labels.some((l) => l.toLowerCase().includes("regression")) ||
+      i.title.toLowerCase().includes("regression")
+  );
+
+  regressionIssues.forEach((issue) => {
+    incidents.push({
+      id: `incident-reg-${issue.id}`,
+      type: "regression",
+      severity: "high",
+      title: issue.title,
+      description: issue.body || "",
+      affectedVersions: extractVersions(issue.body || ""),
+      status: issue.state === "closed" ? "resolved" : "identified",
+      createdAt: new Date(issue.created_at),
+      resolvedAt: issue.state === "closed" ? new Date(issue.updated_at) : undefined,
+      relatedIssues: [issue.id],
+      relatedPRs: [],
+    });
+  });
+
+  return incidents;
+}
+
+function detectSeverity(
+  issue: Issue,
+  type: "security" | "bug"
+): "critical" | "high" | "medium" | "low" {
+  if (type === "security") return "critical";
+  if (issue.comments > 10) return "high";
+  if (issue.comments > 3) return "medium";
+  return "low";
+}
+
+function extractVersions(text: string): string[] {
+  const versionRegex = /\bv?(\d+\.\d+\.\d+)\b/g;
+  const matches = text.match(versionRegex);
+  return matches ? [...new Set(matches)] : [];
+}
+
+function generateIncidentRecommendations(activeIncidents: Incident[]): string[] {
+  const recs: string[] = [];
+
+  const critical = activeIncidents.filter((i) => i.severity === "critical");
+  if (critical.length > 0) {
+    recs.push(
+      `URGENT: ${critical.length} critical incident(s) require immediate attention`
+    );
+  }
+
+  const unresolved = activeIncidents.filter((i) => i.status === "investigating");
+  if (unresolved.length > 0) {
+    recs.push(
+      `${unresolved.length} incident(s) still under investigation`
+    );
+  }
+
+  if (activeIncidents.length === 0) {
+    recs.push("No active incidents - great job maintaining stability!");
+  }
+
+  return recs;
+}
+
+function buildTimeline(incidents: Incident[]): IncidentTimelineEntry[] {
+  const timeline: IncidentTimelineEntry[] = [];
+
+  incidents.forEach((incident) => {
+    timeline.push({
+      timestamp: incident.createdAt,
+      type: "created",
+      description: `Incident created: ${incident.title}`,
+      actor: "system",
+    });
+
+    if (incident.resolvedAt) {
+      timeline.push({
+        timestamp: incident.resolvedAt,
+        type: "resolved",
+        description: `Incident resolved: ${incident.title}`,
+        actor: "system",
+      });
+    }
+  });
+
+  return timeline.sort(
+    (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+  );
+}
+
+export function getSeverityColor(severity: Incident["severity"]): string {
+  switch (severity) {
+    case "critical":
+      return "text-red-600";
+    case "high":
+      return "text-orange-600";
+    case "medium":
+      return "text-yellow-600";
+    case "low":
+      return "text-blue-600";
+  }
+}
+
+export function getIncidentTypeIcon(type: Incident["type"]): string {
+  switch (type) {
+    case "security":
+      return "🔒";
+    case "bug":
+      return "🐛";
+    case "regression":
+      return "↩️";
+    case "performance":
+      return "⚡";
+    case "outage":
+      return "🚨";
+  }
 }
