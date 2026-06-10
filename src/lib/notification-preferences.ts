@@ -210,7 +210,7 @@ class NotificationPreferencesManager {
         ...parsed,
         events: new Map(parsed.events || []),
       };
-      this.preferences.set(prefs.userId, prefs);
+      this.preferences.set(prefs.authorId, prefs);
       return prefs;
     } catch {
       return null;

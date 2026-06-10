@@ -48,7 +48,7 @@ export class ContributorRecognition {
 
   evaluateContributor(contributor: Partial<Contributor>): Contributor {
     const full: Contributor = {
-      username: contributor.username ?? "unknown",
+      username: contributor.authorname ?? "unknown",
       avatarUrl: contributor.avatarUrl,
       contributions: contributor.contributions ?? 0,
       firstContribution: contributor.firstContribution,
@@ -142,10 +142,10 @@ export class ContributorRecognition {
     })[0];
 
     if (!topBadge) {
-      return `Thanks @${contributor.username} for your contribution! Keep up the great work!`;
+      return `Thanks @${contributor.authorname} for your contribution! Keep up the great work!`;
     }
 
-    return `Amazing work @${contributor.username}! You've earned the ${topBadge.name} ${topBadge.icon} badge! (Score: ${score})`;
+    return `Amazing work @${contributor.authorname}! You've earned the ${topBadge.name} ${topBadge.icon} badge! (Score: ${score})`;
   }
 
   getProgressToNextBadge(contributor: Contributor): { next: Achievement; progress: number } | null {

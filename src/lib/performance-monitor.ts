@@ -55,7 +55,7 @@ export function analyzePerformance(
   );
 
   return {
-    repository: repo.full_name,
+    repository: repo.identity.fullName,
     timestamp: new Date(),
     responseTime,
     quality,
@@ -72,7 +72,7 @@ function calculateResponseTime(
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const recentIssues = issues.filter(
-    (i) => new Date(i.created_at) > thirtyDaysAgo
+    (i) => new Date(i.createdAt) > thirtyDaysAgo
   );
 
   let totalResponseTime = 0;
@@ -80,8 +80,8 @@ function calculateResponseTime(
   let firstResponseCount = 0;
 
   recentIssues.forEach((issue) => {
-    if (issue.comments > 0) {
-      totalResponseTime += issue.comments * 2; // Simplified calculation
+    if (issue.commentCount > 0) {
+      totalResponseTime += issue.commentCount * 2; // Simplified calculation
       responseCount++;
       firstResponseCount++;
     }
@@ -91,7 +91,7 @@ function calculateResponseTime(
     ? totalResponseTime / responseCount
     : 48;
 
-  const recentPRs = prs.filter((p) => new Date(p.created_at) > thirtyDaysAgo);
+  const recentPRs = prs.filter((p) => new Date(p.createdAt) > thirtyDaysAgo);
   const avgPRReviewTime = recentPRs.length > 0
     ? recentPRs.reduce((sum, pr) => sum + pr.commits * 3, 0) / recentPRs.length
     : 24;
@@ -129,15 +129,15 @@ function calculateProductivity(
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const recentIssues = issues.filter(
-    (i) => new Date(i.updated_at) > sevenDaysAgo && i.state === "closed"
+    (i) => new Date(i.updatedAt) > sevenDaysAgo && i.state === "closed"
   );
   const recentPRs = prs.filter(
-    (p) => new Date(p.updated_at) > sevenDaysAgo && p.merged
+    (p) => new Date(p.updatedAt) > sevenDaysAgo && p.mergedAt
   );
 
   const uniqueContributors = new Set([
-    ...issues.map((i) => i.user.login),
-    ...prs.map((p) => p.user.login),
+    ...issues.map((i) => i.author),
+    ...prs.map((p) => p.author),
   ]);
 
   return {

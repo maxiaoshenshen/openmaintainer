@@ -29,7 +29,7 @@ export function analyzeCommunityHealth(
   metrics.push({
     name: "Response Time",
     score: scoreResponseTime(avgResponseTime),
-    trend: determineTrend(avgResponseTime, repo.created_at),
+    trend: determineTrend(avgResponseTime, repo.createdAt),
     description: `Average response time: ${avgResponseTime.toFixed(1)} hours`,
     recommendations: generateResponseRecommendations(avgResponseTime),
   });
@@ -80,7 +80,7 @@ export function analyzeCommunityHealth(
   );
 
   return {
-    repository: repo.full_name,
+    repository: repo.identity.fullName,
     overallScore,
     metrics,
     healthTrend: determineOverallTrend(metrics),
@@ -90,10 +90,10 @@ export function analyzeCommunityHealth(
 
 function calculateAvgResponseTime(issues: Issue[], prs: PullRequest[]): number {
   const responses = [...issues, ...prs]
-    .filter((item) => item.created_at && item.updated_at)
+    .filter((item) => item.createdAt && item.updatedAt)
     .map((item) => {
-      const created = new Date(item.created_at);
-      const updated = new Date(item.updated_at);
+      const created = new Date(item.createdAt);
+      const updated = new Date(item.updatedAt);
       return (updated.getTime() - created.getTime()) / (1000 * 60 * 60);
     });
 
@@ -146,10 +146,10 @@ function calculateEngagement(
   recentDate.setDate(recentDate.getDate() - 30);
 
   const recentIssues = issues.filter(
-    (i) => new Date(i.created_at) > recentDate
+    (i) => new Date(i.createdAt) > recentDate
   ).length;
   const recentPRs = prs.filter(
-    (p) => new Date(p.created_at) > recentDate
+    (p) => new Date(p.createdAt) > recentDate
   ).length;
   const activeContributors = getActiveContributors(contributors).length;
 
@@ -194,8 +194,8 @@ function determineEngagementTrend(
   const recentDate = new Date();
   recentDate.setDate(recentDate.getDate() - 7);
   const recentActivity = [
-    ...issues.filter((i) => new Date(i.updated_at) > recentDate),
-    ...prs.filter((p) => new Date(p.updated_at) > recentDate),
+    ...issues.filter((i) => new Date(i.updatedAt) > recentDate),
+    ...prs.filter((p) => new Date(p.updatedAt) > recentDate),
   ].length;
   return recentActivity > 10 ? "up" : recentActivity < 3 ? "down" : "stable";
 }

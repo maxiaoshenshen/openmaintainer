@@ -68,7 +68,7 @@ function calculateIssuePriority(issue: Issue): number {
   let priority = 50;
 
   // Higher priority for more comments (community interest)
-  priority += Math.min(issue.comments * 2, 20);
+  priority += Math.min(issue.commentCount * 2, 20);
 
   // Priority boost for issues with assignees
   if ((issue.assignees || []).length > 0) priority += 15;

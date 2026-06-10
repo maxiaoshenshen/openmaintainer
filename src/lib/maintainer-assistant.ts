@@ -181,7 +181,7 @@ export function generateDailyBriefing(
   );
   const recentPRs = repo.pullRequests.filter(pr => new Date(pr.createdAt) >= cutoff);
   const mergedPRs = repo.pullRequests.filter(pr => 
-    (pr.state === "merged" || pr.status === "merged") && pr.mergedAt && new Date(pr.mergedAt) >= cutoff
+    (pr.state === "merged" || pr.status === "merged") && pr.mergedAtAt && new Date(pr.mergedAtAt) >= cutoff
   );
   
   const urgentItems: AssistantAction[] = [];

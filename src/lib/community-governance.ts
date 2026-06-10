@@ -2,7 +2,7 @@
  * Community Governance Framework
  * Defines governance policies and contribution guidelines
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export type GovernanceRole = "maintainer" | "reviewer" | "contributor" | "viewer";
 

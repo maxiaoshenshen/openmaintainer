@@ -113,7 +113,7 @@ export function addTeamMember(
   if (!team) return null;
 
   // Check if member already exists
-  if (team.members.some((m) => m.username === username)) {
+  if (team.members.some((m) => m.authorname === username)) {
     return null;
   }
 

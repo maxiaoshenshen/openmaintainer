@@ -2,7 +2,7 @@
  * SLA Calculator
  * Calculate and track service level agreements for responses
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface SLATarget {
   type: "issue-response" | "pr-review" | "security" | "bugfix";

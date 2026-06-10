@@ -144,16 +144,16 @@ export function getTierColor(tier: ContributorValueScore['tier']): string {
 
 export function suggestRecognition(contributor: ContributorValueScore): string {
   if (contributor.tier === 'diamond') {
-    return `Consider featuring ${contributor.profile.username} in your README or as a project maintainer.`;
+    return `Consider featuring ${contributor.profile.authorname} in your README or as a project maintainer.`;
   }
   if (contributor.tier === 'platinum') {
-    return `Consider inviting ${contributor.profile.username} as a co-maintainer or committer.`;
+    return `Consider inviting ${contributor.profile.authorname} as a co-maintainer or committer.`;
   }
   if (contributor.tier === 'gold') {
-    return `Send a shoutout to ${contributor.profile.username} in your next release notes or social media.`;
+    return `Send a shoutout to ${contributor.profile.authorname} in your next release notes or social media.`;
   }
   if (contributor.tier === 'silver' || contributor.tier === 'bronze') {
-    return `Send a thank-you message to ${contributor.profile.username} to encourage continued contributions.`;
+    return `Send a thank-you message to ${contributor.profile.authorname} to encourage continued contributions.`;
   }
-  return `Welcome ${contributor.profile.username} and guide them to their first contribution!`;
+  return `Welcome ${contributor.profile.authorname} and guide them to their first contribution!`;
 }

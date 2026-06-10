@@ -2,7 +2,7 @@
  * Code Quality Analyzer
  * Analyzes code health, complexity, and technical debt
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface CodeQualityMetrics {
   complexity: number;

@@ -60,7 +60,7 @@ function classifyIssue(issue: MaintainerIssue): IssueTriage {
   const priority: IssueTriage["priority"] =
     category === "bug" && includesAny(text, ["install", "fail", "regression"])
       ? "high"
-      : issue.comments >= 5
+      : issue.commentCount >= 5
         ? "normal"
         : category === "documentation"
           ? "low"

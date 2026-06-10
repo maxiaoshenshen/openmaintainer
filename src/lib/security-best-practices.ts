@@ -2,7 +2,7 @@
  * Security Best Practices Checker
  * Analyzes repository for security vulnerabilities and best practices
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface SecurityCheck {
   category: string;

@@ -2,7 +2,7 @@
  * Cross-Repository Analytics
  * Analyze patterns across multiple repositories
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface CrossRepoMetrics {
   totalStars: number;

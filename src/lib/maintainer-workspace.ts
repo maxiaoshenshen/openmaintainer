@@ -2,7 +2,7 @@
  * Maintainer Workspace Manager
  * Multi-repository workspace management
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface Workspace {
   id: string;

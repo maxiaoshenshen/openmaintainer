@@ -42,7 +42,7 @@ export function analyzeIncidents(
     .slice(0, 5);
 
   return {
-    repository: repo.full_name,
+    repository: repo.identity.fullName,
     incidents,
     activeIncidents,
     recentResolutions,
@@ -73,8 +73,8 @@ function detectIncidents(issues: Issue[], prs: PullRequest[]): Incident[] {
       description: issue.body || "",
       affectedVersions: extractVersions(issue.body || ""),
       status: issue.state === "closed" ? "resolved" : "investigating",
-      createdAt: new Date(issue.created_at),
-      resolvedAt: issue.state === "closed" ? new Date(issue.updated_at) : undefined,
+      createdAt: new Date(issue.createdAt),
+      resolvedAt: issue.state === "closed" ? new Date(issue.updatedAt) : undefined,
       relatedIssues: [issue.id],
       relatedPRs: [],
     });
@@ -97,8 +97,8 @@ function detectIncidents(issues: Issue[], prs: PullRequest[]): Incident[] {
       description: issue.body || "",
       affectedVersions: extractVersions(issue.body || ""),
       status: issue.state === "closed" ? "resolved" : "investigating",
-      createdAt: new Date(issue.created_at),
-      resolvedAt: issue.state === "closed" ? new Date(issue.updated_at) : undefined,
+      createdAt: new Date(issue.createdAt),
+      resolvedAt: issue.state === "closed" ? new Date(issue.updatedAt) : undefined,
       relatedIssues: [issue.id],
       relatedPRs: [],
     });
@@ -120,8 +120,8 @@ function detectIncidents(issues: Issue[], prs: PullRequest[]): Incident[] {
       description: issue.body || "",
       affectedVersions: extractVersions(issue.body || ""),
       status: issue.state === "closed" ? "resolved" : "identified",
-      createdAt: new Date(issue.created_at),
-      resolvedAt: issue.state === "closed" ? new Date(issue.updated_at) : undefined,
+      createdAt: new Date(issue.createdAt),
+      resolvedAt: issue.state === "closed" ? new Date(issue.updatedAt) : undefined,
       relatedIssues: [issue.id],
       relatedPRs: [],
     });
@@ -135,8 +135,8 @@ function detectSeverity(
   type: "security" | "bug"
 ): "critical" | "high" | "medium" | "low" {
   if (type === "security") return "critical";
-  if (issue.comments > 10) return "high";
-  if (issue.comments > 3) return "medium";
+  if (issue.commentCount > 10) return "high";
+  if (issue.commentCount > 3) return "medium";
   return "low";
 }
 

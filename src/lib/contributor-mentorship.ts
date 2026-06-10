@@ -2,7 +2,7 @@
  * Contributor Mentorship Program
  * Pair new contributors with experienced mentors
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface MentorshipPair {
   mentor: string;

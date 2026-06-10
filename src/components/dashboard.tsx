@@ -83,6 +83,7 @@ import {
   readRecentRepos,
   addRecentRepo,
   removeRecentRepo,
+  type RecentRepo,
 } from "@/lib/recent-repos-store";
 import {
   createSharedReport,
@@ -781,13 +782,13 @@ export function Dashboard({
     const mergedPRs = repository.pullRequests.filter((pr) => pr.status === "merged").length;
     const stats = calculateCommunityStats(
       repository.stars,
-      contributorImpact.totals.uniqueContributors,
+      contributorImpact.totals.contributorsWaiting,
       repository.openIssues,
       repository.pullRequests.length,
       mergedPRs,
       2, // avg response days
       5, // returning contributors
-      contributorImpact.totals.uniqueContributors,
+      contributorImpact.totals.contributorsWaiting,
       3 // reviewers
     );
     setCommunityStats(stats);
@@ -799,13 +800,13 @@ export function Dashboard({
     const weeklyStats = {
       prsMerged: repository.pullRequests.filter(pr => pr.status === "merged").length,
       issuesClosed: repository.closedIssues || 0,
-      reviewsGiven: contributorImpact.totals.uniqueContributors,
+      reviewsGiven: contributorImpact.totals.contributorsWaiting,
       responsesGiven: (analysis.inbox.pullRequests?.length || 0) + (analysis.inbox.issues?.length || 0),
     };
     const allTimeStats = {
       totalPrsMerged: repository.pullRequests.filter(pr => pr.status === "merged").length * 5,
       totalIssuesClosed: (repository.closedIssues || 0) * 3,
-      totalReviewsGiven: contributorImpact.totals.uniqueContributors * 3,
+      totalReviewsGiven: contributorImpact.totals.contributorsWaiting * 3,
       totalResponsesGiven: ((analysis.inbox.pullRequests?.length || 0) + (analysis.inbox.issues?.length || 0)) * 2,
       yearsActive: 1,
     };
@@ -897,7 +898,7 @@ export function Dashboard({
       repository.openIssues,
       repository.pullRequests.length,
       commandQueue.items.length,
-      analysis.llm?.tokenUsage?.totalTokens ?? 0
+      0
     );
     const url = generateShareUrl(report);
     setSharedUrl(url);
@@ -917,14 +918,15 @@ export function Dashboard({
       language: locale,
     };
     const template = generatePRTemplate(opts);
-    await navigator.clipboard.writeText(template);
+    await navigator.clipboard.writeText(template.body);
     setCopiedPrTemplate(true);
     setTimeout(() => setCopiedPrTemplate(false), 2000);
   }
 
   function removeFromRecent(repo: string, event: React.MouseEvent) {
     event.stopPropagation();
-    setRecentRepos(removeRecentRepo(window.localStorage, repo));
+    removeRecentRepo(window.localStorage, repo);
+    setRecentRepos(readRecentRepos(window.localStorage));
   }
 
   useEffect(() => {

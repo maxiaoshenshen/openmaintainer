@@ -74,10 +74,10 @@ function suggestStarterIssues(issues: Issue[]): SuggestedIssue[] {
     }
 
     // Low comment count (less intimidating)
-    if (issue.comments === 0) {
+    if (issue.commentCount === 0) {
       score += 20;
       difficulty = "beginner";
-    } else if (issue.comments <= 5) {
+    } else if (issue.commentCount <= 5) {
       score += 10;
     }
 
@@ -123,7 +123,7 @@ function generateIssueReason(
   if (issue.labels.some((l) => l.toLowerCase().includes("good first issue"))) {
     return "Explicitly marked as a great first contribution";
   }
-  if (issue.comments === 0) {
+  if (issue.commentCount === 0) {
     return "Fresh issue with no prior discussion - perfect for first-timers";
   }
   if (difficulty === "beginner") {

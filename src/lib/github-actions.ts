@@ -108,7 +108,7 @@ export function calculateActionsSummary(runs: WorkflowRun[]): ActionsSummary {
   let durationCount = 0;
   runs.forEach(run => {
     if (run.conclusion !== null) {
-      const duration = new Date(run.updated_at).getTime() - new Date(run.created_at).getTime();
+      const duration = new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime();
       totalDuration += duration;
       durationCount++;
     }
@@ -134,7 +134,7 @@ export function calculateActionsSummary(runs: WorkflowRun[]): ActionsSummary {
   // Find last success date
   const lastSuccess = runs
     .filter(r => r.conclusion === "success")
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
 
   return {
     totalRuns: runs.length,
@@ -142,7 +142,7 @@ export function calculateActionsSummary(runs: WorkflowRun[]): ActionsSummary {
     averageDuration: Math.round(averageDuration / 1000),
     recentRuns: runs.slice(0, 10),
     mostFailingWorkflow,
-    lastSuccessDate: lastSuccess?.updated_at || null,
+    lastSuccessDate: lastSuccess?.updatedAt || null,
   };
 }
 

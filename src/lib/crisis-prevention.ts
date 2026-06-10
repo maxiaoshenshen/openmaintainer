@@ -2,7 +2,7 @@
  * Crisis Prevention System
  * Proactive monitoring for potential project crises
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface CrisisIndicator {
   name: string;

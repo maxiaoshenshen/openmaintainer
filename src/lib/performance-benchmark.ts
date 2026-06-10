@@ -2,7 +2,7 @@
  * Performance Benchmarking
  * Track and compare performance metrics over time
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface BenchmarkMetric {
   name: string;

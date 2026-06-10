@@ -46,12 +46,12 @@ function calculateTimeMetrics(
   
   // PR merge time (simulated)
   const avgMergeTimeHours = recentPRs
-    .filter(pr => pr.mergedAt)
+    .filter(pr => pr.mergedAtAt)
     .reduce((sum, pr) => {
       const created = new Date(pr.createdAt).getTime();
-      const merged = new Date(pr.mergedAt!).getTime();
+      const merged = new Date(pr.mergedAtAt!).getTime();
       return sum + (merged - created) / (1000 * 60 * 60);
-    }, 0) / Math.max(recentPRs.filter(pr => pr.mergedAt).length, 1) / 24;
+    }, 0) / Math.max(recentPRs.filter(pr => pr.mergedAtAt).length, 1) / 24;
   
   // Resolution rate
   const closedIssues = recentIssues.filter(i => i.state === "closed").length;

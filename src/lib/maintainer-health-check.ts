@@ -2,7 +2,7 @@
  * Maintainer Health Check
  * Comprehensive health check for repository and maintainer wellness
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface HealthMetric {
   name: string;

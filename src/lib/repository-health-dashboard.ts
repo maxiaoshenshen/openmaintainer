@@ -2,7 +2,7 @@
  * Repository Health Dashboard
  * Aggregated view of all repository health metrics
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface HealthWidget {
   id: string;

@@ -2,7 +2,7 @@
  * Maintainer Succession Planning
  * Ensure project continuity when maintainers leave
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface SuccessionPlan {
   currentMaintainer: string;

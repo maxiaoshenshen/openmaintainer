@@ -136,7 +136,7 @@ class GitHubAPIClient {
   async getRepository(owner: string, repo: string): Promise<GitHubRepoData> {
     const data = await this.request<any>(`/repos/${owner}/${repo}`);
     return {
-      fullName: data.full_name,
+      fullName: data.identity.fullName,
       description: data.description,
       stars: data.stargazers_count,
       forks: data.forks_count,
@@ -144,8 +144,8 @@ class GitHubAPIClient {
       openPRs: 0,
       language: data.language,
       license: data.license?.spdx_id || 'Unknown',
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
       lastRelease: data.release?.tag_name || null,
       topics: data.topics || [],
       defaultBranch: data.default_branch,
@@ -182,11 +182,11 @@ class GitHubAPIClient {
         number: issue.number,
         title: issue.title,
         state: issue.state as 'open' | 'closed',
-        author: issue.user.login,
-        createdAt: issue.created_at,
-        updatedAt: issue.updated_at,
+        author: issue.author,
+        createdAt: issue.createdAt,
+        updatedAt: issue.updatedAt,
         labels: issue.labels.map((l: any) => l.name),
-        comments: issue.comments,
+        comments: issue.commentCount,
         assignees: issue.assignees.map((a: any) => a.login),
       }));
   }
@@ -208,11 +208,11 @@ class GitHubAPIClient {
     return data.map((pr) => ({
       number: pr.number,
       title: pr.title,
-      state: pr.merged_at ? 'merged' : pr.state as 'open' | 'closed',
-      author: pr.user.login,
-      createdAt: pr.created_at,
-      updatedAt: pr.updated_at,
-      mergedAt: pr.merged_at,
+      state: pr.mergedAt_at ? 'merged' : pr.state as 'open' | 'closed',
+      author: pr.author,
+      createdAt: pr.createdAt,
+      updatedAt: pr.updatedAt,
+      mergedAt: pr.mergedAt_at,
       labels: pr.labels.map((l: any) => l.name),
       additions: pr.additions || 0,
       deletions: pr.deletions || 0,
@@ -287,7 +287,7 @@ class GitHubAPIClient {
       assignees: issue.assignees,
       createdAt: new Date(issue.createdAt),
       updatedAt: new Date(issue.updatedAt),
-      comments: issue.comments,
+      comments: issue.commentCount,
     }));
   }
 }

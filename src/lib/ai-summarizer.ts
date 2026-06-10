@@ -129,13 +129,13 @@ function summarizeIssue(issue: MaintainerIssue): SummarizedItem {
   // Determine if action needed
   const actionNeeded = sentiment === "urgent" || 
     (issue.state === "open" && issue.labels.length === 0) ||
-    (issue.comments === 0 && !issue.body.includes("?"));
+    (issue.commentCount === 0 && !issue.body.includes("?"));
   
   // Suggest labels based on content
   const suggestedLabels: string[] = [];
   if (sentiment === "urgent") suggestedLabels.push("priority:critical");
   if (issue.labels.length === 0) suggestedLabels.push("needs-triage");
-  if (issue.comments > 0) suggestedLabels.push("waiting-for-maintainer");
+  if (issue.commentCount > 0) suggestedLabels.push("waiting-for-maintainer");
   
   return {
     id: `issue-${issue.number}`,

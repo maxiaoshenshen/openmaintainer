@@ -2,7 +2,7 @@
  * Automated Testing Suggestor
  * Analyzes code and suggests automated test coverage
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface TestingSuggestion {
   file: string;

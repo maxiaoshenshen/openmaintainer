@@ -72,13 +72,13 @@ function analyzeCode(pr: PullRequest): CodeReviewFinding[] {
   }
 
   // Check file changes
-  if (pr.changed_files > 20) {
+  if (pr.changedFiles > 20) {
     findings.push({
       type: "suggestion",
       severity: "warning",
       category: "Scope",
       title: "Many files changed",
-      description: `${pr.changed_files} files modified. Ensure each change is related and necessary.`,
+      description: `${pr.changedFiles} files modified. Ensure each change is related and necessary.`,
     });
   }
 

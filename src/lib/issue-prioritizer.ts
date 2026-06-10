@@ -20,10 +20,10 @@ export interface PrioritizationReport {
 export function prioritizeIssues(issues: { id: string; labels: string[]; comments: number; age: number }[]): PriorityScore[] {
   return issues.map(issue => {
     const factors = [
-      { name: "comment_count", weight: 0.2, value: Math.min(issue.comments / 10, 1) },
+      { name: "comment_count", weight: 0.2, value: Math.min(issue.commentCount / 10, 1) },
       { name: "age", weight: 0.15, value: Math.min(issue.age / 30, 1) },
       { name: "priority_label", weight: 0.3, value: issue.labels.some(l => l.includes("critical") || l.includes("bug")) ? 1 : 0.3 },
-      { name: "engagement", weight: 0.2, value: Math.min(issue.comments / 5, 1) },
+      { name: "engagement", weight: 0.2, value: Math.min(issue.commentCount / 5, 1) },
       { name: "stale_risk", weight: 0.15, value: issue.age > 14 ? 0.8 : 0.2 },
     ];
 

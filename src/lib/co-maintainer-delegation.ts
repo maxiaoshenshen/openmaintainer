@@ -2,7 +2,7 @@
  * Co-Maintainer Delegation System
  * Distribute maintenance responsibilities across team
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface Maintainer {
   username: string;

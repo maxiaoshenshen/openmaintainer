@@ -105,11 +105,11 @@ function toIssue(issue: GitHubIssueResponse): MaintainerIssue {
     number: issue.number,
     title: issue.title,
     body: issue.body ?? "",
-    author: issue.user?.login ?? "unknown",
+    author: issue.author?.login ?? "unknown",
     labels: labelNames(issue.labels),
-    comments: issue.comments,
-    createdAt: issue.created_at,
-    updatedAt: issue.updated_at,
+    comments: issue.commentCount,
+    createdAt: issue.createdAt,
+    updatedAt: issue.updatedAt,
     url: issue.html_url,
   };
 }
@@ -120,13 +120,13 @@ function toPullRequest(pullRequest: GitHubPullRequestResponse): MaintainerPullRe
     number: pullRequest.number,
     title: pullRequest.title,
     body: pullRequest.body ?? "",
-    author: pullRequest.user?.login ?? "unknown",
+    author: pullRequest.author?.login ?? "unknown",
     additions: pullRequest.additions,
     deletions: pullRequest.deletions,
-    changedFiles: pullRequest.changed_files,
+    changedFiles: pullRequest.changedFiles,
     labels: labelNames(pullRequest.labels ?? []),
-    createdAt: pullRequest.created_at,
-    updatedAt: pullRequest.updated_at,
+    createdAt: pullRequest.createdAt,
+    updatedAt: pullRequest.updatedAt,
     url: pullRequest.html_url,
   };
 }
@@ -152,7 +152,7 @@ export async function fetchMaintainerRepository(input: string): Promise<Maintain
     openIssues: repo.open_issues_count,
     defaultBranch: repo.default_branch,
     license: repo.license?.spdx_id ?? repo.license?.name ?? null,
-    updatedAt: repo.updated_at,
+    updatedAt: repo.updatedAt,
     issues: issues.filter((issue) => !issue.pull_request).map(toIssue),
     pullRequests: pullRequests.map(toPullRequest),
   };

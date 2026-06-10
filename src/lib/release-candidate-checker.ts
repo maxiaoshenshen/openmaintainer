@@ -2,7 +2,7 @@
  * Release Candidate Checker
  * Validate release readiness before publishing
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface ReleaseCriteria {
   name: string;

@@ -5,7 +5,7 @@ import {
   getPerformanceTrend,
   formatMetricValue,
 } from "./performance-monitor";
-import type { Repository, Issue, PullRequest } from "./types";
+import type { MaintainerRepository as Repository, MaintainerIssue as Issue, MaintainerPullRequest as PullRequest } from "./types";
 
 describe("performance-monitor", () => {
   describe("analyzePerformance", () => {

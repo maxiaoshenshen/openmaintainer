@@ -162,6 +162,6 @@ export function generateRecognitionMessage(contributor: Contributor): string {
     platinum: '💎',
   };
 
-  return `${tierEmoji[contributor.tier]} ${contributor.username} - ${contributor.tier} contributor! ` +
+  return `${tierEmoji[contributor.tier]} ${contributor.authorname} - ${contributor.tier} contributor! ` +
     `Score: ${contributor.score} | ${contributor.commits} commits | ${contributor.prsMerged} PRs merged`;
 }

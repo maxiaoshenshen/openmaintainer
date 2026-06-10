@@ -175,7 +175,7 @@ export function createDemoAnalysis(): MaintainerAnalysis {
     createdAt: issue.createdAt,
     updatedAt: issue.updatedAt,
     url: issue.url,
-    commentCount: issue.comments,
+    commentCount: issue.commentCount,
     assignees: [] as string[],
     milestone: null,
     pullRequest: null,

@@ -2,7 +2,7 @@
  * Community Health Score Calculator
  * Comprehensive health metrics for open source community
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface CommunityHealth {
   score: number;

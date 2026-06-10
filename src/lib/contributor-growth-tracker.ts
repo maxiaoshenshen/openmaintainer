@@ -2,7 +2,7 @@
  * Contributor Growth Tracker
  * Tracks and analyzes contributor growth patterns
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface ContributorGrowth {
   month: string;

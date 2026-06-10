@@ -2,7 +2,7 @@
  * Project Sustainability Roadmap
  * Long-term planning and sustainability metrics
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface SustainabilityMilestone {
   id: string;

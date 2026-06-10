@@ -4,7 +4,7 @@ import {
   getSeverityColor,
   getIncidentTypeIcon,
 } from "./incident-response";
-import type { Repository, Issue, PullRequest } from "./types";
+import type { MaintainerRepository as Repository, MaintainerIssue as Issue, MaintainerPullRequest as PullRequest } from "./types";
 
 describe("incident-response", () => {
   describe("analyzeIncidents", () => {

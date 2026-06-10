@@ -2,6 +2,15 @@
  * PR Template Generator
  * Creates customizable PR templates for repositories
  */
+export interface PRTemplateOptions {
+  prTitle: string;
+  prNumber: number;
+  author: string;
+  reviewStatus: "pending" | "approved" | "changes_requested";
+  reviewSummary?: string;
+  language: string;
+}
+
 export interface PRTemplateConfig {
   types: string[];
   sections: string[];
@@ -36,7 +45,7 @@ export function getTemplateTypes(): TemplateType[] {
   ];
 }
 
-export function generatePRTemplate(config: PRTemplateConfig): PRTemplate {
+export function generatePRTemplate(config: PRTemplateOptions): PRTemplate {
   const typeSection = config.types.length > 0 
     ? `## Type\n${config.types.map(t => `- [ ] ${t}`).join('\n')}`
     : '';

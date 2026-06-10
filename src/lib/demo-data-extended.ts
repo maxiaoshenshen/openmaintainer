@@ -134,7 +134,7 @@ export function generateExtendedDemoData() {
   const sprintPlan = createSprintPlan(demoRepository, demoIssues, demoPullRequests, demoContributors);
   const performance = analyzePerformance(demoRepository, demoIssues, demoPullRequests);
   const performanceAlerts = generateAlerts(performance);
-  const releasePlan = planRelease(demoRepository, demoPullRequests.filter(pr => pr.merged), demoIssues, "1.2.0");
+  const releasePlan = planRelease(demoRepository, demoPullRequests.filter(pr => pr.mergedAt), demoIssues, "1.2.0");
   const codeReview = performCodeReview({ pr: demoPullRequests[0], repo: demoRepository, reviewer: demoContributors[0] });
   const onboarding = generateOnboardingPath(demoRepository, demoIssues, demoContributors);
   const incidents = analyzeIncidents(demoRepository, demoIssues, demoPullRequests);

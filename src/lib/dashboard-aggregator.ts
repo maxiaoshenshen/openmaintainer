@@ -46,7 +46,7 @@ export function aggregateDashboardData(
   };
   
   const weeklyStats: WeeklyStats = {
-    prsMerged: weekly.summary.mergedPRs,
+    prsMerged: weekly.summary.mergedAtPRs,
     issuesClosed: weekly.summary.closedIssues,
     reviewsGiven: Math.min(weekly.summary.newPRs, 3),
     responsesGiven: Math.min(weekly.summary.newIssues, 3),

@@ -49,7 +49,7 @@ export function calculateWeeklyStats(
   const newPRs = repo.pullRequests.filter(pr => filterByDate(pr.createdAt));
   const mergedPRs = repo.pullRequests.filter(pr => 
     (pr.state === "merged" || pr.status === "merged") && 
-    pr.mergedAt && filterByDate(pr.mergedAt)
+    pr.mergedAtAt && filterByDate(pr.mergedAtAt)
   );
 
   const contributors = new Set([
@@ -62,7 +62,7 @@ export function calculateWeeklyStats(
     closedIssues: closedIssues.length,
     newPRs: newPRs.length,
     mergedPRs: mergedPRs.length,
-    totalComments: newIssues.reduce((sum, i) => sum + i.comments, 0) + 
+    totalComments: newIssues.reduce((sum, i) => sum + i.commentCount, 0) + 
                     newPRs.reduce((sum, pr) => sum + (pr.commentCount || 0), 0),
     activeContributors: contributors.size
   };
@@ -121,8 +121,8 @@ export function generateHighlights(
 ): string[] {
   const highlights: string[] = [];
 
-  if (summary.mergedPRs > 0) {
-    highlights.push("Merged " + summary.mergedPRs + " pull request" + (summary.mergedPRs > 1 ? "s" : ""));
+  if (summary.mergedAtPRs > 0) {
+    highlights.push("Merged " + summary.mergedAtPRs + " pull request" + (summary.mergedAtPRs > 1 ? "s" : ""));
   }
 
   if (summary.newIssues > summary.closedIssues) {
@@ -158,7 +158,7 @@ export function generateChallenges(summary: WeeklyReport["summary"], staleItems:
     challenges.push("High volume of new issues - consider labeling automation");
   }
 
-  if (summary.mergedPRs === 0 && summary.newPRs > 0) {
+  if (summary.mergedAtPRs === 0 && summary.newPRs > 0) {
     challenges.push("No PRs merged this week - review backlog");
   }
 
@@ -260,7 +260,7 @@ export function formatReportMarkdown(report: WeeklyReport): string {
   md += "| New Issues | " + report.summary.newIssues + " |\n";
   md += "| Closed Issues | " + report.summary.closedIssues + " |\n";
   md += "| New PRs | " + report.summary.newPRs + " |\n";
-  md += "| Merged PRs | " + report.summary.mergedPRs + " |\n";
+  md += "| Merged PRs | " + report.summary.mergedAtPRs + " |\n";
   md += "| Active Contributors | " + report.summary.activeContributors + " |\n\n";
 
   if (report.topContributors.length > 0) {

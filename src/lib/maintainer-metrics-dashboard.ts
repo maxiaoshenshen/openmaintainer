@@ -2,7 +2,7 @@
  * Maintainer Metrics Dashboard
  * Personal metrics for maintainer productivity
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface MaintainerMetrics {
   maintainer: string;

@@ -2,7 +2,7 @@
  * Maintainer Burnout Detector
  * Monitors maintainer activity patterns and identifies burnout risk
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface BurnoutRisk {
   level: "low" | "medium" | "high" | "critical";

@@ -41,7 +41,7 @@ export function analyzeDependencies(
   const dependencies = parsePackageJson(packageJson);
 
   return {
-    repository: repo.full_name,
+    repository: repo.identity.fullName,
     total: dependencies.length,
     outdated: dependencies.filter((d) => d.outdated).length,
     vulnerable: dependencies.filter((d) => d.vulnerable).length,
@@ -190,7 +190,7 @@ export function analyzeLicenses(
   const knownLicenses = detectKnownLicenses(detectedLicenses);
 
   return {
-    repository: repo.full_name,
+    repository: repo.identity.fullName,
     licenses: knownLicenses,
     hasIncompatible: knownLicenses.some((l) => !l.compatible),
     summary: generateLicenseSummary(knownLicenses),

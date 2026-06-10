@@ -25,7 +25,7 @@ export interface CalendarMonth {
  */
 export function generateMaintenanceEvents(
   responseSla: { items: Array<{ contributor: string; waitDays: number; targetDays: number; repository?: string; title?: string; url?: string }> },
-  releaseGate: { items: Array<{ milestone: string; status: string; dueDate?: string }> }
+  releaseGate: { blockers: ReleaseGateItem[] }
 ): MaintenanceEvent[] {
   const events: MaintenanceEvent[] = [];
   const today = new Date();

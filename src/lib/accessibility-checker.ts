@@ -2,7 +2,7 @@
  * Accessibility Checker
  * Analyze repository documentation and code for accessibility compliance
  */
-import type { Repository } from "./types";
+import type { MaintainerRepository as Repository } from "./types";
 
 export interface AccessibilityCheck {
   category: string;

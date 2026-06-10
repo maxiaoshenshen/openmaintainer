@@ -56,7 +56,7 @@ class MetricsExporter {
     this.addGauge('open_issues_total', 'Total number of open issues', metrics.openIssues, { repo: repository });
     this.addGauge('open_prs_total', 'Total number of open pull requests', metrics.openPullRequests, { repo: repository });
     this.addGauge('closed_issues_daily', 'Issues closed in the last 24 hours', metrics.closedIssuesToday, { repo: repository });
-    this.addGauge('merged_prs_daily', 'PRs merged in the last 24 hours', metrics.mergedPRsToday, { repo: repository });
+    this.addGauge('merged_prs_daily', 'PRs merged in the last 24 hours', metrics.mergedAtPRsToday, { repo: repository });
     this.addGauge('avg_response_time_hours', 'Average response time in hours', metrics.averageResponseTimeHours, { repo: repository });
     this.addGauge('active_contributors', 'Number of active contributors', metrics.activeContributors, { repo: repository });
     this.addGauge('stars_total', 'Total star count', metrics.stars, { repo: repository });
