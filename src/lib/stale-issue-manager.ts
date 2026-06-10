@@ -89,7 +89,7 @@ export class StaleIssueManager {
     return `${this.config.messageTemplate}\n\nIt will be closed in ${issue.daysUntilClose} days if there is no further activity.`;
   }
 
-  generateCloseMessage(issue: StaleIssue): string {
+  generateCloseMessage(_issue: StaleIssue): string {
     return `${this.config.closeMessageTemplate}\n\nIf you still experience this problem, please open a new issue with updated information.`;
   }
 
