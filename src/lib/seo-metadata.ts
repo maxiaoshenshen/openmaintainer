@@ -45,7 +45,7 @@ export function generateDashboardMetadata(
       "maintainer",
       "GitHub",
       "repository",
-      ...analysis.health.factors.map((f) => f.name),
+      ...analysis.health.strengths.slice(0, 3).map(s => s.split(" ")[0]),
     ],
   };
 }

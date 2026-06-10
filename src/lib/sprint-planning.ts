@@ -1,4 +1,6 @@
-import type { Repository, Issue, PullRequest, Contributor } from "./types";
+import type { MaintainerRepository as Repository, MaintainerIssue as Issue, MaintainerPullRequest as PullRequest } from "./types";
+// Local contributor type for sprint planning
+type Contributor = { contributions: number; name?: string };
 
 export interface SprintGoal {
   id: string;
@@ -41,7 +43,7 @@ export function createSprintPlan(
   const upcomingSprints = createUpcomingSprints(prioritizedIssues);
 
   return {
-    repository: repo.full_name,
+    repository: repo.identity.fullName,
     currentSprint,
     upcomingSprints,
     velocity: calculateVelocity(contributors),
@@ -53,7 +55,7 @@ export function createSprintPlan(
   };
 }
 
-function prioritizeIssues(issues: Issue[]): Issue[] {
+function prioritizeIssues(issues: Issue[]): (Issue & { priority: number })[] {
   return issues
     .map((issue) => ({
       ...issue,
@@ -69,7 +71,7 @@ function calculateIssuePriority(issue: Issue): number {
   priority += Math.min(issue.comments * 2, 20);
 
   // Priority boost for issues with assignees
-  if (issue.assignees.length > 0) priority += 15;
+  if ((issue.assignees || []).length > 0) priority += 15;
 
   // Priority boost for labeled issues
   priority += Math.min(issue.labels.length * 5, 15);

@@ -188,7 +188,7 @@ export function generateEngagementFunnel(
   return {
     visitors: estimatedVisitors,
     stargazers: stars,
-    forkers,
+    forkers: estimatedForkers,
     contributors: totalContributors,
     repeatContributors: estimatedRepeatContributors,
     maintainers: Math.max(1, Math.floor(totalContributors * 0.05)),

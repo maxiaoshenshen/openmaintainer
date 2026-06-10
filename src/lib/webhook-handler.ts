@@ -12,7 +12,8 @@ export type WebhookEventType =
   | 'star'
   | 'fork'
   | 'member'
-  | 'workflow_run';
+  | 'workflow_run'
+  | '*';
 
 export interface WebhookPayload {
   action: string;
@@ -136,7 +137,7 @@ class WebhookHandler {
     actionRequired: boolean;
   } {
     const { type, action, data, sender, repository } = event;
-    const insights: Record<WebhookEventType, () => any> = {
+    const insights = {
       push: () => ({
         type: 'code',
         summary: `${data.commits?.length || 0} commits pushed to ${data.ref}`,

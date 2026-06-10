@@ -1,4 +1,4 @@
-import type { Repository, PullRequest, Issue } from "./types";
+import type { MaintainerRepository as Repository, MaintainerPullRequest as PullRequest, MaintainerIssue as Issue } from "./types";
 
 export interface ReleasePlan {
   version: string;
@@ -117,7 +117,7 @@ function extractFeatures(prs: PullRequest[]): ReleaseFeature[] {
     .map((pr) => ({
       title: pr.title,
       pr,
-      contributor: pr.user.login,
+      contributor: pr.author,
       description: pr.body || pr.title,
     }));
 }
@@ -146,8 +146,8 @@ function extractBugfixes(
 function determineBugSeverity(pr: PullRequest): BugFix["severity"] {
   if (pr.body?.toLowerCase().includes("critical")) return "critical";
   if (pr.labels.some((l) => l.toLowerCase().includes("critical"))) return "critical";
-  if (pr.comments > 10) return "high";
-  if (pr.comments > 3) return "medium";
+  if ((pr.commentCount || 0) > 10) return "high";
+  if ((pr.commentCount || 0) > 3) return "medium";
   return "low";
 }
 

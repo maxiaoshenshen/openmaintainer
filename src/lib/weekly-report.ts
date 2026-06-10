@@ -170,7 +170,7 @@ export function generateNextWeekPriorities(repo: MaintainerRepository, weekEnd: 
   const weekEndStr = weekEnd.toISOString();
 
   const oldPRs = repo.pullRequests.filter(pr => 
-    pr.state === "open" && new Date(pr.createdAt) < weekEndStr
+    pr.state === "open" && new Date(pr.createdAt) < new Date(weekEndStr)
   );
 
   if (oldPRs.length > 0) {
