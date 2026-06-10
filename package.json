@@ -1,8 +1,8 @@
 {
   "name": "openmaintainer",
-  "version": "0.1.0",
-  "description": "AI-native workbench for open-source maintainers.",
-  "private": true,
+  "version": "0.2.0",
+  "description": "The all-in-one AI-powered workbench for open source maintainers. Analyze repositories, manage contributors, and ship with confidence.",
+  "private": false,
   "license": "MIT",
   "homepage": "https://openmaintainer.vercel.app",
   "repository": {
