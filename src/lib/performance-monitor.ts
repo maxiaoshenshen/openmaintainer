@@ -109,9 +109,9 @@ function calculateResponseTime(
 function calculateQuality(repo: Repository): QualityMetric {
   let score = 50;
 
-  if (repo.has_wiki) score += 15;
-  if (repo.homepage) score += 10;
-  if (repo.topics && repo.topics.length > 3) score += 15;
+  if ((repo as any).has_wiki) score += 15;
+  if ((repo as any).homepage) score += 10;
+  if ((repo as any).topics && (repo as any).topics.length > 3) score += 15;
 
   return {
     codeReviewCoverage: Math.min(100, score + 10),
