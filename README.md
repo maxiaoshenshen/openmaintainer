@@ -2,7 +2,11 @@
 
 **The all-in-one AI-powered workbench for open source maintainers.**
 
-[Live Demo](https://openmaintainer.vercel.app) · [GitHub](https://github.com/maxiaoshenshen/openmaintainer)
+[![CI](https://github.com/maxiaoshenshen/openmaintainer/actions/workflows/ci.yml/badge.svg)](https://github.com/maxiaoshenshen/openmaintainer/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+[Live Demo](https://openmaintainer.vercel.app) · [GitHub](https://github.com/maxiaoshenshen/openmaintainer) · [Report Bug](https://github.com/maxiaoshenshen/openmaintainer/issues)
 
 ---
 
@@ -56,7 +60,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000) — try demo mode or enter any GitHub repository.
 
 ---
 
@@ -66,7 +70,7 @@ Built with Next.js 16 + TypeScript + Tailwind CSS.
 
 - `src/app/` — Next.js App Router pages and API routes
 - `src/lib/` — Core maintainer logic (234 modules)
-- `src/components/` — React components (Dashboard, etc.)
+- `src/components/` — React components
 
 ---
 
@@ -79,20 +83,22 @@ Enter any GitHub repository to get instant analysis.
 Manage multiple repositories in one view. Track cross-repo health and contributor engagement.
 
 ### API Integration
-Use the API endpoints for programmatic access:
+```bash
+# Analyze a repository
+curl https://openmaintainer.vercel.app/api/repo/analyze?repo=owner/name
 
+# Get health report
+curl https://openmaintainer.vercel.app/api/health-report?repo=owner/name
 ```
-GET /api/repo/analyze?repo=owner/name
-GET /api/health-report?repo=owner/name
-GET /api/code-review?repo=owner/name&pr=123
-```
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ---
 
 ## License
 
-MIT
-
----
-
-*Built with ❤️ for the OSS maintainer community*
+MIT © OpenMaintainer contributors
