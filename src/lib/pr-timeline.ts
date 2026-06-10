@@ -73,11 +73,11 @@ export function analyzePRTimeline(pr: MaintainerPullRequest): PRTimeline {
     });
   }
   
-  if (pr.state === "merged" && pr.mergedAtAt) {
+  if (pr.state === "merged" && pr.mergedAt) {
     events.push({
-      timestamp: pr.mergedAtAt,
+      timestamp: pr.mergedAt,
       type: "merged",
-      duration: calculateDurationHours(pr.createdAt, pr.mergedAtAt)
+      duration: calculateDurationHours(pr.createdAt, pr.mergedAt)
     });
   } else if (pr.state === "closed") {
     events.push({

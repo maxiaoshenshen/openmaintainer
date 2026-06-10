@@ -77,7 +77,7 @@ export function checkAccessibility(repository: Repository): AccessibilityReport 
     .map(c => `[${c.item}] ${c.suggestion}`);
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     overallScore: score,
     checks,

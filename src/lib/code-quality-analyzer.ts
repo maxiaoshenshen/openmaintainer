@@ -105,7 +105,7 @@ export function analyzeCodeQuality(repository: Repository, stats: { openIssues: 
   ];
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     analyzedAt: new Date(),
     metrics,
     issues,

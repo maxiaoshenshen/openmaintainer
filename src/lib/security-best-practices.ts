@@ -90,7 +90,7 @@ export function analyzeSecurityPractices(repository: Repository): SecurityReport
     .map(c => `[${c.check}] ${c.remediation}`);
   
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     overallScore: score,
     checks,

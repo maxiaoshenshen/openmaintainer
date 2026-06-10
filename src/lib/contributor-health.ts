@@ -143,8 +143,8 @@ export function analyzeContributorHealth(
   // Sort by contributions
   profiles.sort((a, b) => b.totalContributions - a.totalContributions);
   topContributors.sort((a, b) => {
-    const pa = profiles.find((p) => p.authorname === a)!;
-    const pb = profiles.find((p) => p.authorname === b)!;
+    const pa = profiles.find((p) => p.author === a)!;
+    const pb = profiles.find((p) => p.author === b)!;
     return pb.totalContributions - pa.totalContributions;
   });
 

@@ -86,7 +86,7 @@ export function buildGovernanceFramework(repository: Repository): GovernanceRepo
   ];
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     policies,
     roles,

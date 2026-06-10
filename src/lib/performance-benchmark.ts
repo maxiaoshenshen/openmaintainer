@@ -53,7 +53,7 @@ export function generatePerformanceReport(repository: Repository): PerformanceRe
   ];
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     currentMetrics,
     historicalData,

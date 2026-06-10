@@ -84,7 +84,7 @@ export function generateMentorshipReport(repository: Repository): MentorshipRepo
   const activeCount = 2;
   
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     activePairs,
     availableMentors,

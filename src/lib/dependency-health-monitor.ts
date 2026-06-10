@@ -72,7 +72,7 @@ export function checkDependencyHealth(repository: Repository): DependencyHealthR
     }));
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     dependencies,
     outdatedCount,

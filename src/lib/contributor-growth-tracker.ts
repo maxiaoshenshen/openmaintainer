@@ -45,7 +45,7 @@ export function trackContributorGrowth(repository: Repository): GrowthAnalysis {
   );
   
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     growthRate: Math.floor(growthRate),
     retentionRate,

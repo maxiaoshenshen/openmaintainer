@@ -92,7 +92,7 @@ export function analyzeCrisisPrevention(repository: Repository): CrisisPreventio
   ];
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     indicators,
     overallRisk,

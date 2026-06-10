@@ -221,7 +221,7 @@ export class MetricsDashboard {
     lines.push(`- Stars: ${metrics.overview.totalStars}`);
     lines.push(`- Forks: ${metrics.overview.totalForks}`);
     lines.push(`- Open Issues: ${metrics.overview.openIssues}`);
-    lines.push(`- Merged PRs: ${metrics.overview.mergedAtPRs}`);
+    lines.push(`- Merged PRs: ${metrics.overview.mergedPRs}`);
     lines.push("");
 
     lines.push("## Health");

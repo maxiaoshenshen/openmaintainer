@@ -77,7 +77,7 @@ export function createDelegationReport(repository: Repository): DelegationReport
   }
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     maintainers,
     delegationAreas,

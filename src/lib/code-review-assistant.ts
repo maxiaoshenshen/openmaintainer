@@ -85,7 +85,7 @@ function analyzeCode(pr: PullRequest): CodeReviewFinding[] {
   // Check description
   if (!pr.body || pr.body.length < 20) {
     findings.push({
-      type: "warning",
+      type: "suggestion",
       severity: "warning",
       category: "Documentation",
       title: "PR description is missing or too brief",
@@ -94,15 +94,15 @@ function analyzeCode(pr: PullRequest): CodeReviewFinding[] {
   }
 
   // Check commits
-  if (pr.commits > 10) {
+  if (pr.commits ?? 0 > 10) {
     findings.push({
       type: "suggestion",
       severity: "info",
       category: "History",
       title: "Many commits in PR",
-      description: `${pr.commits} commits. Consider squashing for a cleaner history.`,
+      description: `${pr.commits ?? 0} commits. Consider squashing for a cleaner history.`,
     });
-  } else if (pr.commits === 1) {
+  } else if (pr.commits ?? 0 === 1) {
     findings.push({
       type: "praise",
       severity: "info",
@@ -116,7 +116,7 @@ function analyzeCode(pr: PullRequest): CodeReviewFinding[] {
   const changeRatio = pr.additions / (pr.deletions || 1);
   if (changeRatio > 10) {
     findings.push({
-      type: "warning",
+      type: "suggestion",
       severity: "warning",
       category: "Code Quality",
       title: "High additions to deletions ratio",

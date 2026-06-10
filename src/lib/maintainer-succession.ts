@@ -64,7 +64,7 @@ export function generateSuccessionReport(repository: Repository): SuccessionRepo
   ];
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     plans,
     coverageScore,

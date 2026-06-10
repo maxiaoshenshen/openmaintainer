@@ -98,7 +98,7 @@ export function generateSustainabilityRoadmap(repository: Repository): Sustainab
   ];
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     metrics,
     milestones,

@@ -68,7 +68,7 @@ export function generateTestingSuggestions(repository: Repository): TestingRepor
   recommendations.push("Set up CI to fail if coverage drops below threshold");
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     overallCoverage,
     suggestions,

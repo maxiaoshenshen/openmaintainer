@@ -60,7 +60,7 @@ export function generateSLARReport(repository: Repository): SLAReport {
     }));
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     targets,
     metrics,

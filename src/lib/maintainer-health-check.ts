@@ -91,7 +91,7 @@ export function generateHealthReport(repository: Repository): HealthReport {
   ];
   
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     overallScore: score,
     metrics,

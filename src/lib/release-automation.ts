@@ -58,7 +58,7 @@ export class ReleaseAutomation {
     );
 
     const fixes = [
-      ...mergedAtPRs.filter(pr =>
+      ...mergedPRs.filter(pr =>
         pr.title.toLowerCase().includes("fix") ||
         pr.title.toLowerCase().includes("bug")
       ),
@@ -70,7 +70,7 @@ export class ReleaseAutomation {
     const breaking = mergedPRs.filter(pr => this.isBreakingChange(pr));
 
     const contributors = [...new Set([
-      ...mergedAtPRs.map(pr => pr.author),
+      ...mergedPRs.map(pr => pr.author),
       ...closedIssues.map(issue => issue.author),
     ])];
 
@@ -97,7 +97,7 @@ export class ReleaseAutomation {
         },
         {
           type: "Bug Fixes",
-          items: candidate.changes.fixes.map(item => "number" in item ? `#${item.number}: ${item.title}` : item.title),
+          items: candidate.changes.fixes.map(item => item.title),
         },
       ],
       contributors: candidate.contributors,

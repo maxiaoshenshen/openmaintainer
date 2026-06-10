@@ -44,7 +44,7 @@ export function calculateWorkspaceStats(repos: Repository[]): WorkspaceStats {
     totalRepos: repos.length,
     totalStars: repos.reduce((sum, r) => sum + r.stars, 0),
     totalIssues: repos.reduce((sum, r) => sum + r.openIssues, 0),
-    totalPRs: repos.reduce((sum, r) => sum + r.totalPRs, 0),
+    totalPRs: repos.reduce((sum, r) => sum + (r.pullRequests?.length || 0), 0),
     avgResponseTime: Math.floor(Math.random() * 48) + 12,
   };
 }

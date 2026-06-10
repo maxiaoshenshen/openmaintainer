@@ -130,7 +130,7 @@ export function buildHealthDashboard(repository: Repository): HealthDashboard {
   }
 
   return {
-    repository: repository.name,
+    repository: repository.identity.fullName,
     generatedAt: new Date(),
     overallScore,
     grade,
