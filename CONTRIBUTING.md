@@ -1,57 +1,68 @@
 # Contributing to OpenMaintainer
 
-Thank you for your interest in contributing to OpenMaintainer! This project is built to help OSS maintainers reduce friction and stay in control.
+Thank you for your interest in contributing! OpenMaintainer is an open-source project built by and for OSS maintainers.
 
-## Quick Start
+## Development Setup
 
 ```bash
+# Clone the repository
 git clone https://github.com/maxiaoshenshen/openmaintainer.git
 cd openmaintainer
+
+# Install dependencies
 npm install
+
+# Start development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and enter `demo` or any public GitHub repository.
-
-## Development
-
-```bash
-npm test          # Run tests
-npm run lint      # Check code style
-npm run typecheck # TypeScript check
-npm run validate  # Full CI gate
-```
+Open [http://localhost:3000](http://localhost:3000) to see the app.
 
 ## Project Structure
 
 ```
 src/
-  app/              # Next.js App Router
-  components/
-    dashboard.tsx   # Main maintainer cockpit
-  lib/
-    *.ts             # Domain logic for each feature
+├── app/                    # Next.js App Router
+│   ├── api/               # API routes
+│   ├── page.tsx           # Main dashboard
+│   └── globals.css        # Global styles
+├── components/
+│   └── dashboard.tsx      # Main dashboard component (3400+ lines)
+└── lib/                   # Core logic (234 modules)
+    ├── maintainer-*.ts     # Maintainer workflow modules
+    ├── contributor-*.ts   # Contributor management
+    ├── release-*.ts       # Release management
+    └── types.ts           # TypeScript types
 ```
+
+## Key Modules
+
+- `maintainer-analysis.ts` — Core repository analysis logic
+- `maintainer-inbox.ts` — Priority inbox with pain scoring
+- `contributor-impact.ts` — Contributor value tracking
+- `release-readiness-gate.ts` — Release checklist and gates
+- `code-review-assistant.ts` — Automated PR review
 
 ## Adding New Features
 
-1. Add TypeScript types to `src/lib/types.ts`
-2. Implement domain logic in `src/lib/`
-3. Add UI components to `src/components/dashboard.tsx`
-4. Add tests in `src/components/*.test.tsx`
-5. Run `npm run validate` before submitting
+1. Add types to `src/lib/types.ts`
+2. Implement logic in a new or existing `src/lib/*.ts` module
+3. Wire up the component in `src/components/dashboard.tsx`
+4. Add tests in `src/lib/*.test.ts`
 
-## Reporting Issues
+## Code Style
 
-Please include:
-- Repository URL (if applicable)
-- Expected vs actual behavior
-- Steps to reproduce
-- Browser/OS version
+- Run `npm run lint` before committing
+- TypeScript strict mode is disabled (for flexibility during rapid development)
+- Use meaningful variable names and add comments for complex logic
 
-## Code of Conduct
+## Pull Requests
 
-Be respectful, inclusive, and collaborative. We're all here to make OSS maintenance better.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
