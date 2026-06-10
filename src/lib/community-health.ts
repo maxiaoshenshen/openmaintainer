@@ -40,7 +40,7 @@ export function analyzeCommunityHealth(
     name: "Contributor Diversity",
     score: diversityScore,
     trend: "stable",
-    description: `${contributors.length} contributors from ${getUniqueOrgs(contributors).length} organizations`,
+    description: `${contributors.length} contributors from ${Array.from(getUniqueOrgs(contributors)).length} organizations`,
     recommendations: generateDiversityRecommendations(contributors),
   });
 
@@ -80,7 +80,7 @@ export function analyzeCommunityHealth(
   );
 
   return {
-    repository: repo.identity.fullName,
+    repository: repo.fullName,
     overallScore,
     metrics,
     healthTrend: determineOverallTrend(metrics),
@@ -120,8 +120,8 @@ function calculateContributorDiversity(contributors: Contributor[]): number {
 function getUniqueOrgs(contributors: Contributor[]): Set<string> {
   const orgs = new Set<string>();
   contributors.forEach((c) => {
-    if (c.login.includes("/")) {
-      orgs.add(c.login.split("/")[0]);
+    if (c.username.includes("/")) {
+      orgs.add(c.username.split("/")[0]);
     }
   });
   return orgs;
@@ -170,9 +170,9 @@ function getActiveContributors(contributors: Contributor[]): Contributor[] {
 function calculateDocumentationHealth(repo: Repository): number {
   let score = 50;
   if (repo.description) score += 15;
-  if (repo.topics && repo.topics.length > 0) score += 15;
-  if (repo.has_wiki) score += 10;
-  if (repo.homepage) score += 10;
+  if ((repo as any).topics && (repo as any).topics.length > 0) score += 15;
+  if ((repo as any).has_wiki) score += 10;
+  if ((repo as any).homepage) score += 10;
   return Math.min(100, score);
 }
 

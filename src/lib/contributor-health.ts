@@ -82,17 +82,17 @@ export function analyzeContributorHealth(
 
   // Group contributions by author
   for (const pr of prs) {
-    if (!contributorData.has(pr.author)) {
-      contributorData.set(pr.author, { prs: [], issues: [] });
+    if (!contributorData.has(pr.username)) {
+      contributorData.set(pr.username, { prs: [], issues: [] });
     }
-    contributorData.get(pr.author)!.prs.push(pr);
+    contributorData.get(pr.username)!.prs.push(pr);
   }
 
   for (const issue of issues) {
-    if (!contributorData.has(issue.author)) {
-      contributorData.set(issue.author, { prs: [], issues: [] });
+    if (!contributorData.has(issue.username)) {
+      contributorData.set(issue.username, { prs: [], issues: [] });
     }
-    contributorData.get(issue.author)!.issues.push(issue);
+    contributorData.get(issue.username)!.issues.push(issue);
   }
 
   const profiles: ContributorProfile[] = [];
@@ -143,8 +143,8 @@ export function analyzeContributorHealth(
   // Sort by contributions
   profiles.sort((a, b) => b.totalContributions - a.totalContributions);
   topContributors.sort((a, b) => {
-    const pa = profiles.find((p) => p.author === a)!;
-    const pb = profiles.find((p) => p.author === b)!;
+    const pa = profiles.find((p) => p.username === a)!;
+    const pb = profiles.find((p) => p.username === b)!;
     return pb.totalContributions - pa.totalContributions;
   });
 

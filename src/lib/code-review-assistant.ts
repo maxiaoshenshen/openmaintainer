@@ -94,15 +94,15 @@ function analyzeCode(pr: PullRequest): CodeReviewFinding[] {
   }
 
   // Check commits
-  if (pr.commits ?? 0 > 10) {
+  if (((pr as any).commits || 0) > 10) {
     findings.push({
       type: "suggestion",
       severity: "info",
       category: "History",
       title: "Many commits in PR",
-      description: `${pr.commits ?? 0} commits. Consider squashing for a cleaner history.`,
+      description: `${((pr as any).commits || 0)} commits. Consider squashing for a cleaner history.`,
     });
-  } else if (pr.commits ?? 0 === 1) {
+  } else if (((pr as any).commits || 0) === 1) {
     findings.push({
       type: "praise",
       severity: "info",

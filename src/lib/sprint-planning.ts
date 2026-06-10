@@ -120,7 +120,7 @@ function createUpcomingSprints(
       description: `Planned work for the next cycle`,
       targetDate: endDate,
       progress: 0,
-      issues: sprintIssues.map((issue) => issue.id),
+      issues: sprintIssues.map((issue) => Number(issue.id)),
     });
   }
 

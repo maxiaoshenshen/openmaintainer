@@ -51,8 +51,8 @@ class BackupManager {
       status: 'pending',
       metadata: {
         issuesCount: config.includeIssues ? config.repository.openIssues : 0,
-        prsCount: config.includePRs ? config.repository.openPullRequests : 0,
-        contributorsCount: config.repository.contributors.length,
+        prsCount: config.includePRs ? config.repository.openPRs : 0,
+        contributorsCount: config.repository(repo as any).contributors.length,
         analysisCount: config.includeAnalytics ? 1 : 0,
       },
     };
@@ -65,7 +65,7 @@ class BackupManager {
     // Rough estimate in bytes
     const baseSize = 1024; // Base metadata
     const issuesSize = config.includeIssues ? config.repository.openIssues * 512 : 0;
-    const prsSize = config.includePRs ? config.repository.openPullRequests * 1024 : 0;
+    const prsSize = config.includePRs ? config.repository.openPRs * 1024 : 0;
     const settingsSize = config.includeSettings ? 4096 : 0;
     return baseSize + issuesSize + prsSize + settingsSize;
   }

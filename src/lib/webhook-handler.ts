@@ -112,7 +112,7 @@ class WebhookHandler {
     return {
       type: eventType,
       action: data.action || 'unknown',
-      repository: data.repository?.identity.fullName || 'unknown',
+      repository: data.repository?.full_name || data.repository?.name || 'unknown',
       sender: data.sender?.login || 'unknown',
       timestamp: new Date(),
       data,

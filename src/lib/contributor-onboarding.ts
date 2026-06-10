@@ -74,10 +74,10 @@ function suggestStarterIssues(issues: Issue[]): SuggestedIssue[] {
     }
 
     // Low comment count (less intimidating)
-    if (issue.commentCount === 0) {
+    if (issue.comments === 0) {
       score += 20;
       difficulty = "beginner";
-    } else if (issue.commentCount <= 5) {
+    } else if (issue.comments <= 5) {
       score += 10;
     }
 
@@ -123,7 +123,7 @@ function generateIssueReason(
   if (issue.labels.some((l) => l.toLowerCase().includes("good first issue"))) {
     return "Explicitly marked as a great first contribution";
   }
-  if (issue.commentCount === 0) {
+  if (issue.comments === 0) {
     return "Fresh issue with no prior discussion - perfect for first-timers";
   }
   if (difficulty === "beginner") {
@@ -147,14 +147,14 @@ function generateLearningResources(repo: Repository): LearningResource[] {
   const resources: LearningResource[] = [
     {
       title: "README",
-      url: `${repo.html_url}`,
+      url: `${repo.url}`,
       type: "documentation",
       duration: "15 minutes",
       required: true,
     },
   ];
 
-  if (repo.topics?.includes("typescript")) {
+  if ((repo as any).topics?.includes("typescript")) {
     resources.push({
       title: "TypeScript Handbook",
       url: "https://www.typescriptlang.org/docs/",
@@ -164,7 +164,7 @@ function generateLearningResources(repo: Repository): LearningResource[] {
     });
   }
 
-  if (repo.topics?.includes("react")) {
+  if ((repo as any).topics?.includes("react")) {
     resources.push({
       title: "React Tutorial",
       url: "https://react.dev/learn",
@@ -177,7 +177,7 @@ function generateLearningResources(repo: Repository): LearningResource[] {
   resources.push(
     {
       title: "CONTRIBUTING.md",
-      url: `${repo.html_url}/blob/main/CONTRIBUTING.md`,
+      url: `${repo.url}/blob/main/CONTRIBUTING.md`,
       type: "documentation",
       duration: "10 minutes",
       required: true,
