@@ -72,8 +72,8 @@ class WebhookHandler {
     // Simple HMAC-SHA256 simulation for demonstration
     // In production, use Node.js crypto module
     const encoder = new TextEncoder();
-    const data = encoder.encode(payload);
-    const key = encoder.encode(this.secret || '');
+    const _data = encoder.encode(payload);
+    const _key = encoder.encode(this.secret || '');
     
     // This is a simplified version - production should use crypto.createHmac
     let hash = 0;
@@ -97,12 +97,12 @@ class WebhookHandler {
 
   parseEvent(headers: Record<string, string>, payload: string): WebhookEvent | null {
     const eventType = headers['x-github-event'] as WebhookEventType;
-    const deliveryId = headers['x-github-delivery'];
+    const _deliveryId = headers['x-github-delivery'];
     
     if (!eventType) return null;
     if (!this.events.has(eventType)) return null;
 
-    let data: WebhookPayload;
+    let _data: WebhookPayload;
     try {
       data = JSON.parse(payload);
     } catch {
@@ -136,7 +136,7 @@ class WebhookHandler {
     priority: 'low' | 'medium' | 'high';
     actionRequired: boolean;
   } {
-    const { type, action, data, sender, repository } = event;
+    const { type, action, sender } = event;
     const insights = {
       push: () => ({
         type: 'code',

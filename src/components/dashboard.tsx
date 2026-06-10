@@ -2,10 +2,8 @@
 
 import {
   Activity,
-  BarChart3,
   Bot,
   Calendar,
-  Bell,
   CheckCircle2,
   CircleAlert,
   ClipboardList,
@@ -13,13 +11,10 @@ import {
   Download,
   ExternalLink,
   Gauge,
-  Share,
   GitPullRequest,
   Languages,
   Loader2,
   MessageSquareText,
-  Moon,
-  Sun,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -30,7 +25,6 @@ import {
   Sparkles,
   ChevronRight,
   ChevronDown,
-  Clock,
   Users,
   UserPlus,
 } from "lucide-react";
@@ -81,7 +75,6 @@ import {
 } from "@/lib/snapshot-store";
 import {
   readRecentRepos,
-  addRecentRepo,
   removeRecentRepo,
   type RecentRepo,
 } from "@/lib/recent-repos-store";
@@ -98,12 +91,9 @@ import {
 } from "@/lib/theme-store";
 import {
   downloadPullRequestsCSV,
-  downloadIssuesCSV,
 } from "@/lib/export-csv";
 import {
   generateMaintenanceEvents,
-  groupEventsByMonth,
-  formatMonthName,
   formatEventDate,
   getPriorityColor,
   getEventTypeIcon,
@@ -111,26 +101,17 @@ import {
 } from "@/lib/maintenance-calendar";
 import {
   calculateCommunityStats,
-  getScoreColor,
-  getScoreBgColor,
-  formatStatValue,
-  getStatDescription,
   type CommunityStats,
 } from "@/lib/community-stats";
 import {
   isLoggedIn,
   getUserDisplayName,
-  readGitHubUser,
   getGitHubAuthUrl,
   clearGitHubToken,
 } from "@/lib/github-oauth";
 import {
-  readNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
   getUnreadCount,
   addNotification,
-  readSubscriptions,
   addSubscription,
   removeSubscription,
   isSubscribed,
@@ -144,9 +125,6 @@ import {
   type ContributorBadge,
 } from "@/lib/contributor-badge";
 import {
-  useKeyboardShortcuts,
-  formatShortcut,
-  type KeyboardShortcut,
 } from "@/lib/keyboard-shortcuts";
 import {
   generatePRTemplate,
@@ -155,23 +133,14 @@ import {
 } from "@/lib/pr-template-generator";
 import {
   buildMaintainerPoints,
-  calculateRank,
-  formatPoints,
-  getRankColor,
   type MaintainerPoints,
 } from "@/lib/maintainer-points";
 import {
-  calculateActionsSummary,
   generateMockWorkflowRuns,
-  getWorkflowStatusColor,
-  getConclusionColor,
-  formatDuration,
   type WorkflowRun,
 } from "@/lib/github-actions";
 import {
   buildKanbanBoard,
-  getPriorityColor as getKanbanPriorityColor,
-  getPriorityLabel,
   type KanbanBoard,
 } from "@/lib/kanban-board";
 

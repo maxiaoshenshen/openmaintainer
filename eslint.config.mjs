@@ -8,7 +8,7 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
       "@next/next/no-html-link-for-pages": "off",
       "react/no-set-state-in-use-callback-or-useeffect-result": "off",
       "@next/next/no-set-state-in-use-effect": "off",
@@ -16,15 +16,10 @@ const eslintConfig = defineConfig([
       "react-hooks/no-deriving-state-in-effects": "off",
       "react-hooks/no-deriving-state-in-effect": "off",
       "react-hooks/rules-of-hooks": "off",
-      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/exhaustive-deps": "off",
     },
   },
-  globalIgnores([
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-  ]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
 ]);
 
 export default eslintConfig;

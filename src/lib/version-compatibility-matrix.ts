@@ -20,7 +20,7 @@ export interface VersionMatrix {
   upcomingBreakingChanges: string[];
 }
 
-export function buildVersionMatrix(currentVersion: string): VersionMatrix {
+export function buildVersionMatrix(_currentVersion: string): VersionMatrix {
   const versions: CompatibilityEntry[] = [
     { version: "3.0.0", nodejs: ">=18.0.0", python: ">=3.10", status: "supported" },
     { version: "2.5.0", nodejs: ">=16.0.0", python: ">=3.8", status: "deprecated" },
@@ -42,7 +42,7 @@ export function buildVersionMatrix(currentVersion: string): VersionMatrix {
 export function checkCompatibility(
   userVersion: string,
   userNodejs?: string,
-  userPython?: string
+  _userPython?: string
 ): { compatible: boolean; issues: string[] } {
   const matrix = buildVersionMatrix(userVersion);
   const versionEntry = matrix.versions.find(v => v.version === userVersion);

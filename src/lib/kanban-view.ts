@@ -231,7 +231,7 @@ export function buildKanbanView(inbox: MaintainerInbox | MockInbox, viewType: "s
 
   // Handle real MaintainerInbox structure
   const allItems: KanbanItem[] = [
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ...inbox.issues.map((issue: any) => ({
       id: `issue-${issue.number}`,
       type: "issue" as const,
@@ -247,7 +247,7 @@ export function buildKanbanView(inbox: MaintainerInbox | MockInbox, viewType: "s
       commentCount: issue.commentCount,
       url: issue.url,
     })),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ...inbox.pullRequests.map((pr: any) => ({
       id: `pr-${pr.number}`,
       type: "pull_request" as const,
