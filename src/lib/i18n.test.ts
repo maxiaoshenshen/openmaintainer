@@ -1,74 +1,171 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "./i18n";
+import {
+  getTranslations,
+  detectLocale,
+  formatNumber,
+  formatDate,
+  formatRelativeTime,
+  supportedLocales,
+  localeNames,
+  type Locale,
+} from "./i18n";
 
-describe("I18n", () => {
-  it("translates to English by default", () => {
-    const i18n = new I18n({ locale: "en" });
-    expect(i18n.t("app.title")).toContain("OpenMaintainer");
+describe("getTranslations", () => {
+  it("should return English translations by default", () => {
+    const t = getTranslations("en");
+    expect(t.nav.dashboard).toBe("Dashboard");
   });
 
-  it("translates to Chinese", () => {
-    const i18n = new I18n({ locale: "zh" });
-    expect(i18n.t("app.title")).toContain("开源维护者");
+  it("should return Chinese translations for zh locale", () => {
+    const t = getTranslations("zh");
+    expect(t.nav.dashboard).toBe("仪表板");
   });
 
-  it("translates to Japanese", () => {
-    const i18n = new I18n({ locale: "ja" });
-    expect(i18n.t("nav.dashboard")).toContain("ダッシュボード");
+  it("should return Japanese translations for ja locale", () => {
+    const t = getTranslations("ja");
+    expect(t.nav.dashboard).toBe("ダッシュボード");
   });
 
-  it("changes locale", () => {
-    const i18n = new I18n({ locale: "en" });
-    expect(i18n.t("nav.dashboard")).toContain("Dashboard");
-
-    i18n.setLocale("zh");
-    expect(i18n.t("nav.dashboard")).toContain("仪表板");
+  it("should return Spanish translations for es locale", () => {
+    const t = getTranslations("es");
+    expect(t.nav.dashboard).toBe("Panel");
   });
 
-  it("falls back to English for missing translation", () => {
-    const i18n = new I18n({ locale: "zh" });
-    expect(i18n.t("nonexistent.key")).toBe("nonexistent.key");
+  it("should return French translations for fr locale", () => {
+    const t = getTranslations("fr");
+    expect(t.nav.dashboard).toBe("Tableau de bord");
   });
 
-  it("returns available locales", () => {
-    const i18n = new I18n();
-    const locales = i18n.getAvailableLocales();
-    expect(locales).toContain("en");
-    expect(locales).toContain("zh");
-    expect(locales).toContain("ja");
-    expect(locales.length).toBeGreaterThan(5);
+  it("should return German translations for de locale", () => {
+    const t = getTranslations("de");
+    expect(t.nav.dashboard).toBe("Dashboard");
   });
 
-  it("checks translation existence", () => {
-    const i18n = new I18n({ locale: "en" });
-    expect(i18n.hasTranslation("app.title")).toBe(true);
-    expect(i18n.hasTranslation("nonexistent")).toBe(false);
+  it("should return Korean translations for ko locale", () => {
+    const t = getTranslations("ko");
+    expect(t.nav.dashboard).toBe("대시보드");
   });
 
-  it("gets all translations", () => {
-    const i18n = new I18n({ locale: "en" });
-    const all = i18n.getAllTranslations();
-    expect(all["app.title"]).toBeDefined();
-    expect(Object.keys(all).length).toBeGreaterThan(20);
+  it("should fallback to English for unknown locale", () => {
+    const t = getTranslations("xx" as Locale);
+    expect(t.nav.dashboard).toBe("Dashboard");
+  });
+});
+
+describe("detectLocale", () => {
+  it("should detect English from Accept-Language header", () => {
+    expect(detectLocale("en-US,en;q=0.9")).toBe("en");
+    expect(detectLocale("en")).toBe("en");
   });
 
-  it("translates Korean", () => {
-    const i18n = new I18n({ locale: "ko" });
-    expect(i18n.t("app.title")).toContain("OSS 유지관리자");
+  it("should detect Chinese from Accept-Language header", () => {
+    expect(detectLocale("zh-CN,zh;q=0.9")).toBe("zh");
+    expect(detectLocale("zh")).toBe("zh");
   });
 
-  it("translates Spanish", () => {
-    const i18n = new I18n({ locale: "es" });
-    expect(i18n.t("nav.dashboard")).toContain("Panel");
+  it("should detect Japanese from Accept-Language header", () => {
+    expect(detectLocale("ja-JP,ja;q=0.9")).toBe("ja");
+    expect(detectLocale("ja")).toBe("ja");
   });
 
-  it("translates French", () => {
-    const i18n = new I18n({ locale: "fr" });
-    expect(i18n.t("nav.dashboard")).toContain("Tableau de Bord");
+  it("should detect Spanish from Accept-Language header", () => {
+    expect(detectLocale("es-ES,es;q=0.9")).toBe("es");
   });
 
-  it("translates German", () => {
-    const i18n = new I18n({ locale: "de" });
-    expect(i18n.t("nav.dashboard")).toContain("Dashboard");
+  it("should detect French from Accept-Language header", () => {
+    expect(detectLocale("fr-FR,fr;q=0.9")).toBe("fr");
+  });
+
+  it("should detect German from Accept-Language header", () => {
+    expect(detectLocale("de-DE,de;q=0.9")).toBe("de");
+  });
+
+  it("should detect Korean from Accept-Language header", () => {
+    expect(detectLocale("ko-KR,ko;q=0.9")).toBe("ko");
+  });
+
+  it("should fallback to English for null", () => {
+    expect(detectLocale(null)).toBe("en");
+  });
+
+  it("should fallback to English for unknown language", () => {
+    expect(detectLocale("xx")).toBe("en");
+  });
+});
+
+describe("formatNumber", () => {
+  it("should format numbers for English locale", () => {
+    expect(formatNumber(1234567, "en")).toBe("1,234,567");
+  });
+
+  it("should format numbers for Chinese locale", () => {
+    expect(formatNumber(1234567, "zh")).toBe("1,234,567");
+  });
+
+  it("should format small numbers correctly", () => {
+    expect(formatNumber(42, "en")).toBe("42");
+  });
+
+  it("should format zero correctly", () => {
+    expect(formatNumber(0, "en")).toBe("0");
+  });
+});
+
+describe("formatDate", () => {
+  it("should format dates for English locale", () => {
+    const date = new Date("2026-06-15");
+    const formatted = formatDate(date, "en");
+    expect(formatted).toContain("Jun");
+    expect(formatted).toContain("15");
+    expect(formatted).toContain("2026");
+  });
+
+  it("should format dates for Chinese locale", () => {
+    const date = new Date("2026-06-15");
+    const formatted = formatDate(date, "zh");
+    expect(formatted).toContain("6");
+    expect(formatted).toContain("15");
+  });
+
+  it("should format string dates", () => {
+    const formatted = formatDate("2026-06-15", "en");
+    expect(formatted).toContain("2026");
+  });
+});
+
+describe("formatRelativeTime", () => {
+  it("should format recent dates", () => {
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const formatted = formatRelativeTime(oneHourAgo, "en");
+    expect(formatted).toContain("hour");
+  });
+
+  it("should format dates from days ago", () => {
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const formatted = formatRelativeTime(twoDaysAgo, "en");
+    expect(formatted).toContain("day");
+  });
+});
+
+describe("supportedLocales", () => {
+  it("should include all supported locales", () => {
+    expect(supportedLocales).toContain("en");
+    expect(supportedLocales).toContain("zh");
+    expect(supportedLocales).toContain("ja");
+    expect(supportedLocales).toContain("es");
+    expect(supportedLocales).toContain("fr");
+    expect(supportedLocales).toContain("de");
+    expect(supportedLocales).toContain("ko");
+  });
+});
+
+describe("localeNames", () => {
+  it("should have names for all supported locales", () => {
+    supportedLocales.forEach((locale) => {
+      expect(localeNames[locale]).toBeDefined();
+      expect(localeNames[locale].length).toBeGreaterThan(0);
+    });
   });
 });
