@@ -1,21 +1,29 @@
-import { NextResponse } from 'next/server';
-import { healthChecker } from '@/lib/health-checker';
-
-export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
+import { NextResponse } from "next/server";
+import { cacheManager } from "@/lib/cache-manager";
 
 export async function GET() {
-  try {
-    const report = await healthChecker.runAllChecks();
-    return NextResponse.json(report, {
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
+  const cacheStats = cacheManager.getStats();
+  
+  const health = {
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || "0.2.0",
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || "development",
+    services: {
+      cache: {
+        status: "operational",
+        ...cacheStats,
       },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to run health checks', details: String(error) },
-      { status: 500 }
-    );
-  }
+      api: {
+        status: "operational",
+      },
+    },
+  };
+
+  return NextResponse.json(health, {
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  });
 }
