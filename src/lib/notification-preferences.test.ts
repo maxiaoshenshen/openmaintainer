@@ -1,208 +1,150 @@
-import { describe, it, expect } from 'vitest';
-import { NotificationPreferencesManager } from './notification-preferences';
+import { describe, it, expect } from "vitest";
+import {
+  createDefaultPreferences,
+  addRule,
+  updateRule,
+  removeRule,
+  shouldNotify,
+  groupByFrequency,
+  type NotificationPreferences,
+} from "./notification-preferences";
 
-describe('NotificationPreferencesManager', () => {
-  const manager = new NotificationPreferencesManager();
+describe("Notification Preferences", () => {
+  describe("createDefaultPreferences", () => {
+    it("should create preferences with default rules", () => {
+      const prefs = createDefaultPreferences("user123");
 
-  it('should create a preference', async () => {
-    const pref = await manager.createPreference({
-      userId: 'user-1',
-      channel: 'email',
-      event: 'pr_opened',
+      expect(prefs.userId).toBe("user123");
+      expect(prefs.rules.length).toBeGreaterThan(0);
+      expect(prefs.globalSettings.emailDigest).toBe(true);
     });
-
-    expect(pref.id).toBeDefined();
-    expect(pref.userId).toBe('user-1');
-    expect(pref.channel).toBe('email');
-    expect(pref.event).toBe('pr_opened');
-    expect(pref.enabled).toBe(true);
   });
 
-  it('should update preference', async () => {
-    const pref = await manager.createPreference({
-      userId: 'user-1',
-      channel: 'slack',
-      event: 'issue_closed',
-    });
+  describe("addRule", () => {
+    it("should add new rule with unique ID", () => {
+      const prefs = createDefaultPreferences("user123");
+      const newPrefs = addRule(prefs, {
+        event: "release.published",
+        channels: ["slack"],
+        frequency: "realtime",
+        enabled: true,
+      });
 
-    const updated = await manager.updatePreference(pref.id, {
-      frequency: 'daily',
-      enabled: false,
+      expect(newPrefs.rules.length).toBe(prefs.rules.length + 1);
+      expect(newPrefs.rules[newPrefs.rules.length - 1].event).toBe("release.published");
     });
-
-    expect(updated?.frequency).toBe('daily');
-    expect(updated?.enabled).toBe(false);
   });
 
-  it('should delete preference', async () => {
-    const pref = await manager.createPreference({
-      userId: 'user-1',
-      channel: 'discord',
-      event: 'pr_merged',
+  describe("updateRule", () => {
+    it("should update existing rule", () => {
+      const prefs = createDefaultPreferences("user123");
+      const ruleId = prefs.rules[0].id;
+      const newPrefs = updateRule(prefs, ruleId, { enabled: false });
+
+      expect(newPrefs.rules.find(r => r.id === ruleId)?.enabled).toBe(false);
     });
 
-    const deleted = await manager.deletePreference(pref.id);
-    expect(deleted).toBe(true);
+    it("should not modify other rules", () => {
+      const prefs = createDefaultPreferences("user123");
+      const ruleId = prefs.rules[0].id;
+      const otherRule = prefs.rules[1];
+      const newPrefs = updateRule(prefs, ruleId, { enabled: false });
 
-    const retrieved = await manager.getPreference(pref.id);
-    expect(retrieved).toBeNull();
+      expect(newPrefs.rules.find(r => r.id === otherRule.id)).toEqual(otherRule);
+    });
   });
 
-  it('should get user preferences', async () => {
-    await manager.createPreference({
-      userId: 'user-2',
-      channel: 'email',
-      event: 'pr_opened',
-    });
+  describe("removeRule", () => {
+    it("should remove rule by ID", () => {
+      const prefs = createDefaultPreferences("user123");
+      const ruleId = prefs.rules[0].id;
+      const newPrefs = removeRule(prefs, ruleId);
 
-    await manager.createPreference({
-      userId: 'user-2',
-      channel: 'slack',
-      event: 'issue_opened',
+      expect(newPrefs.rules.find(r => r.id === ruleId)).toBeUndefined();
     });
-
-    const prefs = await manager.getUserPreferences('user-2');
-    expect(prefs.length).toBe(2);
   });
 
-  it('should get enabled preferences for event', async () => {
-    await manager.createPreference({
-      userId: 'user-3',
-      channel: 'email',
-      event: 'pr_opened',
+  describe("shouldNotify", () => {
+    it("should return true for matching event", () => {
+      const prefs = createDefaultPreferences("user123");
+      const result = shouldNotify(prefs, "issue.mentioned", { author: "alice" });
+
+      expect(result.shouldSend).toBe(true);
+      expect(result.channels.length).toBeGreaterThan(0);
     });
 
-    await manager.createPreference({
-      userId: 'user-4',
-      channel: 'slack',
-      event: 'pr_opened',
+    it("should filter by labels", () => {
+      const prefs: NotificationPreferences = {
+        userId: "test",
+        rules: [{
+          id: "label_test",
+          event: "issue.mentioned",
+          channels: ["email"],
+          frequency: "realtime",
+          enabled: true,
+          filters: { labels: ["bug"] }
+        }],
+        globalSettings: { emailDigest: false, slackNotifications: false, mentionOnly: false }
+      };
+      
+      const result = shouldNotify(prefs, "issue.mentioned", { 
+        author: "alice", 
+        labels: ["bug", "urgent"] 
+      });
+
+      expect(result.shouldSend).toBe(true);
     });
 
-    const prefs = await manager.getEnabledPreferences('pr_opened');
-    expect(prefs.length).toBeGreaterThanOrEqual(2);
+    it("should exclude labels", () => {
+      const prefs: NotificationPreferences = {
+        userId: "test",
+        rules: [{
+          id: "exclude_test",
+          event: "issue.mentioned",
+          channels: ["email"],
+          frequency: "realtime",
+          enabled: true,
+          filters: { excludeLabels: ["wip"] }
+        }],
+        globalSettings: { emailDigest: false, slackNotifications: false, mentionOnly: false }
+      };
+      
+      const result = shouldNotify(prefs, "issue.mentioned", { 
+        author: "alice", 
+        labels: ["wip"] 
+      });
+
+      expect(result.shouldSend).toBe(false);
+    });
+
+    it("should return channels when notification matches", () => {
+      const prefs = createDefaultPreferences("user123");
+      const result = shouldNotify(prefs, "pr.review_requested", { author: "alice" });
+
+      expect(result.shouldSend).toBe(true);
+      expect(result.channels).toContain("email");
+      expect(result.channels).toContain("slack");
+    });
+
+    it("should return false for non-matching event", () => {
+      const prefs = createDefaultPreferences("user123");
+      const result = shouldNotify(prefs, "release.published", { author: "alice" });
+
+      expect(result.shouldSend).toBe(false);
+    });
   });
 
-  it('should create user profile', async () => {
-    const profile = await manager.createProfile({
-      userId: 'user-5',
-      email: 'user@example.com',
-      slackWebhook: 'https://slack.com/webhook',
-      timezone: 'America/New_York',
-      language: 'en',
+  describe("groupByFrequency", () => {
+    it("should group notifications by frequency", () => {
+      const notifications = [
+        { event: "test1", rule: { id: "1", event: "test1", channels: ["email"], frequency: "realtime", enabled: true } },
+        { event: "test2", rule: { id: "2", event: "test2", channels: ["slack"], frequency: "daily", enabled: true } },
+      ];
+
+      const grouped = groupByFrequency(notifications);
+
+      expect(grouped.realtime).toHaveLength(1);
+      expect(grouped.daily).toHaveLength(1);
     });
-
-    expect(profile.userId).toBe('user-5');
-    expect(profile.email).toBe('user@example.com');
-    expect(profile.timezone).toBe('America/New_York');
-  });
-
-  it('should get user profile', async () => {
-    await manager.createProfile({
-      userId: 'user-6',
-      email: 'test@example.com',
-    });
-
-    const profile = await manager.getProfile('user-6');
-    expect(profile).toBeDefined();
-    expect(profile?.email).toBe('test@example.com');
-  });
-
-  it('should update profile', async () => {
-    await manager.createProfile({
-      userId: 'user-7',
-      email: 'old@example.com',
-    });
-
-    const updated = await manager.updateProfile('user-7', {
-      email: 'new@example.com',
-      timezone: 'Europe/London',
-    });
-
-    expect(updated?.email).toBe('new@example.com');
-    expect(updated?.timezone).toBe('Europe/London');
-  });
-
-  it('should check if should notify', async () => {
-    const pref = await manager.createPreference({
-      userId: 'user-8',
-      channel: 'email',
-      event: 'pr_opened',
-      quietHours: { start: '22:00', end: '08:00' },
-    });
-
-    const shouldNotify = await manager.shouldNotify(pref);
-    // Result depends on current time
-    expect(typeof shouldNotify).toBe('boolean');
-  });
-
-  it('should bulk create preferences', async () => {
-    const prefs = await manager.bulkCreate({
-      userId: 'user-9',
-      channels: ['email', 'slack'],
-      events: ['pr_opened', 'pr_merged'],
-      frequency: 'immediate',
-    });
-
-    expect(prefs.length).toBe(4);
-  });
-
-  it('should enable all preferences for user', async () => {
-    await manager.createPreference({
-      userId: 'user-10',
-      channel: 'email',
-      event: 'pr_opened',
-      frequency: 'immediate',
-    });
-
-    await manager.createPreference({
-      userId: 'user-10',
-      channel: 'slack',
-      event: 'issue_opened',
-      frequency: 'immediate',
-    });
-
-    await manager.enableAll('user-10');
-    const prefs = await manager.getUserPreferences('user-10');
-    expect(prefs.every(p => p.enabled)).toBe(true);
-  });
-
-  it('should disable all preferences for user', async () => {
-    await manager.createPreference({
-      userId: 'user-11',
-      channel: 'email',
-      event: 'pr_opened',
-    });
-
-    await manager.disableAll('user-11');
-    const prefs = await manager.getUserPreferences('user-11');
-    expect(prefs.every(p => !p.enabled)).toBe(true);
-  });
-
-  it('should record notification', async () => {
-    await manager.createProfile({
-      userId: 'user-12',
-      email: 'notify@example.com',
-    });
-
-    await manager.recordNotification('user-12', 'email', 'pr_opened');
-    await manager.recordNotification('user-12', 'slack', 'pr_merged');
-
-    const summary = await manager.getSummary();
-    expect(summary.totalSent).toBeGreaterThanOrEqual(0);
-  });
-
-  it('should handle filters', async () => {
-    const pref = await manager.createPreference({
-      userId: 'user-13',
-      channel: 'email',
-      event: 'issue_opened',
-      filters: {
-        priority: 'high',
-        labels: ['bug', 'urgent'],
-      },
-    });
-
-    expect(pref.filters?.priority).toBe('high');
-    expect(pref.filters?.labels).toContain('bug');
   });
 });
