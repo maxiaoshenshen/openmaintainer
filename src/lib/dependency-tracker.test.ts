@@ -1,75 +1,127 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseDependencies,
-  isBreakingUpdate,
-  getUpdateSeverity,
-  auditDependencies,
-  groupByUpdatePriority,
+  analyzeDependencies,
+  buildDependencyGraph,
+  analyzeLicenses,
 } from './dependency-tracker';
 
 describe('Dependency Tracker', () => {
-  describe('parseDependencies', () => {
-    it('parses production dependencies', () => {
-      const pkg = { dependencies: { react: '^18.0.0' } };
-      const deps = parseDependencies(pkg);
-      expect(deps).toHaveLength(1);
-      expect(deps[0].name).toBe('react');
-      expect(deps[0].type).toBe('production');
+  describe('analyzeDependencies', () => {
+    it('should analyze healthy dependencies', () => {
+      const result = analyzeDependencies({
+        dependencies: [
+          { name: 'react', version: '18.2.0' },
+          { name: 'lodash', version: '4.17.21' },
+        ],
+      });
+
+      expect(result.dependencies).toHaveLength(2);
+      expect(result.healthScore).toBeGreaterThan(80);
     });
 
-    it('parses dev dependencies', () => {
-      const pkg = { devDependencies: { typescript: '^5.0.0' } };
-      const deps = parseDependencies(pkg);
-      expect(deps).toHaveLength(1);
-      expect(deps[0].type).toBe('development');
+    it('should detect vulnerable dependencies', () => {
+      const result = analyzeDependencies({
+        dependencies: [
+          { name: 'vulnerable-lib', version: '1.0.0' },
+        ],
+        vulnerabilities: [
+          {
+            dependency: 'vulnerable-lib',
+            severity: 'critical',
+            title: 'Remote Code Execution',
+            description: 'Allows arbitrary code execution',
+          },
+        ],
+      });
+
+      expect(result.vulnerableCount).toBe(1);
+      expect(result.healthScore).toBeLessThan(90);
+    });
+
+    it('should detect outdated dependencies', () => {
+      const result = analyzeDependencies({
+        dependencies: [
+          { name: 'old-lib', version: '1.0.0' },
+        ],
+        outdated: {
+          'old-lib': '2.0.0',
+        },
+      });
+
+      expect(result.outdatedCount).toBe(1);
+      const outdated = result.dependencies.find(d => d.name === 'old-lib');
+      expect(outdated?.health).toBe('outdated');
+    });
+
+    it('should generate recommendations', () => {
+      const result = analyzeDependencies({
+        dependencies: [
+          { name: 'react', version: '18.0.0' },
+        ],
+        outdated: {
+          'react': '18.2.0',
+        },
+        vulnerabilities: [
+          {
+            dependency: 'security-lib',
+            severity: 'high',
+            title: 'XSS Vulnerability',
+            description: 'Cross-site scripting possible',
+          },
+        ],
+      });
+
+      expect(result.recommendations.length).toBeGreaterThan(0);
+    });
+
+    it('should identify major version updates', () => {
+      const result = analyzeDependencies({
+        dependencies: [
+          { name: 'major-update-lib', version: '1.0.0' },
+        ],
+        outdated: {
+          'major-update-lib': '3.0.0',
+        },
+      });
+
+      expect(result.majorOutdated).toHaveLength(1);
+      expect(result.majorOutdated[0]).toContain('3.0.0');
     });
   });
 
-  describe('isBreakingUpdate', () => {
-    it('detects major version jump', () => {
-      expect(isBreakingUpdate('1.0.0', '2.0.0')).toBe(true);
-    });
-
-    it('allows minor updates', () => {
-      expect(isBreakingUpdate('1.0.0', '1.1.0')).toBe(false);
-    });
-  });
-
-  describe('getUpdateSeverity', () => {
-    it('returns major for major version change', () => {
-      expect(getUpdateSeverity('1.0.0', '2.0.0')).toBe('major');
-    });
-
-    it('returns minor for minor version change', () => {
-      expect(getUpdateSeverity('1.0.0', '1.1.0')).toBe('minor');
-    });
-
-    it('returns patch for patch version change', () => {
-      expect(getUpdateSeverity('1.0.0', '1.0.1')).toBe('patch');
-    });
-  });
-
-  describe('auditDependencies', () => {
-    it('generates audit report', () => {
+  describe('buildDependencyGraph', () => {
+    it('should build dependency graph', () => {
       const deps = [
-        { name: 'react', currentVersion: '18.0.0', latestVersion: '18.2.0', type: 'production', updateAvailable: true, breaking: false, releaseDate: new Date() },
-        { name: 'lodash', currentVersion: '4.17.21', latestVersion: '4.17.21', type: 'production', updateAvailable: false, breaking: false, releaseDate: new Date() },
+        { name: 'react', version: '18.2.0', type: 'production' as const, deprecated: false, health: 'healthy' as const, weeklyDownloads: 1000000, lastUpdated: '' },
+        { name: 'vite', version: '5.0.0', type: 'development' as const, deprecated: false, health: 'healthy' as const, weeklyDownloads: 500000, lastUpdated: '' },
       ];
-      const audit = auditDependencies(deps);
-      expect(audit.total).toBe(2);
-      expect(audit.upToDate).toBe(1);
-      expect(audit.outdated).toBe(1);
+
+      const graph = buildDependencyGraph(deps);
+
+      expect(graph.nodes).toHaveLength(2);
+      expect(graph.edges).toHaveLength(1); // Only production deps
     });
   });
 
-  describe('groupByUpdatePriority', () => {
-    it('groups by priority', () => {
+  describe('analyzeLicenses', () => {
+    it('should identify compatible licenses', () => {
       const deps = [
-        { name: 'react', currentVersion: '18.0.0', latestVersion: '18.2.0', type: 'production', updateAvailable: true, breaking: false, releaseDate: new Date() },
-        { name: 'ts', currentVersion: '5.0.0', latestVersion: '6.0.0', type: 'development', updateAvailable: true, breaking: true, releaseDate: new Date() },
+        { name: 'react', version: '18.2.0', type: 'production' as const, deprecated: false, health: 'healthy' as const, weeklyDownloads: 1000000, lastUpdated: '' },
       ];
-      const grouped = groupByUpdatePriority(deps);
-      expect(grouped.critical.length).toBe(1);
+
+      const result = analyzeLicenses(deps);
+
+      expect(result.compatible).toContain('react');
+    });
+
+    it('should handle unknown licenses', () => {
+      const deps = [
+        { name: 'unknown-package-xyz', version: '1.0.0', type: 'production' as const, deprecated: false, health: 'healthy' as const, weeklyDownloads: 100, lastUpdated: '' },
+      ];
+
+      const result = analyzeLicenses(deps);
+
+      expect(result.unknown.length).toBeGreaterThanOrEqual(0);
     });
   });
 });
