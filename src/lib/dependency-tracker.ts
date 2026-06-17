@@ -1,319 +1,157 @@
+import type { Repository } from './types';
+
 /**
- * Dependency Tracker
- * Tracks and manages project dependencies
+ * Dependency Tracker - Tracks and manages project dependencies
  */
-
-export type DependencyType = 'production' | 'development' | 'peer' | 'optional';
-export type UpdateFrequency = 'daily' | 'weekly' | 'monthly' | 'rarely';
-export type HealthStatus = 'healthy' | 'outdated' | 'vulnerable' | 'deprecated';
-
 export interface Dependency {
   name: string;
   version: string;
   latestVersion?: string;
-  type: DependencyType;
-  deprecated: boolean;
-  health: HealthStatus;
-  vulnerabilities?: Vulnerability[];
-  weeklyDownloads: number;
-  lastUpdated: string;
-  repository?: string;
-  description?: string;
-}
-
-export interface Vulnerability {
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  title: string;
-  description: string;
-  patchedIn?: string;
-  vulnerableVersions?: string;
+  type: 'production' | 'development' | 'peer' | 'optional';
+  health: 'healthy' | 'outdated' | 'vulnerable' | 'deprecated';
+  author?: string;
+  downloadCount?: number;
+  lastUpdated?: Date;
 }
 
 export interface DependencyReport {
+  repository: Repository;
+  generatedAt: Date;
   dependencies: Dependency[];
-  outdatedCount: number;
-  vulnerableCount: number;
-  deprecatedCount: number;
-  healthScore: number; // 0-100
-  majorOutdated: string[];
-  recommendations: string[];
+  summary: {
+    total: number;
+    production: number;
+    development: number;
+    outdated: number;
+    vulnerable: number;
+    deprecated: number;
+  };
+  updateRecommendations: UpdateRecommendation[];
 }
 
-export interface DependencyGraph {
-  nodes: DependencyNode[];
-  edges: DependencyEdge[];
-}
-
-export interface DependencyNode {
-  id: string;
+export interface UpdateRecommendation {
   name: string;
-  version: string;
-  type: DependencyType;
+  currentVersion: string;
+  targetVersion: string;
+  priority: 'low' | 'medium' | 'high';
+  breaking: boolean;
+  reason: string;
 }
 
-export interface DependencyEdge {
-  from: string;
-  to: string;
-  type: 'depends-on';
-}
-
-/**
- * Analyze dependencies for a project
- */
-export function analyzeDependencies(params: {
-  dependencies?: Array<{
-    name: string;
-    version: string;
-    type?: DependencyType;
-    dev?: boolean;
-    peer?: boolean;
-    optional?: boolean;
-  }>;
-  outdated?: Record<string, string>;
-  vulnerabilities?: Array<{
-    dependency: string;
-    severity: 'low' | 'medium' | 'high' | 'critical';
-    title: string;
-    description: string;
-    patchedIn?: string;
-  }>;
-  deprecatedPackages?: string[];
-}): DependencyReport {
-  const { dependencies = [], outdated = {}, vulnerabilities = [], deprecatedPackages = [] } = params;
-
-  const analyzed: Dependency[] = dependencies.map(dep => {
-    const latestVersion = outdated[dep.name];
-    const isOutdated = latestVersion && latestVersion !== dep.version;
-    const isDeprecated = deprecatedPackages.includes(dep.name);
-    const depVulnerabilities = vulnerabilities
-      .filter(v => v.dependency === dep.name)
-      .map(v => ({
-        severity: v.severity,
-        title: v.title,
-        description: v.description,
-        patchedIn: v.patchedIn,
-      }));
-
-    let health: HealthStatus = 'healthy';
-    if (isDeprecated) health = 'deprecated';
-    else if (depVulnerabilities.length > 0) health = 'vulnerable';
-    else if (isOutdated) health = 'outdated';
-
-    return {
-      name: dep.name,
-      version: dep.version,
-      latestVersion: latestVersion || dep.version,
-      type: dep.type || (dep.dev ? 'development' : dep.peer ? 'peer' : 'production'),
-      deprecated: isDeprecated,
-      health,
-      vulnerabilities: depVulnerabilities,
-      weeklyDownloads: Math.floor(Math.random() * 1000000), // Simulated
-      lastUpdated: new Date().toISOString(),
-      repository: `https://www.npmjs.com/package/${dep.name}`,
-      description: `Package: ${dep.name}`,
-    };
-  });
-
-  const vulnerableCount = analyzed.filter(d => d.health === 'vulnerable').length;
-  const outdatedCount = analyzed.filter(d => d.health === 'outdated').length;
-  const deprecatedCount = analyzed.filter(d => d.deprecated).length;
-
-  const healthScore = calculateHealthScore(analyzed, vulnerableCount, outdatedCount, deprecatedCount);
-  const majorOutdated = analyzed
-    .filter(d => {
-      if (!d.latestVersion) return false;
-      const current = parseVersion(d.version);
-      const latest = parseVersion(d.latestVersion);
-      return latest.major > current.major;
-    })
-    .map(d => `${d.name}: ${d.version} -> ${d.latestVersion}`);
-
-  const recommendations = generateRecommendations(analyzed, vulnerableCount, majorOutdated);
-
-  return {
-    dependencies: analyzed,
-    outdatedCount,
-    vulnerableCount,
-    deprecatedCount,
-    healthScore,
-    majorOutdated,
-    recommendations,
-  };
-}
-
-function parseVersion(version: string): { major: number; minor: number; patch: number } {
-  const match = version.replace(/^[\^~>=<]/, '').match(/(\d+)\.(\d+)\.(\d+)/);
-  if (match) {
-    return {
-      major: parseInt(match[1]),
-      minor: parseInt(match[2]),
-      patch: parseInt(match[3]),
-    };
-  }
-  return { major: 0, minor: 0, patch: 0 };
-}
-
-function calculateHealthScore(
-  dependencies: Dependency[],
-  vulnerableCount: number,
-  outdatedCount: number,
-  deprecatedCount: number
-): number {
-  if (dependencies.length === 0) return 100;
-
-  let score = 100;
-  
-  // Vulnerabilities are most critical
-  score -= vulnerableCount * 15;
-  
-  // Deprecated packages are concerning
-  score -= deprecatedCount * 10;
-  
-  // Outdated packages matter less if minor
-  score -= outdatedCount * 2;
-
-  return Math.max(0, Math.min(100, score));
-}
-
-function generateRecommendations(
-  dependencies: Dependency[],
-  vulnerableCount: number,
-  majorOutdated: string[]
-): string[] {
-  const recommendations: string[] = [];
-
-  // Critical vulnerabilities
-  const criticalVulns = dependencies.flatMap(d => 
-    d.vulnerabilities?.filter(v => v.severity === 'critical') || []
-  );
-  
-  if (criticalVulns.length > 0) {
-    recommendations.push(`🔴 Critical: ${criticalVulns.length} critical vulnerability(ies) found. Update immediately.`);
-  }
-
-  // High vulnerabilities
-  const highVulns = dependencies.flatMap(d => 
-    d.vulnerabilities?.filter(v => v.severity === 'high') || []
-  );
-  
-  if (highVulns.length > 0) {
-    recommendations.push(`🟠 High: ${highVulns.length} high severity vulnerability(ies). Plan updates soon.`);
-  }
-
-  // Major version updates
-  if (majorOutdated.length > 0) {
-    recommendations.push(`🟡 Major updates available for: ${majorOutdated.slice(0, 3).join(', ')}${majorOutdated.length > 3 ? '...' : ''}`);
-  }
-
-  // Deprecated packages
-  const deprecated = dependencies.filter(d => d.deprecated);
-  if (deprecated.length > 0) {
-    recommendations.push(`⚠️ Deprecated packages: ${deprecated.map(d => d.name).join(', ')}. Find alternatives.`);
-  }
-
-  // General advice
-  if (vulnerableCount === 0 && deprecated.length === 0 && majorOutdated.length === 0) {
-    recommendations.push('✅ All dependencies are healthy. Keep up-to-date with regular updates.');
-  }
-
-  return recommendations;
-}
-
-/**
- * Build dependency graph
- */
-export function buildDependencyGraph(dependencies: Dependency[]): DependencyGraph {
-  const nodes: DependencyNode[] = dependencies.map(dep => ({
-    id: dep.name,
-    name: dep.name,
-    version: dep.version,
-    type: dep.type,
-  }));
-
-  const edges: DependencyEdge[] = dependencies
-    .filter(dep => dep.type === 'production')
-    .map(dep => ({
-      from: 'root',
-      to: dep.name,
-      type: 'depends-on' as const,
-    }));
-
-  return { nodes, edges };
-}
-
-/**
- * Analyze license compatibility
- */
-export function analyzeLicenses(dependencies: Dependency[]): {
-  compatible: string[];
-  incompatible: Array<{ package: string; license: string; reason: string }>;
-  unknown: string[];
-  recommendations: string[];
-} {
-  const incompatible: Array<{ package: string; license: string; reason: string }> = [];
-  const unknown: string[] = [];
-  
-  // Common incompatible licenses for OSS projects
-  const problematicLicenses: Record<string, string> = {
-    'GPL-3.0': 'Copyleft - may affect distribution',
-    'AGPL-3.0': 'Strong copyleft - may affect SaaS usage',
-    'LGPL-2.1': 'Weak copyleft - may require source disclosure',
-    'Commercial': 'May require purchase for commercial use',
-    'Proprietary': 'No redistribution allowed',
-  };
-
-  for (const dep of dependencies) {
-    // Simulate license lookup
-    const license = getLicenseForPackage(dep.name);
+export function createDependencyTracker() {
+  const generateReport = (repo: Repository): DependencyReport => {
+    const dependencies = generateMockDependencies(repo);
     
-    if (!license) {
-      unknown.push(dep.name);
-    } else if (problematicLicenses[license]) {
-      incompatible.push({
-        package: dep.name,
-        license,
-        reason: problematicLicenses[license],
-      });
-    }
-  }
+    const summary = {
+      total: dependencies.length,
+      production: dependencies.filter(d => d.type === 'production').length,
+      development: dependencies.filter(d => d.type === 'development').length,
+      outdated: dependencies.filter(d => d.health === 'outdated').length,
+      vulnerable: dependencies.filter(d => d.health === 'vulnerable').length,
+      deprecated: dependencies.filter(d => d.health === 'deprecated').length
+    };
 
-  const recommendations: string[] = [];
-  if (incompatible.length > 0) {
-    recommendations.push(`Review ${incompatible.length} packages with potentially problematic licenses`);
-  }
-  if (unknown.length > 0) {
-    recommendations.push(`${unknown.length} packages have unknown licenses - verify manually`);
-  }
+    const updateRecommendations = generateRecommendations(dependencies);
+
+    return {
+      repository: repo,
+      generatedAt: new Date(),
+      dependencies,
+      summary,
+      updateRecommendations
+    };
+  };
+
+  const generateMockDependencies = (repo: Repository): Dependency[] => {
+    const basePackages = [
+      { name: 'react', health: 'healthy' as const },
+      { name: 'typescript', health: 'healthy' as const },
+      { name: 'vitest', health: 'outdated' as const },
+      { name: 'eslint', health: 'healthy' as const },
+      { name: 'lodash', health: 'vulnerable' as const }
+    ];
+
+    return basePackages.map((pkg, i) => ({
+      name: pkg.name,
+      version: `^${i + 1}.${i}.0`,
+      latestVersion: `${i + 1}.${i + 2}.0`,
+      type: i < 2 ? 'production' : 'development',
+      health: pkg.health,
+      author: 'npm',
+      downloadCount: Math.floor(Math.random() * 10000000),
+      lastUpdated: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)
+    }));
+  };
+
+  const generateRecommendations = (deps: Dependency[]): UpdateRecommendation[] => {
+    return deps
+      .filter(d => d.health === 'outdated' || d.health === 'vulnerable')
+      .map(d => ({
+        name: d.name,
+        currentVersion: d.version,
+        targetVersion: d.latestVersion || 'latest',
+        priority: d.health === 'vulnerable' ? 'high' as const : 'medium' as const,
+        breaking: false,
+        reason: d.health === 'vulnerable' 
+          ? 'Security vulnerability detected - update immediately'
+          : 'Newer version available with improvements'
+      }));
+  };
+
+  const formatDependencyList = (report: DependencyReport): string => {
+    const lines = [
+      `# Dependency Report: ${report.repository.fullName}`,
+      '',
+      `Generated: ${report.generatedAt.toISOString()}`,
+      '',
+      '## Summary',
+      `- Total: ${report.summary.total}`,
+      `- Production: ${report.summary.production}`,
+      `- Development: ${report.summary.development}`,
+      `- Outdated: ${report.summary.outdated}`,
+      `- Vulnerable: ${report.summary.vulnerable}`,
+      '',
+      '## Dependencies'
+    ];
+
+    report.dependencies.forEach(dep => {
+      const status = dep.health === 'healthy' ? '✅' : dep.health === 'vulnerable' ? '🚨' : '⚠️';
+      lines.push(`${status} ${dep.name}@${dep.version} (${dep.type})`);
+    });
+
+    return lines.join('\n');
+  };
 
   return {
-    compatible: dependencies.map(d => d.name).filter(n => 
-      !incompatible.some(i => i.package === n) && !unknown.includes(n)
-    ),
-    incompatible,
-    unknown,
-    recommendations,
+    generateReport,
+    formatDependencyList,
+    healthStatuses: ['healthy', 'outdated', 'vulnerable', 'deprecated'] as const
   };
 }
 
-function getLicenseForPackage(name: string): string | undefined {
-  // Simulated - in real implementation, would look up from registry
-  const knownLicenses: Record<string, string> = {
-    'react': 'MIT',
-    'lodash': 'MIT',
-    'express': 'MIT',
-    'vue': 'MIT',
-    'next': 'MIT',
-    'typescript': 'Apache-2.0',
-    'vite': 'MIT',
-    'webpack': 'MIT',
+// Additional functions used by demo-data-extended
+export interface DependencyAnalysisInput {
+  dependencies: Array<{ name: string; version: string }>;
+  repoId?: string;
+}
+
+export function analyzeDependencies(input: DependencyAnalysisInput) {
+  const vulnerable = input.dependencies.filter(d => 
+    ['lodash', 'request', 'moment'].includes(d.name)
+  );
+  
+  return {
+    total: input.dependencies.length,
+    vulnerable: vulnerable.length,
+    riskScore: vulnerable.length > 0 ? 75 : 10,
+    vulnerablePackages: vulnerable.map(d => d.name)
   };
+}
 
-  const lowerName = name.toLowerCase();
-  for (const [pkg, license] of Object.entries(knownLicenses)) {
-    if (lowerName.includes(pkg)) {
-      return license;
-    }
-  }
-
-  return 'MIT'; // Default assumption
+export function analyzeLicenses(dependencies: Array<{ license?: string }>) {
+  return {
+    total: dependencies.length,
+    compliant: dependencies.filter(d => d.license).length,
+    nonCompliant: dependencies.filter(d => !d.license).length
+  };
 }
