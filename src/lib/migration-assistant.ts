@@ -1,246 +1,368 @@
-import { Issue, PullRequest, Contributor, Repository } from './types';
+/**
+ * Migration Assistant - Help maintainers plan and execute project migrations
+ */
+
+export interface MigrationPlan {
+  id: string;
+  name: string;
+  fromVersion: string;
+  toVersion: string;
+  status: 'planned' | 'in-progress' | 'completed' | 'failed';
+  phases: MigrationPhase[];
+  risks: Risk[];
+  timeline: Timeline;
+  rollback?: RollbackPlan;
+}
+
+export interface MigrationPhase {
+  id: string;
+  name: string;
+  description: string;
+  tasks: MigrationTask[];
+  status: 'pending' | 'in-progress' | 'completed' | 'skipped';
+  estimatedDuration: string;
+}
 
 export interface MigrationTask {
   id: string;
+  title: string;
   description: string;
-  file: string;
-  line?: number;
-  from: string;
-  to: string;
-  effort: 'low' | 'medium' | 'high';
-  automated: boolean;
-  status: 'pending' | 'in_progress' | 'completed' | 'blocked';
-  blockers?: string[];
+  type: 'code-change' | 'config-update' | 'dependency-update' | 'data-migration' | 'testing' | 'documentation';
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  status: 'pending' | 'in-progress' | 'completed' | 'blocked';
+  affectedFiles?: string[];
+  breakingChanges?: string[];
+  automated?: boolean;
+  rollbackTask?: string;
 }
 
-export interface MigrationPlan {
-  project: string;
+export interface Risk {
+  id: string;
+  description: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  probability: 'likely' | 'possible' | 'unlikely';
+  impact: string;
+  mitigation: string;
+}
+
+export interface Timeline {
+  startDate: string;
+  estimatedEndDate: string;
+  actualEndDate?: string;
+  milestones: TimelineMilestone[];
+}
+
+export interface TimelineMilestone {
+  date: string;
+  name: string;
+  completed: boolean;
+  deliverable?: string;
+}
+
+export interface RollbackPlan {
+  steps: string[];
+  estimatedTime: string;
+  verificationChecks: string[];
+}
+
+/**
+ * Detect breaking changes between versions
+ */
+export function detectBreakingChanges(
+  currentDeps: Record<string, string>,
+  targetDeps: Record<string, string>
+): {
+  breaking: { name: string; current: string; target: string; reason: string }[];
+  warnings: { name: string; message: string }[];
+  safe: string[];
+} {
+  const breaking: { name: string; current: string; target: string; reason: string }[] = [];
+  const warnings: { name: string; message: string }[] = [];
+  const safe: string[] = [];
+  
+  const allDeps = new Set([...Object.keys(currentDeps), ...Object.keys(targetDeps)]);
+  
+  for (const dep of allDeps) {
+    const current = currentDeps[dep];
+    const target = targetDeps[dep];
+    
+    if (!current) {
+      safe.push(`${dep}: new dependency`);
+      continue;
+    }
+    if (!target) {
+      warnings.push({ name: dep, message: 'Dependency will be removed' });
+      continue;
+    }
+    
+    // Major version bump is breaking
+    const currentMajor = parseVersion(current).major;
+    const targetMajor = parseVersion(target).major;
+    
+    if (targetMajor > currentMajor) {
+      breaking.push({
+        name: dep,
+        current,
+        target,
+        reason: `Major version bump: ${currentMajor} -> ${targetMajor}`,
+      });
+    } else if (parseVersion(target).minor > parseVersion(current).minor) {
+      warnings.push({
+        name: dep,
+        message: `Minor version bump: ${current} -> ${target}`,
+      });
+    } else {
+      safe.push(`${dep}: ${current} -> ${target}`);
+    }
+  }
+  
+  return { breaking, warnings, safe };
+}
+
+function parseVersion(version: string): { major: number; minor: number; patch: number } {
+  const cleaned = version.replace(/^[\^~>=<]/, '').split('-')[0].split('+')[0];
+  const parts = cleaned.split('.').map(Number);
+  return {
+    major: parts[0] || 0,
+    minor: parts[1] || 0,
+    patch: parts[2] || 0,
+  };
+}
+
+/**
+ * Generate migration plan
+ */
+export function generateMigrationPlan(config: {
+  name: string;
   fromVersion: string;
   toVersion: string;
-  tasks: MigrationTask[];
-  estimatedDuration: string;
-  riskLevel: 'low' | 'medium' | 'high';
-  breakingChanges: string[];
-  compatibilityLayers?: { name: string; description: string }[];
-}
-
-export interface MigrationProgress {
-  total: number;
-  completed: number;
-  inProgress: number;
-  pending: number;
-  blocked: number;
-  percentage: number;
-}
-
-export function analyzeMigrationScope(codebase: any[], fromVersion: string, toVersion: string): MigrationPlan {
-  const tasks: MigrationTask[] = [];
-  const breakingChanges: string[] = [];
-
-  const migrationPatterns = {
-    'react-hooks': {
-      from: '16.8', to: '18.0',
-      changes: [
-        { pattern: 'useEffect(() => { return () => {} }, [])', replacement: 'useLayoutEffect', effort: 'medium' as const }
-      ]
-    },
-    'node-api': {
-      from: '14', to: '18',
-      changes: [
-        { pattern: 'Buffer.allocUnsafe()', replacement: 'Buffer.alloc()', effort: 'low' as const }
-      ]
-    }
-  };
-
-  codebase.forEach((file, index) => {
-    if (file.path?.includes('package.json')) {
-      const deps = Object.keys(file.dependencies || {});
-      deps.forEach(dep => {
-        if (dep === 'react' && fromVersion.startsWith('17')) {
-          tasks.push({
-            id: `mig-${index}-react-hooks`,
-            description: 'Update React Hooks usage for concurrent features',
-            file: file.path,
-            from: 'React 17 patterns',
-            to: 'React 18 patterns',
-            effort: 'medium',
-            automated: false,
-            status: 'pending'
-          });
-          breakingChanges.push('React 18: Strict Mode renders components twice');
-        }
-      });
-    }
-
-    if (file.content) {
-      if (file.content.includes('componentWillReceiveProps')) {
-        tasks.push({
-          id: `mig-${index}-unsafe-lifecycle`,
-          description: 'Replace deprecated componentWillReceiveProps',
-          file: file.path,
-          from: 'UNSAFE_componentWillReceiveProps',
-          to: 'getDerivedStateFromProps or useEffect',
-          effort: 'high',
-          automated: false,
-          status: 'pending'
-        });
-        breakingChanges.push('Deprecated lifecycle methods removed');
-      }
-    }
-  });
-
-  const estimatedDuration = calculateMigrationDuration(tasks);
-  const riskLevel = calculateRiskLevel(tasks, breakingChanges);
-
-  return {
-    project: 'Unknown Project',
-    fromVersion,
-    toVersion,
-    tasks: tasks.sort((a, b) => {
-      const order = { high: 0, medium: 1, low: 2 };
-      return order[a.effort] - order[b.effort];
-    }),
-    estimatedDuration,
-    riskLevel,
-    breakingChanges: [...new Set(breakingChanges)],
-    compatibilityLayers: generateCompatibilityLayers(breakingChanges)
-  };
-}
-
-function calculateMigrationDuration(tasks: MigrationTask[]): string {
-  const effortHours = {
-    low: 1,
-    medium: 4,
-    high: 8
-  };
-
-  const totalHours = tasks.reduce((sum, task) => sum + effortHours[task.effort], 0);
+  migrationType: 'dependency' | 'framework' | 'api' | 'platform';
+}): MigrationPlan {
+  const phases: MigrationPhase[] = [];
   
-  if (totalHours < 8) return `${totalHours} hours`;
-  if (totalHours < 40) return `${Math.ceil(totalHours / 8)} days`;
-  return `${Math.ceil(totalHours / 40)} weeks`;
-}
-
-function calculateRiskLevel(tasks: MigrationTask[], breakingChanges: string[]): 'low' | 'medium' | 'high' {
-  const highEffortCount = tasks.filter(t => t.effort === 'high').length;
-  const automatedCount = tasks.filter(t => t.automated).length;
-
-  if (highEffortCount > 5 || breakingChanges.length > 10) return 'high';
-  if (highEffortCount > 2 || automatedCount < tasks.length / 3) return 'medium';
-  return 'low';
-}
-
-function generateCompatibilityLayers(breakingChanges: string[]): { name: string; description: string }[] {
-  const layers: { name: string; description: string }[] = [];
-  
-  if (breakingChanges.some(b => b.includes('React'))) {
-    layers.push({
-      name: 'react-compat',
-      description: 'Compatibility layer for React 17 → 18 migration'
+  if (config.migrationType === 'dependency') {
+    phases.push({
+      id: 'analysis',
+      name: 'Analysis Phase',
+      description: 'Analyze current state and dependencies',
+      tasks: [
+        {
+          id: 'audit-deps',
+          title: 'Audit current dependencies',
+          description: 'Run npm audit and analyze package.json',
+          type: 'dependency-update',
+          priority: 'high',
+          status: 'pending',
+          automated: true,
+        },
+        {
+          id: 'check-changelogs',
+          title: 'Review changelogs',
+          description: 'Check breaking changes in dependency changelogs',
+          type: 'documentation',
+          priority: 'high',
+          status: 'pending',
+        },
+      ],
+      status: 'pending',
+      estimatedDuration: '1-2 days',
+    });
+    
+    phases.push({
+      id: 'preparation',
+      name: 'Preparation Phase',
+      description: 'Prepare migration environment and tests',
+      tasks: [
+        {
+          id: 'backup',
+          title: 'Create backup branch',
+          description: 'Branch from main for safe migration',
+          type: 'code-change',
+          priority: 'critical',
+          status: 'pending',
+          automated: true,
+        },
+        {
+          id: 'update-tests',
+          title: 'Update test suite',
+          description: 'Ensure tests cover migration-affected areas',
+          type: 'testing',
+          priority: 'high',
+          status: 'pending',
+        },
+      ],
+      status: 'pending',
+      estimatedDuration: '2-3 days',
+    });
+    
+    phases.push({
+      id: 'execution',
+      name: 'Execution Phase',
+      description: 'Execute the actual migration',
+      tasks: [
+        {
+          id: 'update-deps',
+          title: 'Update dependencies',
+          description: `Update package.json from ${config.fromVersion} to ${config.toVersion}`,
+          type: 'dependency-update',
+          priority: 'critical',
+          status: 'pending',
+          automated: true,
+          rollbackTask: 'revert-deps',
+        },
+        {
+          id: 'fix-breaking',
+          title: 'Fix breaking changes',
+          description: 'Address any breaking changes from dependencies',
+          type: 'code-change',
+          priority: 'critical',
+          status: 'pending',
+        },
+      ],
+      status: 'pending',
+      estimatedDuration: '3-5 days',
+    });
+    
+    phases.push({
+      id: 'verification',
+      name: 'Verification Phase',
+      description: 'Verify migration success',
+      tasks: [
+        {
+          id: 'run-tests',
+          title: 'Run full test suite',
+          description: 'Execute all tests to verify compatibility',
+          type: 'testing',
+          priority: 'critical',
+          status: 'pending',
+          automated: true,
+        },
+        {
+          id: 'manual-testing',
+          title: 'Perform manual testing',
+          description: 'Test critical user flows manually',
+          type: 'testing',
+          priority: 'high',
+          status: 'pending',
+        },
+      ],
+      status: 'pending',
+      estimatedDuration: '1-2 days',
     });
   }
   
-  return layers;
-}
-
-export function trackMigrationProgress(plan: MigrationPlan): MigrationProgress {
-  const statusCounts = {
-    completed: plan.tasks.filter(t => t.status === 'completed').length,
-    in_progress: plan.tasks.filter(t => t.status === 'in_progress').length,
-    pending: plan.tasks.filter(t => t.status === 'pending').length,
-    blocked: plan.tasks.filter(t => t.status === 'blocked').length
-  };
-
   return {
-    total: plan.tasks.length,
-    completed: statusCounts.completed,
-    inProgress: statusCounts.in_progress,
-    pending: statusCounts.pending,
-    blocked: statusCounts.blocked,
-    percentage: plan.tasks.length > 0 
-      ? Math.round((statusCounts.completed / plan.tasks.length) * 100) 
-      : 0
+    id: `migration-${Date.now()}`,
+    name: config.name,
+    fromVersion: config.fromVersion,
+    toVersion: config.toVersion,
+    status: 'planned',
+    phases,
+    risks: [
+      {
+        id: 'breaking-api',
+        description: 'Breaking API changes in dependencies',
+        severity: 'high',
+        probability: 'likely',
+        impact: 'Code refactoring required',
+        mitigation: 'Review changelogs early and plan refactoring',
+      },
+    ],
+    timeline: {
+      startDate: new Date().toISOString().split('T')[0],
+      estimatedEndDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      milestones: [
+        { date: new Date().toISOString().split('T')[0], name: 'Planning Complete', completed: false },
+        { date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], name: 'Migration Complete', completed: false },
+        { date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], name: 'Production Release', completed: false },
+      ],
+    },
+    rollback: {
+      steps: ['Revert to backup branch', 'Reinstall old dependencies', 'Verify tests pass'],
+      estimatedTime: '15 minutes',
+      verificationChecks: ['All tests pass', 'Critical features work'],
+    },
   };
 }
 
-export function suggestMigrationOrder(tasks: MigrationTask[]): MigrationTask[] {
-  const deps = new Map<string, string[]>();
-  
-  tasks.forEach(task => {
-    if (task.file) {
-      const dir = task.file.split('/').slice(0, -1).join('/');
-      if (!deps.has(dir)) deps.set(dir, []);
+/**
+ * Update task status in migration plan
+ */
+export function updateTaskStatus(
+  plan: MigrationPlan,
+  phaseId: string,
+  taskId: string,
+  status: MigrationTask['status']
+): MigrationPlan {
+  const updatedPlan = { ...plan };
+  updatedPlan.phases = plan.phases.map(phase => {
+    if (phase.id === phaseId) {
+      return {
+        ...phase,
+        tasks: phase.tasks.map(task => 
+          task.id === taskId ? { ...task, status } : task
+        ),
+      };
     }
+    return phase;
   });
-
-  return [...tasks].sort((a, b) => {
-    if (a.automated !== b.automated) return a.automated ? -1 : 1;
-    
-    const aDeps = deps.get(a.file?.split('/').slice(0, -1).join('/') || '') || [];
-    const bDeps = deps.get(b.file?.split('/').slice(0, -1).join('/') || '') || [];
-    
-    if (aDeps.includes(b.file || '')) return 1;
-    if (bDeps.includes(a.file || '')) return -1;
-    
-    const order = { low: 0, medium: 1, high: 2 };
-    return order[a.effort] - order[b.effort];
-  });
-}
-
-export function generateMigrationScript(tasks: MigrationTask[]): string {
-  const automated = tasks.filter(t => t.automated);
   
-  if (automated.length === 0) {
-    return '# No automated migrations available\n';
+  // Update phase status
+  updatedPlan.phases = updatedPlan.phases.map(phase => {
+    const allCompleted = phase.tasks.every(t => t.status === 'completed' || t.status === 'skipped');
+    const anyInProgress = phase.tasks.some(t => t.status === 'in-progress');
+    
+    return {
+      ...phase,
+      status: allCompleted ? 'completed' : anyInProgress ? 'in-progress' : phase.status,
+    };
+  });
+  
+  // Update overall status
+  const allPhasesComplete = updatedPlan.phases.every(p => p.status === 'completed');
+  const anyInProgress = updatedPlan.phases.some(p => p.status === 'in-progress');
+  
+  if (allPhasesComplete) {
+    updatedPlan.status = 'completed';
+    updatedPlan.timeline.actualEndDate = new Date().toISOString().split('T')[0];
+  } else if (anyInProgress) {
+    updatedPlan.status = 'in-progress';
   }
-
-  let script = '#!/bin/bash\n';
-  script += '# Auto-generated migration script\n\n';
-
-  automated.forEach(task => {
-    script += `# Migration: ${task.description}\n`;
-    script += `echo "Running: ${task.description}"\n`;
-    script += `# ${task.from} → ${task.to}\n`;
-    script += '# Add your migration commands here\n\n';
-  });
-
-  return script;
+  
+  return updatedPlan;
 }
 
-export function generateMigrationReport(plan: MigrationPlan): string {
-  const progress = trackMigrationProgress(plan);
+/**
+ * Generate migration report
+ */
+export function generateMigrationReport(plan: MigrationPlan): {
+  summary: string;
+  progress: { completed: number; total: number; percentage: number };
+  blockers: MigrationTask[];
+  nextSteps: MigrationTask[];
+  completedPhases: string[];
+} {
+  const allTasks = plan.phases.flatMap(p => p.tasks);
+  const completedTasks = allTasks.filter(t => t.status === 'completed');
+  const blockedTasks = allTasks.filter(t => t.status === 'blocked');
   
-  return `
-# Migration Report: ${plan.project}
-
-## Overview
-- **From**: ${plan.fromVersion}
-- **To**: ${plan.toVersion}
-- **Risk Level**: ${plan.riskLevel.toUpperCase()}
-- **Estimated Duration**: ${plan.estimatedDuration}
-
-## Progress
-- **Total Tasks**: ${progress.total}
-- **Completed**: ${progress.completed} (${progress.percentage}%)
-- **In Progress**: ${progress.inProgress}
-- **Pending**: ${progress.pending}
-- **Blocked**: ${progress.blocked}
-
-## Breaking Changes
-${plan.breakingChanges.map(b => `- ${b}`).join('\n')}
-
-## Tasks by Priority
-
-### High Effort
-${plan.tasks.filter(t => t.effort === 'high').map(t => `- ${t.description} (${t.file || 'unknown'})`).join('\n') || 'None'}
-
-### Medium Effort
-${plan.tasks.filter(t => t.effort === 'medium').map(t => `- ${t.description}`).join('\n') || 'None'}
-
-### Low Effort
-${plan.tasks.filter(t => t.effort === 'low').map(t => `- ${t.description}`).join('\n') || 'None'}
-
-## Compatibility Layers
-${plan.compatibilityLayers?.map(l => `- **${l.name}**: ${l.description}`).join('\n') || 'None required'}
-`.trim();
+  const nextTasks = plan.phases
+    .filter(p => p.status !== 'completed')
+    .flatMap(p => p.tasks)
+    .filter(t => t.status === 'pending')
+    .slice(0, 3);
+  
+  const summary = `Migration ${plan.name}: ${plan.fromVersion} → ${plan.toVersion}`;
+  
+  return {
+    summary,
+    progress: {
+      completed: completedTasks.length,
+      total: allTasks.length,
+      percentage: Math.round((completedTasks.length / allTasks.length) * 100),
+    },
+    blockers: blockedTasks,
+    nextSteps: nextTasks,
+    completedPhases: plan.phases.filter(p => p.status === 'completed').map(p => p.name),
+  };
 }

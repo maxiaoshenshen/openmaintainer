@@ -1,84 +1,117 @@
 import { describe, it, expect } from 'vitest';
 import { 
-  analyzeMigrationScope,
-  trackMigrationProgress,
-  suggestMigrationOrder,
-  generateMigrationScript,
+  detectBreakingChanges,
+  generateMigrationPlan,
+  updateTaskStatus,
   generateMigrationReport
 } from './migration-assistant';
 
-describe('Migration Assistant', () => {
-  const mockCodebase = [
-    { path: 'package.json', dependencies: { react: '17.0.0' } },
-    { path: 'src/components/OldComponent.tsx', content: 'componentWillReceiveProps() {}' }
-  ];
-
-  describe('analyzeMigrationScope', () => {
-    it('should identify migration tasks', () => {
-      const plan = analyzeMigrationScope(mockCodebase, '17.0.0', '18.0.0');
+describe('migration-assistant', () => {
+  describe('detectBreakingChanges', () => {
+    it('should detect major version bumps as breaking', () => {
+      const current = { react: '16.0.0', lodash: '4.0.0' };
+      const target = { react: '18.0.0', lodash: '4.5.0' };
       
-      expect(plan.tasks.length).toBeGreaterThan(0);
-      expect(plan.fromVersion).toBe('17.0.0');
+      const result = detectBreakingChanges(current, target);
+      
+      expect(result.breaking.some(b => b.name === 'react')).toBe(true);
+      expect(result.warnings.some(w => w.name === 'lodash')).toBe(true);
+    });
+
+    it('should identify new dependencies', () => {
+      const current = { react: '18.0.0' };
+      const target = { react: '18.0.0', axios: '1.0.0' };
+      
+      const result = detectBreakingChanges(current, target);
+      
+      expect(result.safe.some(s => s.includes('axios'))).toBe(true);
+    });
+
+    it('should warn about removed dependencies', () => {
+      const current = { react: '18.0.0', lodash: '4.0.0' };
+      const target = { react: '18.0.0' };
+      
+      const result = detectBreakingChanges(current, target);
+      
+      expect(result.warnings.some(w => w.name === 'lodash')).toBe(true);
+    });
+  });
+
+  describe('generateMigrationPlan', () => {
+    it('should generate migration plan', () => {
+      const plan = generateMigrationPlan({
+        name: 'React 18 Migration',
+        fromVersion: '16.0.0',
+        toVersion: '18.0.0',
+        migrationType: 'dependency',
+      });
+      
+      expect(plan.name).toBe('React 18 Migration');
+      expect(plan.fromVersion).toBe('16.0.0');
       expect(plan.toVersion).toBe('18.0.0');
+      expect(plan.phases.length).toBeGreaterThan(0);
+      expect(plan.risks.length).toBeGreaterThan(0);
     });
 
-    it('should detect breaking changes', () => {
-      const plan = analyzeMigrationScope(mockCodebase, '17.0.0', '18.0.0');
+    it('should include rollback plan', () => {
+      const plan = generateMigrationPlan({
+        name: 'Test Migration',
+        fromVersion: '1.0.0',
+        toVersion: '2.0.0',
+        migrationType: 'dependency',
+      });
       
-      expect(plan.breakingChanges.length).toBeGreaterThan(0);
-    });
-
-    it('should calculate risk level', () => {
-      const plan = analyzeMigrationScope(mockCodebase, '17.0.0', '18.0.0');
-      
-      expect(['low', 'medium', 'high']).toContain(plan.riskLevel);
-    });
-
-    it('should estimate duration', () => {
-      const plan = analyzeMigrationScope(mockCodebase, '17.0.0', '18.0.0');
-      
-      expect(plan.estimatedDuration).toBeDefined();
+      expect(plan.rollback).toBeDefined();
+      expect(plan.rollback?.steps.length).toBeGreaterThan(0);
     });
   });
 
-  describe('trackMigrationProgress', () => {
-    it('should calculate progress correctly', () => {
-      const plan = analyzeMigrationScope(mockCodebase, '17.0.0', '18.0.0');
-      plan.tasks[0].status = 'completed';
+  describe('updateTaskStatus', () => {
+    it('should update task status', () => {
+      const plan = generateMigrationPlan({
+        name: 'Test',
+        fromVersion: '1.0.0',
+        toVersion: '2.0.0',
+        migrationType: 'dependency',
+      });
       
-      const progress = trackMigrationProgress(plan);
+      const updated = updateTaskStatus(plan, 'analysis', 'audit-deps', 'completed');
       
-      expect(progress.total).toBe(plan.tasks.length);
-      expect(progress.percentage).toBeGreaterThan(0);
+      const task = updated.phases[0].tasks.find(t => t.id === 'audit-deps');
+      expect(task?.status).toBe('completed');
     });
-  });
 
-  describe('suggestMigrationOrder', () => {
-    it('should prioritize automated tasks', () => {
-      const plan = analyzeMigrationScope(mockCodebase, '17.0.0', '18.0.0');
-      const ordered = suggestMigrationOrder(plan.tasks);
+    it('should update phase status when all tasks complete', () => {
+      const plan = generateMigrationPlan({
+        name: 'Test',
+        fromVersion: '1.0.0',
+        toVersion: '2.0.0',
+        migrationType: 'dependency',
+      });
       
-      expect(ordered).toBeDefined();
-    });
-  });
-
-  describe('generateMigrationScript', () => {
-    it('should generate script content', () => {
-      const plan = analyzeMigrationScope(mockCodebase, '17.0.0', '18.0.0');
-      const script = generateMigrationScript(plan.tasks);
+      const updated = plan.phases[0].tasks.reduce(
+        (p, task) => updateTaskStatus(p, 'analysis', task.id, 'completed'),
+        plan
+      );
       
-      expect(script.length).toBeGreaterThan(0);
+      expect(updated.phases[0].status).toBe('completed');
     });
   });
 
   describe('generateMigrationReport', () => {
-    it('should generate markdown report', () => {
-      const plan = analyzeMigrationScope(mockCodebase, '17.0.0', '18.0.0');
+    it('should generate progress report', () => {
+      const plan = generateMigrationPlan({
+        name: 'Test',
+        fromVersion: '1.0.0',
+        toVersion: '2.0.0',
+        migrationType: 'dependency',
+      });
+      
       const report = generateMigrationReport(plan);
       
-      expect(report).toContain('Migration Report');
-      expect(report).toContain('Overview');
-      expect(report).toContain('Progress');
+      expect(report.summary).toContain('Test');
+      expect(report.progress.total).toBeGreaterThan(0);
+      expect(report.nextSteps).toBeDefined();
     });
   });
 });
