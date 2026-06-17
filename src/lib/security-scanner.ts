@@ -1,200 +1,259 @@
 /**
- * Security Vulnerability Scanner
- * Scan dependencies for known vulnerabilities and security issues
+ * Security Scanner - Automated vulnerability detection and remediation
  */
 
-export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'unknown';
-export type FixStatus = 'available' | 'no-fix' | 'workaround' | 'none';
-
-export interface Vulnerability {
+export interface SecurityFinding {
   id: string;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  category: string;
   title: string;
   description: string;
-  severity: Severity;
-  package: string;
-  currentVersion: string;
-  fixedVersion?: string;
-  exploitAvailable: boolean;
-  cvssScore?: number;
-  cweIds: string[];
-  references: string[];
-  publishedAt: Date;
-  affectedVersions: string[];
-}
-
-export interface DependencyVulnSummary {
-  dependency: string;
-  version: string;
-  vulnerabilities: Vulnerability[];
-  riskScore: number;
-  canUpgrade: boolean;
-  upgradeTo?: string;
-}
-
-export interface SecurityReport {
-  scanDate: Date;
-  totalDependencies: number;
-  vulnerableDependencies: number;
-  criticalCount: number;
-  highCount: number;
-  mediumCount: number;
-  lowCount: number;
-  vulnerabilities: Vulnerability[];
-  recommendations: string[];
-  overallRisk: 'critical' | 'high' | 'medium' | 'low' | 'safe';
-}
-
-export interface License {
-  spdxId: string;
-  name: string;
-  isOsiApproved: boolean;
-  isDeprecated: boolean;
-}
-
-export interface LicenseIssue {
-  dependency: string;
-  license: string;
-  isOsiApproved: boolean;
-  isCopyleft: boolean;
-  isProprietary: boolean;
+  file?: string;
+  line?: number;
+  cwe?: string;
+  cvss?: number;
   recommendation: string;
+  references?: string[];
 }
 
-export function calculateCVSS(score: number): string {
-  if (score >= 9.0) return 'critical';
-  if (score >= 7.0) return 'high';
-  if (score >= 4.0) return 'medium';
-  if (score >= 0.1) return 'low';
-  return 'unknown';
+export interface ScanConfig {
+  paths: string[];
+  exclude?: string[];
+  severityThreshold?: SecurityFinding['severity'];
+  scanDependencies?: boolean;
+  scanSecrets?: boolean;
+  scanLicenses?: boolean;
 }
 
-export function getSeverityScore(severity: Severity): number {
-  const scores: Record<Severity, number> = {
-    critical: 10,
-    high: 7,
-    medium: 4,
-    low: 1,
-    unknown: 0,
+export interface ScanResult {
+  timestamp: Date;
+  findings: SecurityFinding[];
+  summary: {
+    total: number;
+    bySeverity: Record<string, number>;
+    byCategory: Record<string, number>;
+  };
+  duration: number;
+}
+
+const CWE_DATABASE: Record<string, { title: string; description: string; recommendation: string }> = {
+  'CWE-79': {
+    title: 'Cross-site Scripting (XSS)',
+    description: 'User input not properly sanitized before being rendered',
+    recommendation: 'Sanitize and encode all user input. Use framework-safe rendering.',
+  },
+  'CWE-89': {
+    title: 'SQL Injection',
+    description: 'SQL query constructed from user input without proper sanitization',
+    recommendation: 'Use parameterized queries or an ORM. Never concatenate user input into SQL.',
+  },
+  'CWE-502': {
+    title: 'Deserialization of Untrusted Data',
+    description: 'Untrusted data being deserialized without validation',
+    recommendation: 'Validate and sanitize all deserialized data. Avoid using pickle/YAML.',
+  },
+  'CWE-798': {
+    title: 'Use of Hard-coded Credentials',
+    description: 'Credentials embedded in source code',
+    recommendation: 'Use environment variables or a secrets manager. Never commit secrets.',
+  },
+  'CWE-352': {
+    title: 'Cross-Site Request Forgery (CSRF)',
+    description: 'Missing CSRF protection on state-changing operations',
+    recommendation: 'Implement CSRF tokens for all forms and state-changing requests.',
+  },
+};
+
+const SECRET_PATTERNS = [
+  { pattern: /github_token\s*[=:]\s*['"]?([a-zA-Z0-9_-]{35,})['"]?/gi, name: 'GitHub Token' },
+  { pattern: /aws_access_key\s*[=:]\s*['"]?([A-Z0-9]{20})['"]?/gi, name: 'AWS Access Key' },
+  { pattern: /aws_secret_key\s*[=:]\s*['"]?([A-Za-z0-9/+=]{40})['"]?/gi, name: 'AWS Secret' },
+  { pattern: /private[_-]?key\s*[=:]\s*['"]?-----BEGIN[ A-Z]+-----/gi, name: 'Private Key' },
+  { pattern: /sk-[a-zA-Z0-9]{48}/g, name: 'OpenAI API Key' },
+  { pattern: /xox[baprs]-[a-zA-Z0-9]{10,}/g, name: 'Slack Token' },
+  { pattern: /sq0csp-[a-zA-Z0-9_-]{43}/g, name: 'Stripe Key' },
+];
+
+export function scanForSecrets(content: string, file: string): SecurityFinding[] {
+  const findings: SecurityFinding[] = [];
+
+  for (const { pattern, name } of SECRET_PATTERNS) {
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      findings.push({
+        id: `secret-${findings.length + 1}`,
+        severity: 'critical',
+        category: 'Secrets Exposure',
+        title: `${name} detected in source code`,
+        description: `A potential ${name} was found in ${file}. This secret may be exposed if committed.`,
+        recommendation: `Remove or replace this secret immediately. Use environment variables instead. Rotate any exposed credentials.`,
+        cwe: 'CWE-798',
+        cvss: 9.1,
+        references: ['https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure'],
+      });
+    }
+  }
+
+  return findings;
+}
+
+export function scanForVulnerabilities(code: string, language: string): SecurityFinding[] {
+  const findings: SecurityFinding[] = [];
+
+  // JavaScript/TypeScript checks
+  if (['javascript', 'typescript', 'jsx', 'tsx'].includes(language)) {
+    // Eval usage
+    if (/eval\s*\(/.test(code)) {
+      findings.push({
+        id: `js-${findings.length + 1}`,
+        severity: 'high',
+        category: 'Code Injection',
+        title: 'Use of eval() detected',
+        description: 'eval() can execute arbitrary code and poses a significant security risk',
+        recommendation: 'Avoid eval(). Use safer alternatives like JSON.parse() for data or Function constructor with caution.',
+        cwe: 'CWE-95',
+        cvss: 7.3,
+      });
+    }
+
+    // Inner HTML usage
+    if (/innerHTML\s*=/.test(code)) {
+      findings.push({
+        id: `js-${findings.length + 1}`,
+        severity: 'medium',
+        category: 'XSS',
+        title: 'Direct innerHTML assignment detected',
+        description: 'innerHTML can execute scripts if user input is not sanitized',
+        recommendation: 'Use textContent where possible, or sanitize input with DOMPurify before innerHTML.',
+        cwe: 'CWE-79',
+        cvss: 6.1,
+      });
+    }
+
+    // Hardcoded passwords
+    if (/password\s*[=:]\s*['"][^'"]+['"]/i.test(code)) {
+      findings.push({
+        id: `js-${findings.length + 1}`,
+        severity: 'high',
+        category: 'Credentials',
+        title: 'Hardcoded password detected',
+        description: 'A password was found hardcoded in source code',
+        recommendation: 'Use environment variables or a secrets manager for credentials.',
+        cwe: 'CWE-259',
+        cvss: 7.5,
+      });
+    }
+  }
+
+  // Python checks
+  if (language === 'python') {
+    // Pickle deserialization
+    if (/pickle\.load|pickle\.loads/.test(code)) {
+      findings.push({
+        id: `py-${findings.length + 1}`,
+        severity: 'high',
+        category: 'Deserialization',
+        title: 'Pickle deserialization detected',
+        description: 'Untrusted pickle data can lead to arbitrary code execution',
+        recommendation: 'Use JSON or another safe serialization format. If using pickle is necessary, validate the data source.',
+        cwe: 'CWE-502',
+        cvss: 9.1,
+      });
+    }
+
+    // SQL string concatenation
+    if (/execute\s*\(\s*['"`].*%s|execute\s*\(\s*['"`].*\.format\(/i.test(code)) {
+      findings.push({
+        id: `py-${findings.length + 1}`,
+        severity: 'critical',
+        category: 'SQL Injection',
+        title: 'Potential SQL injection via string formatting',
+        description: 'SQL query constructed using string formatting',
+        recommendation: 'Use parameterized queries or an ORM like SQLAlchemy.',
+        cwe: 'CWE-89',
+        cvss: 9.1,
+      });
+    }
+  }
+
+  return findings;
+}
+
+export function calculateCVSS(
+  severity: SecurityFinding['severity']
+): number {
+  const scores: Record<SecurityFinding['severity'], number> = {
+    critical: 9.5,
+    high: 7.5,
+    medium: 5.0,
+    low: 2.5,
+    info: 0,
   };
   return scores[severity];
 }
 
-export function calculateRiskScore(vulnerabilities: Vulnerability[]): number {
-  if (vulnerabilities.length === 0) return 0;
-  const totalScore = vulnerabilities.reduce((sum, v) => sum + getSeverityScore(v.severity), 0);
-  return Math.min(100, Math.round(totalScore / vulnerabilities.length * 10));
-}
-
-export function canAutoFix(vulnerability: Vulnerability): FixStatus {
-  if (!vulnerability.fixedVersion) return 'no-fix';
-  if (vulnerability.exploitAvailable) return 'workaround';
-  return 'available';
-}
-
-export function isVersionAffected(version: string, affectedVersions: string[]): boolean {
-  for (const range of affectedVersions) {
-    if (range === '*') return true;
-    if (range === version) return true;
-    if (range.startsWith('>=') && version >= range.slice(2)) return true;
-    if (range.startsWith('<=') && version <= range.slice(2)) return true;
-    if (range.includes('-') && version >= range.split('-')[0] && version <= range.split('-')[1]) return true;
-  }
-  return false;
-}
-
-export function suggestUpgradePath(currentVersion: string, fixedVersion: string): string[] {
-  const paths: string[] = [];
-  const [curMajor, curMinor, curPatch] = currentVersion.split('.').map(Number);
-  const [fixMajor, fixMinor, fixPatch] = fixedVersion.split('.').map(Number);
-  
-  if (fixMajor > curMajor) paths.push(`Major upgrade: ${currentVersion} → ${fixedVersion}`);
-  if (fixMinor > curMinor) paths.push(`Minor upgrade: ${currentVersion} → ${curMajor}.${fixMinor}.${curPatch || 0}`);
-  if (fixPatch > curPatch) paths.push(`Patch upgrade: ${currentVersion} → ${curMajor}.${curMinor}.${fixPatch}`);
-  
-  return paths;
-}
-
-export function generateSecurityReport(
-  dependencies: Array<{ name: string; version: string }>,
-  vulnerabilities: Vulnerability[]
-): SecurityReport {
-  const vulnByDep = new Map<string, Vulnerability[]>();
-  for (const vuln of vulnerabilities) {
-    const existing = vulnByDep.get(vuln.package) || [];
-    existing.push(vuln);
-    vulnByDep.set(vuln.package, existing);
-  }
-
-  const criticalCount = vulnerabilities.filter(v => v.severity === 'critical').length;
-  const highCount = vulnerabilities.filter(v => v.severity === 'high').length;
-  const mediumCount = vulnerabilities.filter(v => v.severity === 'medium').length;
-  const lowCount = vulnerabilities.filter(v => v.severity === 'low').length;
-
-  const recommendations: string[] = [];
-  if (criticalCount > 0) recommendations.push('🚨 Critical vulnerabilities found - upgrade immediately');
-  if (highCount > 0) recommendations.push('⚠️ High severity issues require urgent attention');
-  if (vulnerabilities.some(v => v.exploitAvailable)) recommendations.push('⚡ Active exploits detected - prioritize these fixes');
-  
-  const canAutoFixCount = vulnerabilities.filter(v => canAutoFix(v) === 'available').length;
-  if (canAutoFixCount > 0) recommendations.push(`✓ ${canAutoFixCount} vulnerabilities have automatic fixes available`);
-
-  let overallRisk: SecurityReport['overallRisk'] = 'safe';
-  if (criticalCount > 0) overallRisk = 'critical';
-  else if (highCount > 0) overallRisk = 'high';
-  else if (mediumCount > 0) overallRisk = 'medium';
-  else if (lowCount > 0) overallRisk = 'low';
-
-  return {
-    scanDate: new Date(),
-    totalDependencies: dependencies.length,
-    vulnerableDependencies: vulnByDep.size,
-    criticalCount,
-    highCount,
-    mediumCount,
-    lowCount,
-    vulnerabilities,
-    recommendations,
-    overallRisk,
-  };
-}
-
-export function checkLicense(license: License): LicenseIssue | null {
-  if (license.isDeprecated) {
-    return {
-      dependency: '',
-      license: license.spdxId,
-      isOsiApproved: false,
-      isCopyleft: false,
-      isProprietary: false,
-      recommendation: `License ${license.spdxId} is deprecated - consider migrating`,
-    };
-  }
-  
-  if (!license.isOsiApproved) {
-    return {
-      dependency: '',
-      license: license.spdxId,
-      isOsiApproved: false,
-      isCopyleft: false,
-      isProprietary: true,
-      recommendation: `License ${license.spdxId} may not be suitable for open source projects`,
-    };
-  }
-  
-  return null;
-}
-
-export function prioritizeFixes(vulnerabilities: Vulnerability[]): Vulnerability[] {
-  const severityOrder: Record<Severity, number> = {
+export function prioritizeFindings(
+  findings: SecurityFinding[]
+): SecurityFinding[] {
+  const severityOrder: Record<string, number> = {
     critical: 0,
     high: 1,
     medium: 2,
     low: 3,
-    unknown: 4,
+    info: 4,
   };
-  
-  return [...vulnerabilities].sort((a, b) => {
-    if (a.exploitAvailable !== b.exploitAvailable) return a.exploitAvailable ? -1 : 1;
-    return severityOrder[a.severity] - severityOrder[b.severity];
+
+  return [...findings].sort((a, b) => {
+    const severityDiff = severityOrder[a.severity] - severityOrder[b.severity];
+    if (severityDiff !== 0) return severityDiff;
+    return (b.cvss || 0) - (a.cvss || 0);
   });
+}
+
+export function generateSecurityReport(
+  results: ScanResult[]
+): {
+  executiveSummary: string;
+  riskScore: number;
+  trend: 'improving' | 'stable' | 'worsening';
+  recommendations: string[];
+} {
+  const latest = results[results.length - 1];
+  const previous = results.length > 1 ? results[results.length - 2] : null;
+
+  const criticalCount = latest.summary.bySeverity['critical'] || 0;
+  const highCount = latest.summary.bySeverity['high'] || 0;
+
+  let riskScore = 0;
+  riskScore += (latest.summary.bySeverity['critical'] || 0) * 10;
+  riskScore += (latest.summary.bySeverity['high'] || 0) * 5;
+  riskScore += (latest.summary.bySeverity['medium'] || 0) * 2;
+  riskScore = Math.min(100, riskScore);
+
+  const trend = previous
+    ? latest.summary.total < previous.summary.total
+      ? 'improving'
+      : latest.summary.total > previous.summary.total
+      ? 'worsening'
+      : 'stable'
+    : 'stable';
+
+  const recommendations: string[] = [];
+  if (criticalCount > 0) {
+    recommendations.push(`Fix ${criticalCount} critical severity findings immediately`);
+  }
+  if (highCount > 0) {
+    recommendations.push(`Address ${highCount} high severity findings in the current sprint`);
+  }
+  if (latest.summary.byCategory['Secrets Exposure']) {
+    recommendations.push('Audit and rotate any exposed secrets');
+  }
+
+  return {
+    executiveSummary: `Found ${latest.summary.total} security issues: ${criticalCount} critical, ${highCount} high. Overall risk score: ${riskScore}/100.`,
+    riskScore,
+    trend,
+    recommendations,
+  };
 }
