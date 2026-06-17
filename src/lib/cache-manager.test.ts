@@ -1,85 +1,159 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { cacheManager, CacheManager } from "./cache-manager";
+import { CacheManager, createGitHubCache, createSessionCache } from "./cache-manager";
 
-describe("CacheManager", () => {
+describe("Cache Manager", () => {
   let cache: CacheManager;
 
   beforeEach(() => {
-    cache = new CacheManager();
+    cache = new CacheManager({ ttl: 1000, maxEntries: 10 });
   });
 
-  describe("basic operations", () => {
-    it("should store and retrieve data", () => {
-      cache.set("test-key", { value: "test-data" });
-      expect(cache.get("test-key")).toEqual({ value: "test-data" });
+  describe("set and get", () => {
+    it("should store and retrieve values", () => {
+      cache.set("key1", { data: "test" });
+      expect(cache.get("key1")).toEqual({ data: "test" });
     });
 
-    it("should return null for missing keys", () => {
-      expect(cache.get("nonexistent")).toBeNull();
+    it("should return undefined for missing keys", () => {
+      expect(cache.get("nonexistent")).toBeUndefined();
     });
 
     it("should overwrite existing values", () => {
-      cache.set("test-key", { value: "first" });
-      cache.set("test-key", { value: "second" });
-      expect(cache.get("test-key")).toEqual({ value: "second" });
+      cache.set("key1", "value1");
+      cache.set("key1", "value2");
+      expect(cache.get("key1")).toBe("value2");
     });
   });
 
-  describe("expiration", () => {
-    it("should respect custom TTL", () => {
-      cache.set("test-key", { value: "test" }, 10);
-      const entry = (cache as any).cache.get("test-key");
-      expect(entry.ttl).toBe(10);
-    });
-  });
-
-  describe("invalidation", () => {
-    it("should invalidate by pattern", () => {
-      cache.set("repo:owner/repo1", { data: "1" });
-      cache.set("repo:owner/repo2", { data: "2" });
-      cache.set("analysis:owner/repo1", { data: "3" });
+  describe("expiry", () => {
+    it("should expire entries after TTL", async () => {
+      const shortCache = new CacheManager({ ttl: 50, maxEntries: 10 });
+      shortCache.set("expiring", "data");
       
-      cache.invalidate("repo1");
-      expect(cache.get("repo:owner/repo1")).toBeNull();
-      expect(cache.get("repo:owner/repo2")).toEqual({ data: "2" });
-      expect(cache.get("analysis:owner/repo1")).toBeNull();
+      expect(shortCache.get("expiring")).toBe("data");
+      
+      await new Promise(r => setTimeout(r, 100));
+      expect(shortCache.get("expiring")).toBeUndefined();
     });
 
+    it("should respect custom TTL", async () => {
+      cache.set("custom", "data", 50);
+      expect(cache.get("custom")).toBe("data");
+      
+      await new Promise(r => setTimeout(r, 100));
+      expect(cache.get("custom")).toBeUndefined();
+    });
+  });
+
+  describe("has", () => {
+    it("should return true for existing keys", () => {
+      cache.set("test", "value");
+      expect(cache.has("test")).toBe(true);
+    });
+
+    it("should return false for missing keys", () => {
+      expect(cache.has("missing")).toBe(false);
+    });
+
+    it("should return false for expired keys", async () => {
+      const shortCache = new CacheManager({ ttl: 50, maxEntries: 10 });
+      shortCache.set("expired", "data");
+      
+      await new Promise(r => setTimeout(r, 100));
+      expect(shortCache.has("expired")).toBe(false);
+    });
+  });
+
+  describe("delete", () => {
+    it("should delete existing keys", () => {
+      cache.set("deleteMe", "value");
+      expect(cache.delete("deleteMe")).toBe(true);
+      expect(cache.get("deleteMe")).toBeUndefined();
+    });
+
+    it("should return false for missing keys", () => {
+      expect(cache.delete("missing")).toBe(false);
+    });
+  });
+
+  describe("clear", () => {
     it("should clear all entries", () => {
-      cache.set("key1", { value: "1" });
-      cache.set("key2", { value: "2" });
+      cache.set("key1", "value1");
+      cache.set("key2", "value2");
       cache.clear();
-      expect(cache.get("key1")).toBeNull();
-      expect(cache.get("key2")).toBeNull();
+      
+      expect(cache.get("key1")).toBeUndefined();
+      expect(cache.get("key2")).toBeUndefined();
     });
   });
 
   describe("stats", () => {
-    it("should return cache statistics", () => {
-      cache.set("key1", { value: "1" });
+    it("should track hits and misses", () => {
+      cache.set("key1", "value1");
+      cache.get("key1");
+      cache.get("missing");
+      
       const stats = cache.getStats();
-      expect(stats.size).toBe(1);
-      expect(stats.maxSize).toBe(100);
+      expect(stats.hits).toBe(1);
+      expect(stats.misses).toBe(1);
+    });
+
+    it("should calculate hit rate", () => {
+      cache.set("key", "value");
+      cache.get("key");
+      cache.get("key");
+      cache.get("missing");
+      
+      const stats = cache.getStats();
+      expect(stats.hitRate).toBeCloseTo(66.67, 1);
+    });
+
+    it("should count keys", () => {
+      cache.set("key1", "value1");
+      cache.set("key2", "value2");
+      
+      expect(cache.getStats().keys).toBe(2);
     });
   });
-});
 
-describe("global cacheManager", () => {
-  beforeEach(() => {
-    cacheManager.clear();
+  describe("prune", () => {
+    it("should remove expired entries", async () => {
+      const shortCache = new CacheManager({ ttl: 50, maxEntries: 10 });
+      shortCache.set("expiring", "data");
+      shortCache.set("persistent", "data", 10000);
+      
+      await new Promise(r => setTimeout(r, 100));
+      const pruned = shortCache.prune();
+      
+      expect(pruned).toBeGreaterThanOrEqual(1);
+      expect(shortCache.get("persistent")).toBe("data");
+    });
   });
 
-  it("should cache analysis results", () => {
-    const mockAnalysis = { score: 85, actions: [] };
-    cacheManager.cacheAnalysis("owner/repo", mockAnalysis as any);
-    const cached = cacheManager.getAnalysis("owner/repo");
-    expect(cached).toEqual(mockAnalysis);
+  describe("createGitHubCache", () => {
+    it("should create cache with default settings", () => {
+      const ghCache = createGitHubCache();
+      ghCache.set("repo", { name: "test" });
+      expect(ghCache.get("repo")).toEqual({ name: "test" });
+    });
   });
 
-  it("should cache repository data", () => {
-    const mockRepo = { name: "test-repo", stars: 100 };
-    cacheManager.cacheRepository("owner/repo", mockRepo);
-    const cached = cacheManager.getRepository("owner/repo");
-    expect(cached).toEqual(mockRepo);
+  describe("createSessionCache", () => {
+    it("should create cache with session settings", () => {
+      const sessionCache = createSessionCache();
+      sessionCache.set("session1", { userId: "123" });
+      expect(sessionCache.get("session1")).toEqual({ userId: "123" });
+    });
+  });
+
+  describe("keys", () => {
+    it("should list all keys", () => {
+      cache.set("key1", "value1");
+      cache.set("key2", "value2");
+      
+      const keys = cache.keys();
+      expect(keys).toContain("key1");
+      expect(keys).toContain("key2");
+    });
   });
 });

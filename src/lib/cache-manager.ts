@@ -1,84 +1,166 @@
-import type { MaintainerAnalysis } from "./types";
+/**
+ * Cache Manager - Intelligent caching system for maintainer operations
+ */
 
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-  ttl: number;
+export interface CacheEntry<T> {
+  key: string;
+  value: T;
+  expiry: number;
+  createdAt: number;
+  hits: number;
+  size?: number;
 }
 
-const DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
-const MAX_CACHE_SIZE = 100;
+export interface CacheStats {
+  hits: number;
+  misses: number;
+  keys: number;
+  size: number;
+  hitRate: number;
+}
 
-class CacheManager {
-  private cache = new Map<string, CacheEntry<unknown>>();
-  private accessOrder: string[] = [];
+export interface CacheConfig {
+  ttl: number;
+  maxSize?: number;
+  maxEntries?: number;
+  compression?: boolean;
+}
 
-  private generateKey(repo: string, type: string): string {
-    return `${type}:${repo}`;
+/**
+ * LRU Cache with TTL support
+ */
+export class CacheManager<T = any> {
+  private cache: Map<string, CacheEntry<T>> = new Map();
+  private config: CacheConfig;
+  private stats = { hits: 0, misses: 0 };
+
+  constructor(config: CacheConfig) {
+    this.config = config;
   }
 
-  set<T>(key: string, data: T, ttl: number = DEFAULT_TTL): void {
-    if (this.cache.size >= MAX_CACHE_SIZE) {
-      const oldestKey = this.accessOrder.shift();
-      if (oldestKey) this.cache.delete(oldestKey);
+  set(key: string, value: T, ttl?: number): void {
+    const now = Date.now();
+    const expiry = now + (ttl || this.config.ttl);
+
+    // Enforce max entries
+    if (this.cache.size >= (this.config.maxEntries || 1000) && !this.cache.has(key)) {
+      this.evictLRU();
     }
 
-    this.cache.set(key, { data, timestamp: Date.now(), ttl });
-    this.accessOrder.push(key);
-  }
-
-  get<T>(key: string): T | null {
-    const entry = this.cache.get(key) as CacheEntry<T> | undefined;
-    if (!entry) return null;
-
-    if (Date.now() - entry.timestamp > entry.ttl) {
-      this.cache.delete(key);
-      this.accessOrder = this.accessOrder.filter((k) => k !== key);
-      return null;
-    }
-
-    this.accessOrder = this.accessOrder.filter((k) => k !== key);
-    this.accessOrder.push(key);
-    return entry.data;
-  }
-
-  invalidate(pattern: string): void {
-    const keys = Array.from(this.cache.keys()).filter((k) => k.includes(pattern));
-    keys.forEach((key) => {
-      this.cache.delete(key);
-      this.accessOrder = this.accessOrder.filter((k) => k !== key);
+    this.cache.set(key, {
+      key,
+      value,
+      expiry,
+      createdAt: now,
+      hits: 0,
+      size: this.estimateSize(value),
     });
+  }
+
+  get(key: string): T | undefined {
+    const entry = this.cache.get(key);
+    if (!entry) {
+      this.stats.misses++;
+      return undefined;
+    }
+
+    if (entry.expiry < Date.now()) {
+      this.cache.delete(key);
+      this.stats.misses++;
+      return undefined;
+    }
+
+    entry.hits++;
+    this.stats.hits++;
+    return entry.value;
+  }
+
+  has(key: string): boolean {
+    const entry = this.cache.get(key);
+    if (!entry) return false;
+    if (entry.expiry < Date.now()) {
+      this.cache.delete(key);
+      return false;
+    }
+    return true;
+  }
+
+  delete(key: string): boolean {
+    return this.cache.delete(key);
   }
 
   clear(): void {
     this.cache.clear();
-    this.accessOrder = [];
+    this.stats = { hits: 0, misses: 0 };
   }
 
-  getStats() {
+  private evictLRU(): void {
+    let oldest: string | null = null;
+    let oldestTime = Infinity;
+
+    for (const [key, entry] of this.cache) {
+      if (entry.hits === 0 && entry.createdAt < oldestTime) {
+        oldestTime = entry.createdAt;
+        oldest = key;
+      }
+    }
+
+    if (oldest) {
+      this.cache.delete(oldest);
+    } else {
+      // If all have hits, delete oldest by creation time
+      for (const [key, entry] of this.cache) {
+        if (entry.createdAt < oldestTime) {
+          oldestTime = entry.createdAt;
+          oldest = key;
+        }
+      }
+      if (oldest) this.cache.delete(oldest);
+    }
+  }
+
+  private estimateSize(value: T): number {
+    return JSON.stringify(value).length;
+  }
+
+  getStats(): CacheStats {
+    const total = this.stats.hits + this.stats.misses;
     return {
-      size: this.cache.size,
-      maxSize: MAX_CACHE_SIZE,
-      entries: Array.from(this.cache.keys()),
+      hits: this.stats.hits,
+      misses: this.stats.misses,
+      keys: this.cache.size,
+      size: Array.from(this.cache.values()).reduce((sum, e) => sum + (e.size || 0), 0),
+      hitRate: total > 0 ? (this.stats.hits / total) * 100 : 0,
     };
   }
 
-  cacheAnalysis(repo: string, analysis: MaintainerAnalysis, ttl?: number): void {
-    this.set(this.generateKey(repo, "analysis"), analysis, ttl);
+  keys(): string[] {
+    return Array.from(this.cache.keys());
   }
 
-  getAnalysis(repo: string): MaintainerAnalysis | null {
-    return this.get<MaintainerAnalysis>(this.generateKey(repo, "analysis"));
-  }
-
-  cacheRepository(repo: string, data: unknown, ttl?: number): void {
-    this.set(this.generateKey(repo, "repo"), data, ttl);
-  }
-
-  getRepository(repo: string): unknown | null {
-    return this.get(this.generateKey(repo, "repo"));
+  prune(): number {
+    const now = Date.now();
+    let pruned = 0;
+    for (const [key, entry] of this.cache) {
+      if (entry.expiry < now) {
+        this.cache.delete(key);
+        pruned++;
+      }
+    }
+    return pruned;
   }
 }
 
-export const cacheManager = new CacheManager();
-export { CacheManager };
+/**
+ * Create a cache for GitHub API responses
+ */
+export function createGitHubCache(ttl = 60000): CacheManager {
+  return new CacheManager({ ttl, maxEntries: 500 });
+}
+
+/**
+ * Create a cache for user sessions
+ */
+export function createSessionCache(ttl = 3600000): CacheManager {
+  return new CacheManager({ ttl, maxEntries: 10000 });
+}
