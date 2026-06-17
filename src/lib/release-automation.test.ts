@@ -1,83 +1,174 @@
-import { describe, it, expect } from "vitest";
-import { ReleaseAutomation } from "./release-automation";
+import { describe, it, expect } from 'vitest';
+import {
+  suggestReleaseVersion,
+  generateReleaseNotes,
+  validateRelease,
+  parseConventionalCommit,
+} from './release-automation';
 
-describe("ReleaseAutomation", () => {
-  const automation = new ReleaseAutomation({
-    owner: "test",
-    repo: "test-repo",
-    baseBranch: "main",
-    releaseBranch: "release",
-  });
+describe('Release Automation', () => {
+  describe('suggestReleaseVersion', () => {
+    it('should suggest patch for bug fixes', () => {
+      const result = suggestReleaseVersion({
+        currentVersion: 'v1.2.3',
+        commits: ['fix: resolve null pointer'],
+        prDescriptions: ['fix: resolve null pointer'],
+      });
 
-  it("prepares release candidate", () => {
-    const candidate = automation.prepareReleaseCandidate("1.0.0", [{
-      id: 1, number: 1, title: "Add new feature", body: "", author: "dev1",
-      state: "merged", labels: [], createdAt: "", updatedAt: "", url: "",
-      additions: 100, deletions: 0, changedFiles: 5
-    }], []);
-
-    expect(candidate.version).toBe("1.1.0");
-    expect(candidate.changes.features.length).toBe(1);
-    expect(candidate.contributors).toContain("dev1");
-  });
-
-  it("detects major version bump for breaking changes", () => {
-    const candidate = automation.prepareReleaseCandidate("1.0.0", [{
-      id: 1, number: 1, title: "BREAKING CHANGE", body: "This breaks everything",
-      author: "dev", state: "merged", labels: [], createdAt: "", updatedAt: "", url: "",
-      additions: 500, deletions: 400, changedFiles: 50
-    }], []);
-
-    expect(candidate.version).toBe("2.0.0");
-  });
-
-  it("generates release notes", () => {
-    const candidate = automation.prepareReleaseCandidate("1.0.0", [{
-      id: 1, number: 1, title: "Add dark mode", body: "", author: "alice",
-      state: "merged", labels: [], createdAt: "", updatedAt: "", url: "",
-      additions: 50, deletions: 10, changedFiles: 3
-    }], []);
-
-    const notes = automation.generateReleaseNotes(candidate);
-    expect(notes.title).toContain("1.1.0");
-    expect(notes.contributors).toContain("alice");
-  });
-
-  it("generates markdown release notes", () => {
-    const candidate = automation.prepareReleaseCandidate("1.0.0", [{
-      id: 1, number: 1, title: "Fix bug", body: "", author: "bob",
-      state: "merged", labels: [], createdAt: "", updatedAt: "", url: "",
-      additions: 5, deletions: 2, changedFiles: 1
-    }], []);
-
-    const notes = automation.generateReleaseNotes(candidate);
-    const md = automation.generateMarkdownReleaseNotes(notes);
-
-    expect(md).toContain("# Release");
-    expect(md).toContain("@bob");
-  });
-
-  it("validates release candidate", () => {
-    const valid = automation.validateReleaseCandidate({
-      version: "1.2.3",
-      changes: { features: [], fixes: [{ id: 1, number: 1, title: "Fix", body: "", author: "", state: "closed", labels: [], comments: 0, createdAt: "", updatedAt: "", url: "" }], breaking: [] },
-      contributors: [],
-      date: "2026-01-01",
+      expect(result.suggestedVersion).toBe('v1.2.4');
+      expect(result.releaseType).toBe('patch');
     });
 
-    expect(valid.valid).toBe(true);
-    expect(valid.errors).toHaveLength(0);
-  });
+    it('should suggest minor for new features', () => {
+      const result = suggestReleaseVersion({
+        currentVersion: 'v1.2.3',
+        commits: ['feat: add new command'],
+        prDescriptions: ['feat: add new command'],
+      });
 
-  it("rejects invalid version", () => {
-    const invalid = automation.validateReleaseCandidate({
-      version: "invalid",
-      changes: { features: [], fixes: [], breaking: [] },
-      contributors: [],
-      date: "2026-01-01",
+      expect(result.suggestedVersion).toBe('v1.3.0');
+      expect(result.releaseType).toBe('minor');
     });
 
-    expect(invalid.valid).toBe(false);
-    expect(invalid.errors.length).toBeGreaterThan(0);
+    it('should suggest major for breaking changes', () => {
+      const result = suggestReleaseVersion({
+        currentVersion: 'v2.5.0',
+        commits: ['BREAKING: change API'],
+        prDescriptions: ['breaking: change API signature'],
+      });
+
+      expect(result.suggestedVersion).toBe('v3.0.0');
+      expect(result.releaseType).toBe('major');
+    });
+
+    it('should include required checklist items', () => {
+      const result = suggestReleaseVersion({
+        currentVersion: 'v1.0.0',
+        commits: [],
+        prDescriptions: [],
+      });
+
+      expect(result.checklist.some(i => i.id === 'tests')).toBe(true);
+      expect(result.checklist.some(i => i.id === 'changelog')).toBe(true);
+      expect(result.checklist.some(i => i.id === 'version')).toBe(true);
+    });
+
+    it('should add migration guide for breaking changes', () => {
+      const result = suggestReleaseVersion({
+        currentVersion: 'v1.0.0',
+        commits: ['BREAKING CHANGE'],
+        prDescriptions: ['breaking: new API'],
+      });
+
+      expect(result.checklist.some(i => i.id === 'migration')).toBe(true);
+    });
+  });
+
+  describe('generateReleaseNotes', () => {
+    it('should generate structured release notes', () => {
+      const notes = generateReleaseNotes({
+        version: 'v1.2.0',
+        entries: [
+          { type: 'feature', scope: 'auth', description: 'Add OAuth support' },
+          { type: 'fix', scope: 'ui', description: 'Fix button alignment' },
+        ],
+        contributors: ['alice', 'bob'],
+        stats: { additions: 500, deletions: 100 },
+        config: {
+          owner: 'test',
+          repo: 'project',
+          defaultBranch: 'main',
+          changelogTemplate: '',
+        },
+      });
+
+      expect(notes).toContain('# v1.2.0');
+      expect(notes).toContain('## ✨ Features');
+      expect(notes).toContain('## 🐛 Bug Fixes');
+      expect(notes).toContain('## ❤️ Contributors');
+    });
+
+    it('should separate breaking changes', () => {
+      const notes = generateReleaseNotes({
+        version: 'v2.0.0',
+        entries: [
+          { type: 'breaking', description: 'Remove old API' },
+          { type: 'feature', description: 'New API' },
+        ],
+        contributors: ['maintainer'],
+        stats: { additions: 200, deletions: 300 },
+        config: {
+          owner: 'test',
+          repo: 'project',
+          defaultBranch: 'main',
+          changelogTemplate: '',
+        },
+      });
+
+      expect(notes).toContain('## ⚠️ Breaking Changes');
+      expect(notes).toContain('Remove old API');
+    });
+  });
+
+  describe('validateRelease', () => {
+    it('should be ready when all items complete', () => {
+      const plan = suggestReleaseVersion({
+        currentVersion: 'v1.0.0',
+        commits: [],
+        prDescriptions: [],
+      });
+
+      const result = validateRelease({
+        plan,
+        completedChecklist: plan.checklist.map(i => i.id),
+        testsPassed: true,
+        ciPassed: true,
+      });
+
+      expect(result.ready).toBe(true);
+      expect(result.missing).toHaveLength(0);
+    });
+
+    it('should report missing items', () => {
+      const plan = suggestReleaseVersion({
+        currentVersion: 'v1.0.0',
+        commits: [],
+        prDescriptions: [],
+      });
+
+      const result = validateRelease({
+        plan,
+        completedChecklist: [],
+        testsPassed: true,
+        ciPassed: true,
+      });
+
+      expect(result.ready).toBe(false);
+      expect(result.missing.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('parseConventionalCommit', () => {
+    it('should parse feat commits', () => {
+      const result = parseConventionalCommit('feat(auth): add login');
+      expect(result?.type).toBe('feature');
+      expect(result?.scope).toBe('auth');
+      expect(result?.description).toBe('add login');
+    });
+
+    it('should parse fix commits', () => {
+      const result = parseConventionalCommit('fix(ui): fix button');
+      expect(result?.type).toBe('fix');
+    });
+
+    it('should detect breaking commits', () => {
+      const result = parseConventionalCommit('feat!: breaking change');
+      expect(result?.type).toBe('breaking');
+    });
+
+    it('should return null for invalid format', () => {
+      const result = parseConventionalCommit('random text');
+      expect(result).toBeNull();
+    });
   });
 });

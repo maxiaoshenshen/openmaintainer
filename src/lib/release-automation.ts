@@ -1,234 +1,397 @@
-import type { MaintainerPullRequest, MaintainerIssue } from "./types";
+/**
+ * Release Automation
+ * Automates the release process for OSS projects
+ */
 
-export interface ReleaseConfig {
-  owner: string;
-  repo: string;
-  baseBranch: string;
-  releaseBranch: string;
-  changelogPath?: string;
-  createTag?: boolean;
+export type ReleaseType = 'major' | 'minor' | 'patch' | 'hotfix';
+export type ReleaseStatus = 'draft' | 'ready' | 'published' | 'failed';
+
+export interface ChangelogEntry {
+  type: 'feature' | 'fix' | 'breaking' | 'deprecation' | 'security' | 'other';
+  scope?: string;
+  description: string;
+  prNumber?: number;
+  author?: string;
 }
 
 export interface ReleaseCandidate {
   version: string;
-  changes: {
-    features: MaintainerPullRequest[];
-    fixes: (MaintainerPullRequest | MaintainerIssue)[];
-    breaking: MaintainerPullRequest[];
+  type: ReleaseType;
+  changelog: ChangelogEntry[];
+  breakingChanges: string[];
+  commits: string[];
+  contributors: string[];
+  stats: {
+    additions: number;
+    deletions: number;
+    filesChanged: number;
   };
-  contributors: string[];
-  date: string;
 }
 
-export interface ReleaseNotes {
+export interface ReleasePlan {
+  suggestedVersion: string;
+  releaseType: ReleaseType;
+  reason: string;
+  checklist: ReleaseChecklistItem[];
+  estimatedSize: 'small' | 'medium' | 'large';
+  risk: 'low' | 'medium' | 'high';
+}
+
+export interface ReleaseChecklistItem {
+  id: string;
   title: string;
-  version: string;
-  date: string;
-  highlights: string[];
-  changes: {
-    type: string;
-    items: string[];
-  }[];
-  contributors: string[];
-  thanks: string[];
+  description: string;
+  required: boolean;
+  checked: boolean;
+  autoChecked: boolean;
 }
 
-export class ReleaseAutomation {
-  private config: ReleaseConfig;
+export interface ReleaseConfig {
+  owner: string;
+  repo: string;
+  defaultBranch: string;
+  changelogTemplate: string;
+  autoMergeThreshold?: number;
+}
 
-  constructor(config: ReleaseConfig) {
-    this.config = {
-      changelogPath: "CHANGELOG.md",
-      createTag: true,
-      ...config,
-    };
+/**
+ * Analyze commits to suggest next release version
+ */
+export function suggestReleaseVersion(params: {
+  currentVersion: string;
+  commits: string[];
+  prDescriptions: string[];
+}): ReleasePlan {
+  const { currentVersion, commits, prDescriptions } = params;
+  
+  // Parse current version
+  const [major, minor, patch] = currentVersion.replace(/^v/, '').split('.').map(Number);
+  
+  // Analyze for breaking changes
+  const hasBreaking = commits.some(c => 
+    c.includes('BREAKING') || 
+    c.includes('breaking') ||
+    prDescriptions.some(d => d.includes('breaking'))
+  );
+  
+  // Analyze for new features
+  const hasFeatures = prDescriptions.some(d => 
+    d.match(/^feat|^add|^new/i)
+  );
+  
+  // Analyze for bug fixes
+  const hasFixes = prDescriptions.some(d => 
+    d.match(/^fix|^bug|^patch/i)
+  );
+
+  // Determine release type
+  let releaseType: ReleaseType = 'patch';
+  let reason = 'Bug fixes and minor improvements';
+  
+  if (hasBreaking) {
+    releaseType = 'major';
+    reason = 'Contains breaking changes';
+  } else if (hasFeatures) {
+    releaseType = 'minor';
+    reason = 'New features added';
   }
 
-  prepareReleaseCandidate(
-    previousVersion: string,
-    mergedPRs: MaintainerPullRequest[],
-    closedIssues: MaintainerIssue[]
-  ): ReleaseCandidate {
-    const newVersion = this.bumpVersion(previousVersion, this.detectReleaseType(mergedPRs));
-
-    const features = mergedPRs.filter(pr =>
-      pr.title.toLowerCase().includes("feat") ||
-      pr.title.toLowerCase().includes("add") ||
-      pr.title.toLowerCase().includes("feature")
-    );
-
-    const fixes = [
-      ...mergedPRs.filter(pr =>
-        pr.title.toLowerCase().includes("fix") ||
-        pr.title.toLowerCase().includes("bug")
-      ),
-      ...closedIssues.filter(issue =>
-        issue.labels.some(l => l.toLowerCase().includes("bug"))
-      ),
-    ];
-
-    const breaking = mergedPRs.filter(pr => this.isBreakingChange(pr));
-
-    const contributors = [...new Set([
-      ...mergedPRs.map(pr => pr.author),
-      ...closedIssues.map(issue => issue.author),
-    ])];
-
-    return {
-      version: newVersion,
-      changes: { features, fixes, breaking },
-      contributors,
-      date: new Date().toISOString().split("T")[0],
-    };
+  // Calculate new version
+  let newVersion: string;
+  if (releaseType === 'major') {
+    newVersion = `${major + 1}.0.0`;
+  } else if (releaseType === 'minor') {
+    newVersion = `${major}.${minor + 1}.0`;
+  } else {
+    newVersion = `${major}.${minor}.${patch + 1}`;
   }
 
-  generateReleaseNotes(candidate: ReleaseCandidate): ReleaseNotes {
-    const highlights = this.generateHighlights(candidate);
+  // Generate checklist
+  const checklist = generateChecklist(releaseType, hasBreaking);
+  
+  // Estimate size
+  const estimatedSize = getEstimatedSize(commits.length, prDescriptions.length);
+  
+  // Calculate risk
+  const risk = calculateReleaseRisk(releaseType, checklist);
 
-    return {
-      title: `Release ${candidate.version}`,
-      version: candidate.version,
-      date: candidate.date,
-      highlights,
-      changes: [
-        {
-          type: "Features",
-          items: candidate.changes.features.map(pr => pr.title),
-        },
-        {
-          type: "Bug Fixes",
-          items: candidate.changes.fixes.map(item => item.title),
-        },
-      ],
-      contributors: candidate.contributors,
-      thanks: this.generateThanks(candidate.contributors),
-    };
+  return {
+    suggestedVersion: `v${newVersion}`,
+    releaseType,
+    reason,
+    checklist,
+    estimatedSize,
+    risk,
+  };
+}
+
+function generateChecklist(type: ReleaseType, hasBreaking: boolean): ReleaseChecklistItem[] {
+  const items: ReleaseChecklistItem[] = [
+    {
+      id: 'tests',
+      title: 'Run tests',
+      description: 'Ensure all tests pass before release',
+      required: true,
+      checked: false,
+      autoChecked: false,
+    },
+    {
+      id: 'changelog',
+      title: 'Update changelog',
+      description: 'Review and update the changelog',
+      required: true,
+      checked: false,
+      autoChecked: false,
+    },
+    {
+      id: 'version',
+      title: 'Bump version',
+      description: 'Update version in package.json or equivalent',
+      required: true,
+      checked: false,
+      autoChecked: false,
+    },
+    {
+      id: 'docs',
+      title: 'Update documentation',
+      description: 'Ensure docs reflect the new changes',
+      required: type !== 'patch',
+      checked: false,
+      autoChecked: false,
+    },
+    {
+      id: 'announce',
+      title: 'Prepare announcement',
+      description: 'Draft release announcement notes',
+      required: type === 'major',
+      checked: false,
+      autoChecked: false,
+    },
+  ];
+
+  if (hasBreaking) {
+    items.push({
+      id: 'migration',
+      title: 'Migration guide',
+      description: 'Create or update migration guide for breaking changes',
+      required: true,
+      checked: false,
+      autoChecked: false,
+    });
   }
 
-  generateMarkdownReleaseNotes(notes: ReleaseNotes): string {
-    const lines: string[] = [];
-
-    lines.push(`# ${notes.title}`);
-    lines.push(`**${notes.date}**`);
-    lines.push("");
-
-    if (notes.highlights.length > 0) {
-      lines.push("## Highlights");
-      for (const h of notes.highlights) {
-        lines.push(`- ${h}`);
-      }
-      lines.push("");
-    }
-
-    for (const change of notes.changes) {
-      if (change.items.length === 0) continue;
-      lines.push(`## ${change.type}`);
-      lines.push("");
-      for (const item of change.items) {
-        lines.push(`- ${item}`);
-      }
-      lines.push("");
-    }
-
-    if (notes.contributors.length > 0) {
-      lines.push("## Contributors");
-      lines.push("");
-      lines.push("Thanks to all contributors who made this release possible:");
-      lines.push("");
-      for (const c of notes.contributors) {
-        lines.push(`- @${c}`);
-      }
-      lines.push("");
-    }
-
-    return lines.join("\n");
+  if (type === 'major') {
+    items.push({
+      id: 'deprecate',
+      title: 'Deprecation notices',
+      description: 'Ensure users know about deprecated features',
+      required: true,
+      checked: false,
+      autoChecked: false,
+    });
   }
 
-  private isBreakingChange(pr: MaintainerPullRequest): boolean {
-    const title = pr.title.toLowerCase();
-    const body = (pr.body ?? "").toLowerCase();
-    const labels = (pr as any).labels as string[] | undefined;
+  return items;
+}
 
-    return (
-      title.includes("breaking") ||
-      body.includes("breaking") ||
-      labels?.some(l => l.toLowerCase().includes("breaking")) ||
-      false
-    );
-  }
+function getEstimatedSize(commits: number, prs: number): 'small' | 'medium' | 'large' {
+  if (commits > 50 || prs > 15) return 'large';
+  if (commits > 20 || prs > 5) return 'medium';
+  return 'small';
+}
 
-  private bumpVersion(version: string, type: "major" | "minor" | "patch"): string {
-    const parts = version.replace(/^v/, "").split(".").map(Number);
-    const [major, minor, patch] = parts;
+function calculateReleaseRisk(type: ReleaseType, checklist: ReleaseChecklistItem[]): 'low' | 'medium' | 'high' {
+  if (type === 'major') return 'high';
+  if (type === 'minor') return 'medium';
+  
+  const requiredItems = checklist.filter(i => i.required);
+  if (requiredItems.length > 5) return 'medium';
+  
+  return 'low';
+}
 
-    switch (type) {
-      case "major": return `${major + 1}.0.0`;
-      case "minor": return `${major}.${minor + 1}.0`;
-      case "patch": return `${major}.${minor}.${patch + 1}`;
+/**
+ * Generate release notes from commits
+ */
+export function generateReleaseNotes(params: {
+  version: string;
+  entries: ChangelogEntry[];
+  contributors: string[];
+  stats: { additions: number; deletions: number };
+  config: ReleaseConfig;
+}): string {
+  const { version, entries, contributors, stats, config } = params;
+  
+  const sections: Record<string, ChangelogEntry[]> = {
+    breaking: [],
+    features: [],
+    fixes: [],
+    security: [],
+    other: [],
+  };
+
+  for (const entry of entries) {
+    switch (entry.type) {
+      case 'breaking':
+        sections.breaking.push(entry);
+        break;
+      case 'feature':
+        sections.features.push(entry);
+        break;
+      case 'fix':
+        sections.fixes.push(entry);
+        break;
+      case 'security':
+        sections.security.push(entry);
+        break;
+      default:
+        sections.other.push(entry);
     }
   }
 
-  private detectReleaseType(prs: MaintainerPullRequest[]): "major" | "minor" | "patch" {
-    const hasBreaking = prs.some(pr => this.isBreakingChange(pr));
+  let notes = `# ${version}\n\n`;
+  notes += `*${new Date().toISOString().split('T')[0]}*\n\n`;
 
-    const hasFeatures = prs.some(pr =>
-      pr.title.toLowerCase().includes("feat") ||
-      pr.title.toLowerCase().includes("add")
-    );
-
-    if (hasBreaking) return "major";
-    if (hasFeatures) return "minor";
-    return "patch";
+  if (sections.breaking.length > 0) {
+    notes += `## ⚠️ Breaking Changes\n\n`;
+    for (const entry of sections.breaking) {
+      notes += `- **${entry.scope || ''}**: ${entry.description}`;
+      if (entry.prNumber) notes += ` (#${entry.prNumber})`;
+      notes += '\n';
+    }
+    notes += '\n';
   }
 
-  private generateHighlights(candidate: ReleaseCandidate): string[] {
-    const highlights: string[] = [];
-
-    if (candidate.changes.features.length > 0) {
-      highlights.push(`${candidate.changes.features.length} new features added`);
+  if (sections.features.length > 0) {
+    notes += `## ✨ Features\n\n`;
+    for (const entry of sections.features) {
+      notes += `- ${entry.scope ? `**${entry.scope}**: ` : ''}${entry.description}`;
+      if (entry.prNumber) notes += ` (#${entry.prNumber})`;
+      notes += '\n';
     }
-
-    if (candidate.changes.breaking.length > 0) {
-      highlights.push(`${candidate.changes.breaking.length} breaking changes - please review migration guide`);
-    }
-
-    if (candidate.changes.fixes.length > 0) {
-      highlights.push(`${candidate.changes.fixes.length} bugs fixed`);
-    }
-
-    return highlights;
+    notes += '\n';
   }
 
-  private generateThanks(contributors: string[]): string[] {
-    if (contributors.length > 10) {
-      return [`${contributors.length} amazing contributors`];
+  if (sections.fixes.length > 0) {
+    notes += `## 🐛 Bug Fixes\n\n`;
+    for (const entry of sections.fixes) {
+      notes += `- ${entry.scope ? `**${entry.scope}**: ` : ''}${entry.description}`;
+      if (entry.prNumber) notes += ` (#${entry.prNumber})`;
+      notes += '\n';
     }
-    return contributors.slice(0, 5).map(c => `@${c}`);
+    notes += '\n';
   }
 
-  validateReleaseCandidate(candidate: ReleaseCandidate): { valid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    if (!candidate.version) {
-      errors.push("Version is required");
+  if (sections.security.length > 0) {
+    notes += `## 🔒 Security\n\n`;
+    for (const entry of sections.security) {
+      notes += `- ${entry.description}`;
+      if (entry.prNumber) notes += ` (#${entry.prNumber})`;
+      notes += '\n';
     }
-
-    if (!/^\d+\.\d+\.\d+$/.test(candidate.version)) {
-      errors.push("Version must be in semver format (e.g., 1.2.3)");
-    }
-
-    const totalChanges =
-      candidate.changes.features.length +
-      candidate.changes.fixes.length +
-      candidate.changes.breaking.length;
-
-    if (totalChanges === 0) {
-      errors.push("Release candidate has no changes");
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors,
-    };
+    notes += '\n';
   }
+
+  if (contributors.length > 0) {
+    notes += `## ❤️ Contributors\n\n`;
+    notes += `Thanks to ${contributors.join(', ')} for their contributions!\n\n`;
+  }
+
+  notes += `---\n\n`;
+  notes += `**Statistics**: +${stats.additions} / -${stats.deletions} lines\n`;
+
+  return notes;
+}
+
+/**
+ * Validate release readiness
+ */
+export function validateRelease(params: {
+  plan: ReleasePlan;
+  completedChecklist: string[];
+  testsPassed: boolean;
+  ciPassed: boolean;
+}): { ready: boolean; missing: string[]; warnings: string[] } {
+  const { plan, completedChecklist, testsPassed, ciPassed } = params;
+  const missing: string[] = [];
+  const warnings: string[] = [];
+
+  // Check required items
+  for (const item of plan.checklist) {
+    if (item.required && !completedChecklist.includes(item.id)) {
+      missing.push(item.title);
+    }
+  }
+
+  // Check CI status
+  if (!ciPassed) {
+    missing.push('CI must pass');
+  }
+
+  // Warnings
+  if (!testsPassed && plan.risk !== 'high') {
+    warnings.push('Tests should pass before release');
+  }
+
+  if (plan.releaseType === 'major' && !completedChecklist.includes('announce')) {
+    warnings.push('Major releases should have announcement prepared');
+  }
+
+  return {
+    ready: missing.length === 0 && ciPassed,
+    missing,
+    warnings,
+  };
+}
+
+/**
+ * Parse conventional commit
+ */
+export function parseConventionalCommit(message: string): ChangelogEntry | null {
+  const match = message.match(/^(\w+)(?:\(([^)]+)\))?(!)?:\s*(.+)$/);
+  
+  if (!match) return null;
+
+  const [, type, scope, breaking, description] = match;
+  
+  let entryType: ChangelogEntry['type'] = 'other';
+  switch (type.toLowerCase()) {
+    case 'feat':
+      entryType = 'feature';
+      break;
+    case 'fix':
+      entryType = 'fix';
+      break;
+    case 'docs':
+      entryType = 'other';
+      break;
+    case 'style':
+    case 'refactor':
+    case 'perf':
+      entryType = 'other';
+      break;
+    case 'test':
+      entryType = 'other';
+      break;
+    case 'build':
+    case 'ci':
+    case 'chore':
+      entryType = 'other';
+      break;
+    case 'breaking':
+      entryType = 'breaking';
+      break;
+    default:
+      entryType = 'other';
+  }
+
+  if (breaking || message.includes('BREAKING CHANGE')) {
+    entryType = 'breaking';
+  }
+
+  return {
+    type: entryType,
+    scope,
+    description,
+  };
 }

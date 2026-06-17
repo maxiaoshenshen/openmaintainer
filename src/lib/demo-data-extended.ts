@@ -1,5 +1,5 @@
 import type { Repository, Contributor, Issue, PullRequest, MaintainerRepository } from "./types";
-import { analyzeCommunityHealth } from "./community-health";
+import { calculateHealthScore } from "./community-health";
 import { createSprintPlan } from "./sprint-planning";
 import { analyzePerformance, generateAlerts } from "./performance-monitor";
 import { planRelease } from "./release-manager";
@@ -141,7 +141,33 @@ export const demoPullRequests: PullRequest[] = [
 
 // Generate extended demo data
 export function generateExtendedDemoData(repoName?: string) {
-  const communityHealth = analyzeCommunityHealth(demoRepository, demoContributors, demoIssues, demoPullRequests);
+  const communityHealth = calculateHealthScore({
+    activity: {
+      commitsThisWeek: 30,
+      commitsLastWeek: 25,
+      prsOpened: 10,
+      prsMerged: 8,
+      issuesOpened: 15,
+      issuesClosed: 12,
+      activeContributors: 5,
+    },
+    response: {
+      avgIssueResponseTime: 12,
+      avgPRReviewTime: 18,
+      firstResponseRate: 95,
+      followUpRate: 80,
+    },
+    community: {
+      stars: demoRepository.stars,
+      forks: demoRepository.forks,
+      openIssues: demoRepository.openIssues,
+      openPRs: demoRepository.openPRs,
+      watchers: 200,
+      subscribers: 100,
+      trend: 15,
+    },
+    daysSinceLastRelease: 14,
+  });
   const sprintPlan = createSprintPlan(demoRepository, demoIssues, demoPullRequests, demoContributors);
   const performance = analyzePerformance(demoRepository, demoIssues, demoPullRequests);
   const performanceAlerts = generateAlerts(performance);

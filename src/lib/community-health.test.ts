@@ -1,176 +1,195 @@
-import { describe, it, expect } from "vitest";
-import {
-  analyzeCommunityHealth,
-  getHealthScoreColor,
-  getHealthScoreBgColor,
-} from "./community-health";
-import type { Repository, Contributor, Issue, PullRequest } from "./types";
+import { describe, it, expect } from 'vitest';
+import { 
+  calculateHealthScore, 
+  generateWeeklyReport, 
+  comparePeriods 
+} from './community-health';
 
-describe("community-health", () => {
-  describe("analyzeCommunityHealth", () => {
-    it("should calculate overall score correctly", () => {
-      const repo = createMockRepo("owner/repo");
-      const contributors = createMockContributors(10);
-      const issues = createMockIssues(20, 15);
-      const prs = createMockPRs(10, 8);
+describe('Community Health Dashboard', () => {
+  describe('calculateHealthScore', () => {
+    it('should return excellent score for healthy projects', () => {
+      const result = calculateHealthScore({
+        activity: {
+          commitsThisWeek: 32,
+          commitsLastWeek: 25,
+          prsOpened: 10,
+          prsMerged: 8,
+          issuesOpened: 15,
+          issuesClosed: 12,
+          activeContributors: 5,
+        },
+        response: {
+          avgIssueResponseTime: 12,
+          avgPRReviewTime: 18,
+          firstResponseRate: 95,
+          followUpRate: 80,
+        },
+        community: {
+          stars: 5000,
+          forks: 500,
+          openIssues: 30,
+          openPRs: 5,
+          watchers: 200,
+          subscribers: 100,
+          trend: 15,
+        },
+        daysSinceLastRelease: 14,
+      });
 
-      const report = analyzeCommunityHealth(repo, contributors, issues, prs);
-
-      expect(report.repository).toBe("owner/repo");
-      expect(report.overallScore).toBeGreaterThan(0);
-      expect(report.overallScore).toBeLessThanOrEqual(100);
-      expect(report.metrics.length).toBe(5);
+      expect(result.status).toBe('excellent');
+      expect(result.overall).toBeGreaterThanOrEqual(80);
+      expect(result.trend).toBe('improving');
+      expect(result.alerts).toHaveLength(0);
     });
 
-    it("should include all required metrics", () => {
-      const report = analyzeCommunityHealth(
-        createMockRepo("test/repo"),
-        createMockContributors(5),
-        createMockIssues(10, 8),
-        createMockPRs(5, 4)
-      );
+    it('should flag critical issues', () => {
+      const result = calculateHealthScore({
+        activity: {
+          commitsThisWeek: 0,
+          commitsLastWeek: 0,
+          prsOpened: 0,
+          prsMerged: 0,
+          issuesOpened: 50,
+          issuesClosed: 5,
+          activeContributors: 0,
+        },
+        response: {
+          avgIssueResponseTime: 500,
+          avgPRReviewTime: 400,
+          firstResponseRate: 20,
+          followUpRate: 10,
+        },
+        community: {
+          stars: 50,
+          forks: 10,
+          openIssues: 600,
+          openPRs: 80,
+          watchers: 5,
+          subscribers: 2,
+          trend: -20,
+        },
+        daysSinceLastRelease: 120,
+      });
 
-      const metricNames = report.metrics.map((m) => m.name);
-      expect(metricNames).toContain("Response Time");
-      expect(metricNames).toContain("Contributor Diversity");
-      expect(metricNames).toContain("Issue Resolution");
-      expect(metricNames).toContain("Community Engagement");
-      expect(metricNames).toContain("Documentation");
+      expect(result.status).toBe('critical');
+      expect(result.overall).toBeLessThan(40);
+      expect(result.alerts.length).toBeGreaterThan(0);
     });
 
-    it("should calculate health trend based on metrics", () => {
-      const report = analyzeCommunityHealth(
-        createMockRepo("test/repo"),
-        createMockContributors(10),
-        createMockIssues(20, 15),
-        createMockPRs(10, 8)
-      );
+    it('should recommend actions for declining projects', () => {
+      const result = calculateHealthScore({
+        activity: {
+          commitsThisWeek: 5,
+          commitsLastWeek: 20,
+          prsOpened: 3,
+          prsMerged: 1,
+          issuesOpened: 10,
+          issuesClosed: 3,
+          activeContributors: 1,
+        },
+        response: {
+          avgIssueResponseTime: 72,
+          avgPRReviewTime: 96,
+          firstResponseRate: 60,
+          followUpRate: 40,
+        },
+        community: {
+          stars: 500,
+          forks: 80,
+          openIssues: 150,
+          openPRs: 25,
+          watchers: 30,
+          subscribers: 15,
+          trend: -5,
+        },
+        daysSinceLastRelease: 60,
+      });
 
-      expect(["improving", "declining", "stable"]).toContain(
-        report.healthTrend
-      );
-    });
-
-    it("should handle empty contributors", () => {
-      const report = analyzeCommunityHealth(
-        createMockRepo("test/repo"),
-        [],
-        createMockIssues(5, 3),
-        createMockPRs(2, 1)
-      );
-
-      expect(report.overallScore).toBeGreaterThan(0);
-      const diversityMetric = report.metrics.find(
-        (m) => m.name === "Contributor Diversity"
-      );
-      expect(diversityMetric?.score).toBe(0);
-    });
-
-    it("should handle empty issues and prs", () => {
-      const report = analyzeCommunityHealth(
-        createMockRepo("test/repo"),
-        createMockContributors(5),
-        [],
-        []
-      );
-
-      expect(report.metrics.length).toBe(5);
+      expect(result.recommendations.length).toBeGreaterThan(0);
     });
   });
 
-  describe("getHealthScoreColor", () => {
-    it("should return green for scores >= 80", () => {
-      expect(getHealthScoreColor(80)).toBe("text-green-600");
-      expect(getHealthScoreColor(90)).toBe("text-green-600");
-      expect(getHealthScoreColor(100)).toBe("text-green-600");
+  describe('generateWeeklyReport', () => {
+    it('should generate report with highlights and concerns', () => {
+      const result = generateWeeklyReport(new Date('2026-01-01'), {
+        commitsThisWeek: 25,
+        commitsLastWeek: 20,
+        prsOpened: 8,
+        prsMerged: 6,
+        issuesOpened: 10,
+        issuesClosed: 8,
+        activeContributors: 4,
+      });
+
+      expect(result.highlights.length).toBeGreaterThan(0);
+      expect(result.week).toBe('2026-01-01');
     });
 
-    it("should return yellow for scores 60-79", () => {
-      expect(getHealthScoreColor(60)).toBe("text-yellow-600");
-      expect(getHealthScoreColor(70)).toBe("text-yellow-600");
-    });
+    it('should flag concerns when no activity', () => {
+      const result = generateWeeklyReport(new Date('2026-01-08'), {
+        commitsThisWeek: 0,
+        commitsLastWeek: 10,
+        prsOpened: 0,
+        prsMerged: 0,
+        issuesOpened: 5,
+        issuesClosed: 0,
+        activeContributors: 0,
+      });
 
-    it("should return orange for scores 40-59", () => {
-      expect(getHealthScoreColor(40)).toBe("text-orange-600");
-      expect(getHealthScoreColor(50)).toBe("text-orange-600");
-    });
-
-    it("should return red for scores < 40", () => {
-      expect(getHealthScoreColor(0)).toBe("text-red-600");
-      expect(getHealthScoreColor(20)).toBe("text-red-600");
-      expect(getHealthScoreColor(39)).toBe("text-red-600");
+      expect(result.concerns).toContain('No commits this week');
     });
   });
 
-  describe("getHealthScoreBgColor", () => {
-    it("should return appropriate background colors", () => {
-      expect(getHealthScoreBgColor(90)).toBe("bg-green-100");
-      expect(getHealthScoreBgColor(70)).toBe("bg-yellow-100");
-      expect(getHealthScoreBgColor(50)).toBe("bg-orange-100");
-      expect(getHealthScoreBgColor(20)).toBe("bg-red-100");
+  describe('comparePeriods', () => {
+    it('should identify improvements', () => {
+      const result = comparePeriods(
+        {
+          commitsThisWeek: 32,
+          commitsLastWeek: 25,
+          prsOpened: 10,
+          prsMerged: 8,
+          issuesOpened: 15,
+          issuesClosed: 12,
+          activeContributors: 5,
+        },
+        {
+          commitsThisWeek: 15,
+          commitsLastWeek: 10,
+          prsOpened: 5,
+          prsMerged: 3,
+          issuesOpened: 10,
+          issuesClosed: 5,
+          activeContributors: 2,
+        }
+      );
+
+      expect(result.improved.length).toBeGreaterThan(0);
+      expect(result.declined).toHaveLength(0);
+    });
+
+    it('should identify declines', () => {
+      const result = comparePeriods(
+        {
+          commitsThisWeek: 5,
+          commitsLastWeek: 25,
+          prsOpened: 2,
+          prsMerged: 1,
+          issuesOpened: 20,
+          issuesClosed: 5,
+          activeContributors: 1,
+        },
+        {
+          commitsThisWeek: 25,
+          commitsLastWeek: 20,
+          prsOpened: 10,
+          prsMerged: 8,
+          issuesOpened: 10,
+          issuesClosed: 12,
+          activeContributors: 5,
+        }
+      );
+
+      expect(result.declined.length).toBeGreaterThan(0);
     });
   });
 });
-
-function createMockRepo(name: string): Repository {
-  return {
-    id: 1,
-    name: name.split("/")[1] || name,
-    fullName: name,
-    description: "A test repository",
-    stars: 100,
-    forks: 20,
-    openIssues: 10,
-    openPRs: 5,
-    language: "TypeScript",
-    license: "MIT",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    url: `https://github.com/${name}`,
-  };
-}
-
-function createMockContributors(count: number): Contributor[] {
-  return Array.from({ length: count }, (_, i) => ({
-    id: i + 1,
-    username: `user${i}`,
-    avatarUrl: `https://avatar.url/${i}`,
-    contributions: 10 + (i * 5),
-    type: "User" as const,
-  }));
-}
-
-function createMockIssues(total: number, closed: number): Issue[] {
-  return Array.from({ length: total }, (_, i) => ({
-    id: i + 1,
-    number: i + 1,
-    title: `Issue ${i + 1}`,
-    body: "Test issue body",
-    state: (i < closed ? "closed" : "open") as "open" | "closed",
-    author: `user${i}`,
-    labels: [] as string[],
-    assignees: [] as string[],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    url: "",
-  }));
-}
-
-function createMockPRs(total: number, merged: number): PullRequest[] {
-  return Array.from({ length: total }, (_, i) => ({
-    id: i + 1,
-    number: i + 1,
-    title: `PR ${i + 1}`,
-    body: "Test PR body",
-    author: `user${i}`,
-    state: (i < merged ? "merged" : "open") as "open" | "closed" | "merged",
-    status: (i < merged ? "merged" : "open") as "open" | "merged" | "closed",
-    labels: [] as string[],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    url: "",
-    additions: 100,
-    deletions: 50,
-    changedFiles: 3,
-  }));
-}
