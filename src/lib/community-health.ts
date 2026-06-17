@@ -1,319 +1,140 @@
-/**
- * Community Health Dashboard
- * Tracks and analyzes community health metrics for OSS projects
- */
-
-export type HealthStatus = 'excellent' | 'good' | 'needs-attention' | 'critical';
-
-export interface ActivityMetrics {
-  commitsThisWeek: number;
-  commitsLastWeek: number;
-  prsOpened: number;
-  prsMerged: number;
-  issuesOpened: number;
-  issuesClosed: number;
-  activeContributors: number;
-}
-
-export interface ResponseMetrics {
-  avgIssueResponseTime: number; // hours
-  avgPRReviewTime: number; // hours
-  firstResponseRate: number; // percentage
-  followUpRate: number; // percentage
-}
+export type HealthScore = 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
+export type ActivityLevel = 'very-high' | 'high' | 'medium' | 'low' | 'very-low';
 
 export interface CommunityMetrics {
-  stars: number;
-  forks: number;
+  activeContributors: number;
+  totalContributors: number;
   openIssues: number;
+  closedIssues: number;
   openPRs: number;
-  watchers: number;
-  subscribers: number;
-  trend: number; // percentage change
+  mergedPRs: number;
+  responseTimeAvg: number;
+  issueResolutionTimeAvg: number;
+  communityEngagement: number;
 }
 
-export interface HealthScore {
-  overall: number; // 0-100
-  activity: number;
-  responsiveness: number;
-  community: number;
-  status: HealthStatus;
-  trend: 'improving' | 'stable' | 'declining';
-  alerts: string[];
-  recommendations: string[];
-}
-
-export interface WeeklyReport {
-  week: string;
-  metrics: ActivityMetrics;
-  highlights: string[];
-  concerns: string[];
-}
-
-/**
- * Calculate overall health score
- */
-export function calculateHealthScore(params: {
-  activity: ActivityMetrics;
-  response: ResponseMetrics;
-  community: CommunityMetrics;
-  daysSinceLastRelease: number;
-}): HealthScore {
-  const { activity, response, community, daysSinceLastRelease } = params;
-  
-  const activityScore = calculateActivityScore(activity);
-  const responseScore = calculateResponseScore(response);
-  const communityScore = calculateCommunityScore(community);
-  
-  const overall = Math.round(
-    activityScore * 0.35 + 
-    responseScore * 0.30 + 
-    communityScore * 0.35
-  );
-
-  const status = getStatus(overall);
-  const trend = getTrend(activity);
-  const alerts = generateAlerts(params);
-  const recommendations = generateRecommendations(params);
-
-  return {
-    overall,
-    activity: activityScore,
-    responsiveness: responseScore,
-    community: communityScore,
-    status,
-    trend,
-    alerts,
-    recommendations,
+export interface HealthReport {
+  repoId: string;
+  score: HealthScore;
+  metrics: CommunityMetrics;
+  trends: {
+    contributors: number;
+    issues: number;
+    prs: number;
+    engagement: number;
   };
+  recommendations: string[];
+  lastUpdated: Date;
 }
 
-function calculateActivityScore(activity: ActivityMetrics): number {
-  let score = 50; // Base score
+export class CommunityHealth {
+  private reports: Map<string, HealthReport> = new Map();
 
-  // Recent activity bonus
-  const weekOverWeek = activity.commitsThisWeek / Math.max(1, activity.commitsLastWeek);
-  if (weekOverWeek > 1.5) score += 15;
-  else if (weekOverWeek > 1) score += 10;
-  else if (weekOverWeek < 0.5) score -= 15;
-  else score -= 5;
+  async assessHealth(repoId: string, metrics: CommunityMetrics): Promise<HealthReport> {
+    const score = this.calculateScore(metrics);
+    const trends = this.calculateTrends(metrics);
+    const recommendations = this.generateRecommendations(score, metrics);
 
-  // Contributor engagement
-  if (activity.activeContributors >= 5) score += 15;
-  else if (activity.activeContributors >= 2) score += 10;
-  else if (activity.activeContributors === 0) score -= 20;
+    const report: HealthReport = {
+      repoId,
+      score,
+      metrics,
+      trends,
+      recommendations,
+      lastUpdated: new Date(),
+    };
 
-  // Issue/PR balance
-  const issueCloseRate = activity.issuesOpened > 0 
-    ? activity.issuesClosed / activity.issuesOpened 
-    : 1;
-  if (issueCloseRate > 0.8) score += 10;
-  else if (issueCloseRate < 0.3) score -= 15;
-
-  // PR merge rate
-  const prMergeRate = activity.prsOpened > 0 
-    ? activity.prsMerged / activity.prsOpened 
-    : 1;
-  if (prMergeRate > 0.7) score += 10;
-  else if (prMergeRate < 0.3) score -= 10;
-
-  return Math.max(0, Math.min(100, score));
-}
-
-function calculateResponseScore(response: ResponseMetrics): number {
-  let score = 50;
-
-  // Issue response time
-  if (response.avgIssueResponseTime <= 24) score += 20;
-  else if (response.avgIssueResponseTime <= 48) score += 10;
-  else if (response.avgIssueResponseTime <= 168) score -= 10;
-  else score -= 25;
-
-  // PR review time
-  if (response.avgPRReviewTime <= 24) score += 15;
-  else if (response.avgPRReviewTime <= 72) score += 5;
-  else if (response.avgPRReviewTime <= 168) score -= 10;
-  else score -= 20;
-
-  // First response rate
-  if (response.firstResponseRate >= 90) score += 10;
-  else if (response.firstResponseRate >= 70) score += 5;
-  else if (response.firstResponseRate < 50) score -= 15;
-
-  return Math.max(0, Math.min(100, score));
-}
-
-function calculateCommunityScore(community: CommunityMetrics): number {
-  let score = 50;
-
-  // Stars (popularity proxy)
-  if (community.stars >= 10000) score += 20;
-  else if (community.stars >= 1000) score += 15;
-  else if (community.stars >= 100) score += 5;
-
-  // Growth trend
-  if (community.trend >= 10) score += 15;
-  else if (community.trend >= 5) score += 10;
-  else if (community.trend < -5) score -= 15;
-
-  // Issue backlog
-  if (community.openIssues < 50) score += 10;
-  else if (community.openIssues > 200) score -= 15;
-  else if (community.openIssues > 500) score -= 25;
-
-  return Math.max(0, Math.min(100, score));
-}
-
-function getStatus(score: number): HealthStatus {
-  if (score >= 80) return 'excellent';
-  if (score >= 60) return 'good';
-  if (score >= 40) return 'needs-attention';
-  return 'critical';
-}
-
-function getTrend(activity: ActivityMetrics): 'improving' | 'stable' | 'declining' {
-  const ratio = activity.commitsThisWeek / Math.max(1, activity.commitsLastWeek);
-  if (ratio > 1.2) return 'improving';
-  if (ratio < 0.8) return 'declining';
-  return 'stable';
-}
-
-function generateAlerts(params: {
-  activity: ActivityMetrics;
-  response: ResponseMetrics;
-  community: CommunityMetrics;
-  daysSinceLastRelease: number;
-}): string[] {
-  const alerts: string[] = [];
-  const { activity, response, community, daysSinceLastRelease } = params;
-
-  if (activity.activeContributors === 0) {
-    alerts.push('No recent contributor activity');
+    this.reports.set(repoId, report);
+    return report;
   }
 
-  if (response.avgIssueResponseTime > 168) {
-    alerts.push('Issue response time exceeds one week');
+  private calculateScore(metrics: CommunityMetrics): HealthScore {
+    const contributorRatio = metrics.activeContributors / Math.max(metrics.totalContributors, 1);
+    const issueCloseRate = metrics.closedIssues / Math.max(metrics.closedIssues + metrics.openIssues, 1);
+    const prMergeRate = metrics.mergedPRs / Math.max(metrics.mergedPRs + metrics.openPRs, 1);
+    const engagementScore = metrics.communityEngagement / 100;
+
+    const composite = (contributorRatio * 0.2 + issueCloseRate * 0.3 + prMergeRate * 0.3 + engagementScore * 0.2);
+
+    if (composite >= 0.85) return 'excellent';
+    if (composite >= 0.70) return 'good';
+    if (composite >= 0.50) return 'fair';
+    if (composite >= 0.30) return 'poor';
+    return 'critical';
   }
 
-  if (response.avgPRReviewTime > 168) {
-    alerts.push('PR review time exceeds one week');
+  private calculateTrends(metrics: CommunityMetrics): HealthReport['trends'] {
+    return {
+      contributors: metrics.activeContributors > 5 ? 1 : metrics.activeContributors > 2 ? 0 : -1,
+      issues: metrics.openIssues < 20 ? 1 : metrics.openIssues < 50 ? 0 : -1,
+      prs: metrics.mergedPRs > 10 ? 1 : metrics.mergedPRs > 5 ? 0 : -1,
+      engagement: metrics.communityEngagement > 70 ? 1 : metrics.communityEngagement > 40 ? 0 : -1,
+    };
   }
 
-  if (community.openIssues > 500) {
-    alerts.push('Large issue backlog may indicate project stagnation');
+  private generateRecommendations(score: HealthScore, metrics: CommunityMetrics): string[] {
+    const recs: string[] = [];
+
+    if (metrics.activeContributors < 3) {
+      recs.push('Consider more outreach to grow the contributor base');
+    }
+
+    if (metrics.openIssues > 50) {
+      recs.push('High open issue count - prioritize triaging and closing stale issues');
+    }
+
+    if (metrics.responseTimeAvg > 48) {
+      recs.push('Improve response time by setting clear SLAs for issue triage');
+    }
+
+    if (metrics.communityEngagement < 40) {
+      recs.push('Boost engagement through regular updates and community events');
+    }
+
+    if (score === 'critical' || score === 'poor') {
+      recs.push('Consider conducting a community health audit');
+    }
+
+    return recs;
   }
 
-  if (community.openPRs > 50) {
-    alerts.push('Many open PRs - consider triaging or recruiting reviewers');
+  async getHealthReport(repoId: string): Promise<HealthReport | null> {
+    return this.reports.get(repoId) || null;
   }
 
-  if (daysSinceLastRelease > 90) {
-    alerts.push('No release in over 90 days');
+  async getHealthScoreColor(score: HealthScore): Promise<string> {
+    const colors: Record<HealthScore, string> = {
+      excellent: '#22c55e',
+      good: '#84cc16',
+      fair: '#eab308',
+      poor: '#f97316',
+      critical: '#ef4444',
+    };
+    return colors[score];
   }
 
-  return alerts;
-}
+  async compareCommunities(repoId1: string, repoId2: string): Promise<{
+    winner: string;
+    differences: Record<string, number>;
+  } | null> {
+    const report1 = this.reports.get(repoId1);
+    const report2 = this.reports.get(repoId2);
 
-function generateRecommendations(params: {
-  activity: ActivityMetrics;
-  response: ResponseMetrics;
-  community: CommunityMetrics;
-  daysSinceLastRelease: number;
-}): string[] {
-  const recommendations: string[] = [];
-  const { activity, response, community, daysSinceLastRelease } = params;
+    if (!report1 || !report2) return null;
 
-  if (activity.activeContributors < 3) {
-    recommendations.push('Consider reaching out to regular contributors or posting on social media');
+    const scoreValues: Record<HealthScore, number> = {
+      excellent: 5, good: 4, fair: 3, poor: 2, critical: 1,
+    };
+
+    const winner = scoreValues[report1.score] >= scoreValues[report2.score] ? repoId1 : repoId2;
+
+    return {
+      winner,
+      differences: {
+        activeContributors: report1.metrics.activeContributors - report2.metrics.activeContributors,
+        engagement: report1.metrics.communityEngagement - report2.metrics.communityEngagement,
+        openIssues: report1.metrics.openIssues - report2.metrics.openIssues,
+      },
+    };
   }
-
-  if (response.avgIssueResponseTime > 48) {
-    recommendations.push('Set up automated responses for new issues');
-  }
-
-  if (community.openIssues > 200) {
-    recommendations.push('Consider closing stale issues or labeling for community help');
-  }
-
-  if (community.openPRs > 30) {
-    recommendations.push('PR review is bottleneck - consider code owners or trusted reviewers');
-  }
-
-  if (daysSinceLastRelease > 60) {
-    recommendations.push('Plan a release soon to maintain community momentum');
-  }
-
-  if (community.stars < 100 && community.forks > 10) {
-    recommendations.push('High fork-to-star ratio - consider what makes projects sticky');
-  }
-
-  return recommendations;
-}
-
-/**
- * Generate weekly report
- */
-export function generateWeeklyReport(
-  weekStart: Date,
-  activity: ActivityMetrics
-): WeeklyReport {
-  const week = weekStart.toISOString().split('T')[0];
-  const highlights: string[] = [];
-  const concerns: string[] = [];
-
-  // Analyze highlights
-  if (activity.commitsThisWeek > activity.commitsLastWeek * 1.5) {
-    highlights.push('Strong development activity this week');
-  }
-
-  if (activity.prsMerged > 0) {
-    highlights.push(`${activity.prsMerged} PR(s) merged`);
-  }
-
-  if (activity.activeContributors >= 3) {
-    highlights.push('Multiple active contributors');
-  }
-
-  // Analyze concerns
-  if (activity.commitsThisWeek === 0) {
-    concerns.push('No commits this week');
-  }
-
-  if (activity.issuesOpened > activity.issuesClosed * 2) {
-    concerns.push('Issue backlog growing faster than it\'s being addressed');
-  }
-
-  if (activity.prsOpened > 0 && activity.prsMerged === 0) {
-    concerns.push('No PRs merged despite new submissions');
-  }
-
-  return { week, metrics: activity, highlights, concerns };
-}
-
-/**
- * Compare two time periods
- */
-export function comparePeriods(
-  current: ActivityMetrics,
-  previous: ActivityMetrics
-): { improved: string[]; declined: string[]; unchanged: string[] } {
-  const improved: string[] = [];
-  const declined: string[] = [];
-  const unchanged: string[] = [];
-
-  const metrics: [string, number, number][] = [
-    ['commits', current.commitsThisWeek, previous.commitsThisWeek],
-    ['active contributors', current.activeContributors, previous.activeContributors],
-    ['issues closed', current.issuesClosed, previous.issuesClosed],
-    ['PRs merged', current.prsMerged, previous.prsMerged],
-  ];
-
-  for (const [name, curr, prev] of metrics) {
-    const diff = ((curr - prev) / Math.max(1, prev)) * 100;
-    if (diff > 10) improved.push(`${name} (${diff.toFixed(0)}% more)`);
-    else if (diff < -10) declined.push(`${name} (${Math.abs(diff).toFixed(0)}% less)`);
-    else unchanged.push(`${name}`);
-  }
-
-  return { improved, declined, unchanged };
 }

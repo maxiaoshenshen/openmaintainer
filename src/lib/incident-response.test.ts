@@ -1,129 +1,140 @@
-import { describe, it, expect } from "vitest";
-import {
-  analyzeIncidents,
-  getSeverityColor,
-  getIncidentTypeIcon,
-} from "./incident-response";
-import type { MaintainerRepository, MaintainerIssue, MaintainerPullRequest } from "./types";
+import { describe, it, expect } from 'vitest';
+import { IncidentResponse, IncidentSeverity, IncidentStatus } from './incident-response';
 
-describe("incident-response", () => {
-  describe("analyzeIncidents", () => {
-    it("should detect security incidents", () => {
-      const repo = createMockRepo("owner/repo");
-      const issues = [
-        createMockIssue(1, "Security vulnerability in auth", "open", [
-          "security",
-        ]),
-      ];
-      const prs: MaintainerPullRequest[] = [];
+describe('IncidentResponse', () => {
+  const responder = new IncidentResponse();
 
-      const plan = analyzeIncidents(repo, issues, prs);
-
-      expect(plan.incidents.length).toBeGreaterThan(0);
-      expect(plan.incidents[0].type).toBe("security");
-      expect(plan.incidents[0].severity).toBe("critical");
+  it('should create an incident', async () => {
+    const incident = await responder.createIncident({
+      title: 'API Down',
+      description: 'API endpoint not responding',
+      severity: 'critical',
+      affectedComponents: ['api-gateway'],
     });
 
-    it("should detect bug incidents", () => {
-      const repo = createMockRepo("owner/repo");
-      const issues = [
-        createMockIssue(1, "App crashes on startup", "open", ["bug"], 15),
-      ];
-      const prs: MaintainerPullRequest[] = [];
-
-      const plan = analyzeIncidents(repo, issues, prs);
-
-      expect(plan.incidents.some((i) => i.type === "bug")).toBe(true);
-    });
-
-    it("should separate active and resolved incidents", () => {
-      const repo = createMockRepo("owner/repo");
-      const issues = [
-        createMockIssue(1, "Open bug", "open", ["bug"]),
-        createMockIssue(2, "Fixed bug", "closed", ["bug"]),
-      ];
-      const prs: MaintainerPullRequest[] = [];
-
-      const plan = analyzeIncidents(repo, issues, prs);
-
-      expect(plan.activeIncidents.length).toBe(1);
-      expect(plan.recentResolutions.length).toBe(1);
-    });
-
-    it("should generate recommendations", () => {
-      const repo = createMockRepo("owner/repo");
-      const issues = [
-        createMockIssue(1, "Critical security issue", "open", ["security"]),
-      ];
-      const prs: MaintainerPullRequest[] = [];
-
-      const plan = analyzeIncidents(repo, issues, prs);
-
-      expect(plan.recommendations.length).toBeGreaterThan(0);
-    });
+    expect(incident.id).toBeDefined();
+    expect(incident.title).toBe('API Down');
+    expect(incident.severity).toBe('critical');
+    expect(incident.status).toBe('detected');
+    expect(incident.timeline.length).toBeGreaterThan(0);
   });
 
-  describe("getSeverityColor", () => {
-    it("should return correct colors for each severity", () => {
-      expect(getSeverityColor("critical")).toBe("text-red-600");
-      expect(getSeverityColor("high")).toBe("text-orange-600");
-      expect(getSeverityColor("medium")).toBe("text-yellow-600");
-      expect(getSeverityColor("low")).toBe("text-blue-600");
+  it('should update incident status', async () => {
+    const incident = await responder.createIncident({
+      title: 'Memory Leak',
+      description: 'Memory usage increasing',
+      severity: 'high',
+      affectedComponents: ['worker'],
     });
+
+    const updated = await responder.updateStatus(incident.id, 'investigating', 'admin');
+    expect(updated?.status).toBe('investigating');
+    expect(updated?.timeline.length).toBe(2);
   });
 
-  describe("getIncidentTypeIcon", () => {
-    it("should return correct icons for each type", () => {
-      expect(getIncidentTypeIcon("security")).toBe("🔒");
-      expect(getIncidentTypeIcon("bug")).toBe("🐛");
-      expect(getIncidentTypeIcon("regression")).toBe("↩️");
-      expect(getIncidentTypeIcon("performance")).toBe("⚡");
-      expect(getIncidentTypeIcon("outage")).toBe("🚨");
+  it('should assign incident', async () => {
+    const incident = await responder.createIncident({
+      title: 'Slow Response',
+      description: 'Response times degrading',
+      severity: 'medium',
+      affectedComponents: ['api'],
     });
+
+    const assigned = await responder.assignIncident(incident.id, 'developer-1');
+    expect(assigned?.assignee).toBe('developer-1');
+  });
+
+  it('should get incident by id', async () => {
+    const incident = await responder.createIncident({
+      title: 'Test Incident',
+      description: 'Testing',
+      severity: 'low',
+      affectedComponents: ['test'],
+    });
+
+    const found = await responder.getIncident(incident.id);
+    expect(found?.id).toBe(incident.id);
+  });
+
+  it('should filter incidents by status', async () => {
+    await responder.createIncident({
+      title: 'Incident 1',
+      description: 'Test',
+      severity: 'low',
+      affectedComponents: ['test'],
+    });
+
+    const criticalIncident = await responder.createIncident({
+      title: 'Incident 2',
+      description: 'Test',
+      severity: 'critical',
+      affectedComponents: ['test'],
+    });
+
+    await responder.updateStatus(criticalIncident.id, 'investigating', 'admin');
+
+    const active = await responder.getAllIncidents({ status: 'investigating' });
+    expect(active.length).toBeGreaterThan(0);
+    expect(active[0].status).toBe('investigating');
+  });
+
+  it('should get incident metrics', async () => {
+    await responder.createIncident({
+      title: 'Metric Test',
+      description: 'Testing metrics',
+      severity: 'medium',
+      affectedComponents: ['test'],
+    });
+
+    const metrics = await responder.getMetrics();
+    expect(metrics.totalIncidents).toBeGreaterThan(0);
+    expect(metrics.incidentsBySeverity).toBeDefined();
+    expect(metrics.incidentsByStatus).toBeDefined();
+  });
+
+  it('should add timeline events', async () => {
+    const incident = await responder.createIncident({
+      title: 'Timeline Test',
+      description: 'Testing timeline',
+      severity: 'low',
+      affectedComponents: ['test'],
+    });
+
+    await responder.addTimelineEvent(incident.id, 'Manual check', 'user', 'Checked logs');
+    const updated = await responder.getIncident(incident.id);
+    expect(updated?.timeline.length).toBe(2);
+  });
+
+  it('should register notification callback', async () => {
+    let called = false;
+    const responder2 = new IncidentResponse();
+    responder2.onNotification(() => { called = true; });
+
+    await responder2.createIncident({
+      title: 'Notification Test',
+      description: 'Testing notifications',
+      severity: 'low',
+      affectedComponents: ['test'],
+    });
+
+    expect(called).toBe(true);
+  });
+
+  it('should set resolved timestamp when resolved', async () => {
+    const incident = await responder.createIncident({
+      title: 'Resolve Test',
+      description: 'Testing resolution',
+      severity: 'low',
+      affectedComponents: ['test'],
+    });
+
+    await responder.updateStatus(incident.id, 'resolved', 'admin');
+    const updated = await responder.getIncident(incident.id);
+    expect(updated?.resolvedAt).toBeDefined();
+  });
+
+  it('should handle missing incident', async () => {
+    const result = await responder.updateStatus('nonexistent', 'resolved', 'admin');
+    expect(result).toBeNull();
   });
 });
-
-function createMockRepo(name: string): MaintainerRepository {
-  const parts = name.split("/");
-  return {
-    identity: {
-      owner: parts[0],
-      name: parts[1],
-      fullName: name,
-      url: `https://github.com/${name}`,
-    },
-    description: "A test repository",
-    stars: 100,
-    forks: 20,
-    watchers: 50,
-    openIssues: 10,
-    defaultBranch: "main",
-    license: "MIT",
-    updatedAt: new Date().toISOString(),
-    issues: [],
-    pullRequests: [],
-    contributors: [],
-  };
-}
-
-function createMockIssue(
-  id: number,
-  title: string,
-  state: string,
-  labels: string[],
-  comments = 0
-): MaintainerIssue {
-  return {
-    id,
-    number: id,
-    title,
-    body: "Test body",
-    author: "testuser",
-    labels,
-    comments,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    url: `https://github.com/owner/repo/issues/${id}`,
-    state: state as "open" | "closed",
-  };
-}

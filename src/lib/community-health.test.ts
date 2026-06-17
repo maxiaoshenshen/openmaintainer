@@ -1,195 +1,104 @@
 import { describe, it, expect } from 'vitest';
-import { 
-  calculateHealthScore, 
-  generateWeeklyReport, 
-  comparePeriods 
-} from './community-health';
+import { CommunityHealth, CommunityMetrics, HealthScore } from './community-health';
 
-describe('Community Health Dashboard', () => {
-  describe('calculateHealthScore', () => {
-    it('should return excellent score for healthy projects', () => {
-      const result = calculateHealthScore({
-        activity: {
-          commitsThisWeek: 32,
-          commitsLastWeek: 25,
-          prsOpened: 10,
-          prsMerged: 8,
-          issuesOpened: 15,
-          issuesClosed: 12,
-          activeContributors: 5,
-        },
-        response: {
-          avgIssueResponseTime: 12,
-          avgPRReviewTime: 18,
-          firstResponseRate: 95,
-          followUpRate: 80,
-        },
-        community: {
-          stars: 5000,
-          forks: 500,
-          openIssues: 30,
-          openPRs: 5,
-          watchers: 200,
-          subscribers: 100,
-          trend: 15,
-        },
-        daysSinceLastRelease: 14,
-      });
+describe('CommunityHealth', () => {
+  const health = new CommunityHealth();
 
-      expect(result.status).toBe('excellent');
-      expect(result.overall).toBeGreaterThanOrEqual(80);
-      expect(result.trend).toBe('improving');
-      expect(result.alerts).toHaveLength(0);
-    });
+  const mockMetrics: CommunityMetrics = {
+    activeContributors: 10,
+    totalContributors: 50,
+    openIssues: 25,
+    closedIssues: 100,
+    openPRs: 5,
+    mergedPRs: 30,
+    responseTimeAvg: 24,
+    issueResolutionTimeAvg: 72,
+    communityEngagement: 75,
+  };
 
-    it('should flag critical issues', () => {
-      const result = calculateHealthScore({
-        activity: {
-          commitsThisWeek: 0,
-          commitsLastWeek: 0,
-          prsOpened: 0,
-          prsMerged: 0,
-          issuesOpened: 50,
-          issuesClosed: 5,
-          activeContributors: 0,
-        },
-        response: {
-          avgIssueResponseTime: 500,
-          avgPRReviewTime: 400,
-          firstResponseRate: 20,
-          followUpRate: 10,
-        },
-        community: {
-          stars: 50,
-          forks: 10,
-          openIssues: 600,
-          openPRs: 80,
-          watchers: 5,
-          subscribers: 2,
-          trend: -20,
-        },
-        daysSinceLastRelease: 120,
-      });
-
-      expect(result.status).toBe('critical');
-      expect(result.overall).toBeLessThan(40);
-      expect(result.alerts.length).toBeGreaterThan(0);
-    });
-
-    it('should recommend actions for declining projects', () => {
-      const result = calculateHealthScore({
-        activity: {
-          commitsThisWeek: 5,
-          commitsLastWeek: 20,
-          prsOpened: 3,
-          prsMerged: 1,
-          issuesOpened: 10,
-          issuesClosed: 3,
-          activeContributors: 1,
-        },
-        response: {
-          avgIssueResponseTime: 72,
-          avgPRReviewTime: 96,
-          firstResponseRate: 60,
-          followUpRate: 40,
-        },
-        community: {
-          stars: 500,
-          forks: 80,
-          openIssues: 150,
-          openPRs: 25,
-          watchers: 30,
-          subscribers: 15,
-          trend: -5,
-        },
-        daysSinceLastRelease: 60,
-      });
-
-      expect(result.recommendations.length).toBeGreaterThan(0);
-    });
+  it('should assess community health', async () => {
+    const report = await health.assessHealth('repo-1', mockMetrics);
+    expect(report.score).toBeDefined();
+    expect(report.recommendations).toBeDefined();
+    expect(report.trends).toBeDefined();
   });
 
-  describe('generateWeeklyReport', () => {
-    it('should generate report with highlights and concerns', () => {
-      const result = generateWeeklyReport(new Date('2026-01-01'), {
-        commitsThisWeek: 25,
-        commitsLastWeek: 20,
-        prsOpened: 8,
-        prsMerged: 6,
-        issuesOpened: 10,
-        issuesClosed: 8,
-        activeContributors: 4,
-      });
-
-      expect(result.highlights.length).toBeGreaterThan(0);
-      expect(result.week).toBe('2026-01-01');
-    });
-
-    it('should flag concerns when no activity', () => {
-      const result = generateWeeklyReport(new Date('2026-01-08'), {
-        commitsThisWeek: 0,
-        commitsLastWeek: 10,
-        prsOpened: 0,
-        prsMerged: 0,
-        issuesOpened: 5,
-        issuesClosed: 0,
-        activeContributors: 0,
-      });
-
-      expect(result.concerns).toContain('No commits this week');
-    });
+  it('should generate recommendations based on metrics', async () => {
+    const lowContributorMetrics: CommunityMetrics = {
+      ...mockMetrics,
+      activeContributors: 1,
+    };
+    const report = await health.assessHealth('repo-2', lowContributorMetrics);
+    expect(report.recommendations.some(r => r.includes('contributor'))).toBe(true);
   });
 
-  describe('comparePeriods', () => {
-    it('should identify improvements', () => {
-      const result = comparePeriods(
-        {
-          commitsThisWeek: 32,
-          commitsLastWeek: 25,
-          prsOpened: 10,
-          prsMerged: 8,
-          issuesOpened: 15,
-          issuesClosed: 12,
-          activeContributors: 5,
-        },
-        {
-          commitsThisWeek: 15,
-          commitsLastWeek: 10,
-          prsOpened: 5,
-          prsMerged: 3,
-          issuesOpened: 10,
-          issuesClosed: 5,
-          activeContributors: 2,
-        }
-      );
+  it('should calculate correct score for excellent health', async () => {
+    const excellentMetrics: CommunityMetrics = {
+      activeContributors: 20,
+      totalContributors: 50,
+      openIssues: 5,
+      closedIssues: 100,
+      openPRs: 2,
+      mergedPRs: 50,
+      responseTimeAvg: 4,
+      issueResolutionTimeAvg: 24,
+      communityEngagement: 90,
+    };
+    const report = await health.assessHealth('repo-3', excellentMetrics);
+    expect(['excellent', 'good']).toContain(report.score);
+  });
 
-      expect(result.improved.length).toBeGreaterThan(0);
-      expect(result.declined).toHaveLength(0);
-    });
+  it('should calculate correct score for critical health', async () => {
+    const criticalMetrics: CommunityMetrics = {
+      activeContributors: 1,
+      totalContributors: 5,
+      openIssues: 100,
+      closedIssues: 10,
+      openPRs: 20,
+      mergedPRs: 2,
+      responseTimeAvg: 168,
+      issueResolutionTimeAvg: 720,
+      communityEngagement: 10,
+    };
+    const report = await health.assessHealth('repo-4', criticalMetrics);
+    expect(['poor', 'critical']).toContain(report.score);
+  });
 
-    it('should identify declines', () => {
-      const result = comparePeriods(
-        {
-          commitsThisWeek: 5,
-          commitsLastWeek: 25,
-          prsOpened: 2,
-          prsMerged: 1,
-          issuesOpened: 20,
-          issuesClosed: 5,
-          activeContributors: 1,
-        },
-        {
-          commitsThisWeek: 25,
-          commitsLastWeek: 20,
-          prsOpened: 10,
-          prsMerged: 8,
-          issuesOpened: 10,
-          issuesClosed: 12,
-          activeContributors: 5,
-        }
-      );
+  it('should get health report', async () => {
+    await health.assessHealth('repo-5', mockMetrics);
+    const report = await health.getHealthReport('repo-5');
+    expect(report).not.toBeNull();
+  });
 
-      expect(result.declined.length).toBeGreaterThan(0);
-    });
+  it('should return null for non-existent report', async () => {
+    const report = await health.getHealthReport('nonexistent');
+    expect(report).toBeNull();
+  });
+
+  it('should get health score color', async () => {
+    const color = await health.getHealthScoreColor('excellent');
+    expect(color).toBe('#22c55e');
+  });
+
+  it('should compare two communities', async () => {
+    await health.assessHealth('repo-6', mockMetrics);
+    await health.assessHealth('repo-7', { ...mockMetrics, communityEngagement: 50 });
+    const comparison = await health.compareCommunities('repo-6', 'repo-7');
+    expect(comparison).not.toBeNull();
+    expect(comparison!.winner).toBeDefined();
+    expect(comparison!.differences).toBeDefined();
+  });
+
+  it('should handle comparison with missing report', async () => {
+    const comparison = await health.compareCommunities('repo-1', 'nonexistent');
+    expect(comparison).toBeNull();
+  });
+
+  it('should track trends correctly', async () => {
+    const report = await health.assessHealth('repo-8', mockMetrics);
+    expect(report.trends).toHaveProperty('contributors');
+    expect(report.trends).toHaveProperty('issues');
+    expect(report.trends).toHaveProperty('prs');
+    expect(report.trends).toHaveProperty('engagement');
   });
 });

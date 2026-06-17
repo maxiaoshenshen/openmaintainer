@@ -1,183 +1,174 @@
-/**
- * Changelog Generator - Generate changelogs from git commits
- */
-
-export interface CommitInfo {
-  hash: string;
-  message: string;
-  author: string;
-  date: Date;
-  type: 'feat' | 'fix' | 'docs' | 'style' | 'refactor' | 'test' | 'chore' | 'breaking';
-  scope?: string;
-}
-
-export interface ChangelogConfig {
-  fromTag?: string;
-  toTag?: string;
-  includeBreaking: boolean;
-  format: 'keepachangelog' | 'conventionalcommits' | 'json';
-}
+export type ChangeType = 'feature' | 'fix' | 'breaking' | 'docs' | 'refactor' | 'test' | 'chore' | 'security';
 
 export interface ChangelogEntry {
   version: string;
   date: Date;
-  changes: {
-    added: string[];
-    changed: string[];
-    deprecated: string[];
-    removed: string[];
-    fixed: string[];
-    security: string[];
-  };
-  breaking: string[];
+  changes: ChangeEntry[];
+  breakingChanges: ChangeEntry[];
 }
 
-/**
- * Parse conventional commit message
- */
-export function parseCommit(commit: {
-  hash: string;
-  message: string;
-  author: string;
-  date: Date;
-}): CommitInfo {
-  const match = commit.message.match(/^(\w+)(\(.+\))?(!)?:\s*(.+)$/);
-  if (match) {
-    return {
-      hash: commit.hash,
-      message: match[4],
-      author: commit.author,
-      date: commit.date,
-      type: match[1] as CommitInfo['type'],
-      scope: match[2]?.replace(/[()]/g, ''),
-      breaking: !!match[3]
+export interface ChangeEntry {
+  type: ChangeType;
+  scope?: string;
+  description: string;
+  author?: string;
+  prNumber?: number;
+}
+
+export interface ChangelogConfig {
+  repoId: string;
+  includeAuthors: boolean;
+  includePRs: boolean;
+  categories: ChangeType[];
+}
+
+export class ChangelogGenerator {
+  private changelogs: Map<string, ChangelogEntry[]> = new Map();
+
+  async generateChangelog(
+    repoId: string,
+    entries: ChangeEntry[],
+    version: string,
+    config?: Partial<ChangelogConfig>
+  ): Promise<ChangelogEntry> {
+    const entry: ChangelogEntry = {
+      version,
+      date: new Date(),
+      changes: entries.filter(e => e.type !== 'breaking'),
+      breakingChanges: entries.filter(e => e.type === 'breaking'),
     };
+
+    const existing = this.changelogs.get(repoId) || [];
+    existing.unshift(entry);
+    this.changelogs.set(repoId, existing);
+
+    return entry;
   }
-  return {
-    hash: commit.hash,
-    message: commit.message,
-    author: commit.author,
-    date: commit.date,
-    type: 'chore'
-  };
-}
 
-/**
- * Group commits by type
- */
-export function groupCommitsByType(commits: CommitInfo[]): ChangelogEntry['changes'] {
-  const changes = {
-    added: [] as string[],
-    changed: [] as string[],
-    deprecated: [] as string[],
-    removed: [] as string[],
-    fixed: [] as string[],
-    security: [] as string[]
-  };
+  async getChangelog(repoId: string, version?: string): Promise<ChangelogEntry | ChangelogEntry[] | null> {
+    const changelog = this.changelogs.get(repoId);
+    if (!changelog) return null;
 
-  commits.forEach(commit => {
-    const entry = `${commit.scope ? `**${commit.scope}:** ` : ''}${commit.message} (${commit.hash.slice(0, 7)})`;
-    
-    switch (commit.type) {
-      case 'feat':
-        changes.added.push(entry);
-        break;
-      case 'fix':
-        changes.fixed.push(entry);
-        break;
-      case 'docs':
-      case 'style':
-        changes.changed.push(entry);
-        break;
-      case 'refactor':
-        changes.changed.push(entry);
-        break;
-      case 'test':
-        changes.added.push(entry);
-        break;
-      case 'chore':
-        changes.changed.push(entry);
-        break;
+    if (version) {
+      return changelog.find(c => c.version === version) || null;
     }
-  });
-
-  return changes;
-}
-
-/**
- * Generate markdown changelog
- */
-export function generateMarkdownChangelog(entry: ChangelogEntry): string {
-  let md = `## [${entry.version}] - ${entry.date.toISOString().split('T')[0]}\n\n`;
-
-  if (entry.breaking.length > 0) {
-    md += `### ⚠️ BREAKING CHANGES\n\n${entry.breaking.map(b => `- ${b}`).join('\n')}\n\n`;
+    return changelog;
   }
 
-  const sections = [
-    { key: 'added', title: 'Added' },
-    { key: 'changed', title: 'Changed' },
-    { key: 'deprecated', title: 'Deprecated' },
-    { key: 'removed', title: 'Removed' },
-    { key: 'fixed', title: 'Fixed' },
-    { key: 'security', title: 'Security' }
-  ];
-
-  sections.forEach(({ key, title }) => {
-    const items = entry.changes[key as keyof typeof entry.changes];
-    if (items && items.length > 0) {
-      md += `### ${title}\n\n${items.map(i => `- ${i}`).join('\n')}\n\n`;
+  async formatChangelogMarkdown(repoId: string): Promise<string> {
+    const changelog = this.changelogs.get(repoId);
+    if (!changelog || changelog.length === 0) {
+      return '# Changelog\n\nNo releases yet.\n';
     }
-  });
 
-  return md;
-}
+    let md = '# Changelog\n\n';
 
-/**
- * Generate full changelog document
- */
-export function generateChangelog(
-  entries: ChangelogEntry[],
-  config: ChangelogConfig
-): string {
-  if (config.format === 'json') {
-    return JSON.stringify(entries, null, 2);
+    for (const entry of changelog) {
+      md += `## ${entry.version} (${entry.date.toISOString().split('T')[0]})\n\n`;
+
+      if (entry.breakingChanges.length > 0) {
+        md += '### ⚠️ Breaking Changes\n\n';
+        for (const change of entry.breakingChanges) {
+          md += `- **${change.scope || 'general'}**: ${change.description}`;
+          if (change.prNumber) md += ` (#${change.prNumber})`;
+          md += '\n';
+        }
+        md += '\n';
+      }
+
+      const grouped = this.groupByType(entry.changes);
+      
+      for (const [type, changes] of Object.entries(grouped)) {
+        if (changes.length === 0) continue;
+        md += `### ${this.getTypeEmoji(type as ChangeType)} ${this.capitalize(type)}\n\n`;
+        for (const change of changes) {
+          md += `- ${change.scope ? `**${change.scope}:** ` : ''}${change.description}`;
+          if (change.author) md += ` (by @${change.author})`;
+          if (change.prNumber) md += ` in #${change.prNumber}`;
+          md += '\n';
+        }
+        md += '\n';
+      }
+    }
+
+    return md;
   }
 
-  let changelog = '# Changelog\n\n';
-  changelog += 'All notable changes to this project will be documented in this file.\n\n';
-  changelog += 'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).\n\n';
+  private groupByType(changes: ChangeEntry[]): Record<ChangeType, ChangeEntry[]> {
+    const grouped: Record<ChangeType, ChangeEntry[]> = {
+      feature: [],
+      fix: [],
+      breaking: [],
+      docs: [],
+      refactor: [],
+      test: [],
+      chore: [],
+      security: [],
+    };
 
-  entries.forEach(entry => {
-    changelog += generateMarkdownChangelog(entry);
-  });
+    for (const change of changes) {
+      grouped[change.type].push(change);
+    }
 
-  return changelog;
-}
+    return grouped;
+  }
 
-/**
- * Calculate changelog statistics
- */
-export function getChangelogStats(commits: CommitInfo[]): {
-  total: number;
-  byType: Record<string, number>;
-  contributors: string[];
-  breakingCount: number;
-} {
-  const byType: Record<string, number> = {};
-  const contributors = new Set<string>();
-  let breakingCount = 0;
+  private getTypeEmoji(type: ChangeType): string {
+    const emojis: Record<ChangeType, string> = {
+      feature: '✨',
+      fix: '🐛',
+      breaking: '💥',
+      docs: '📝',
+      refactor: '♻️',
+      test: '🧪',
+      chore: '🔧',
+      security: '🔒',
+    };
+    return emojis[type];
+  }
 
-  commits.forEach(commit => {
-    byType[commit.type] = (byType[commit.type] || 0) + 1;
-    contributors.add(commit.author);
-    if (commit.breaking) breakingCount++;
-  });
+  private capitalize(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
 
-  return {
-    total: commits.length,
-    byType,
-    contributors: Array.from(contributors),
-    breakingCount
-  };
+  async generateReleaseNotes(repoId: string, version: string): Promise<string> {
+    const entry = await this.getChangelog(repoId, version) as ChangelogEntry | null;
+    if (!entry) return 'No release notes available.';
+
+    const lines: string[] = [];
+    lines.push(`# Release ${version}`);
+    lines.push(`Released on ${entry.date.toISOString().split('T')[0]}`);
+    lines.push('');
+
+    if (entry.breakingChanges.length > 0) {
+      lines.push('## ⚠️ Breaking Changes');
+      lines.push('');
+      for (const change of entry.breakingChanges) {
+        lines.push(`- ${change.description}`);
+      }
+      lines.push('');
+    }
+
+    const features = entry.changes.filter(c => c.type === 'feature');
+    if (features.length > 0) {
+      lines.push('## New Features');
+      lines.push('');
+      for (const change of features) {
+        lines.push(`- ${change.scope ? `**${change.scope}:** ` : ''}${change.description}`);
+      }
+      lines.push('');
+    }
+
+    const fixes = entry.changes.filter(c => c.type === 'fix');
+    if (fixes.length > 0) {
+      lines.push('## Bug Fixes');
+      lines.push('');
+      for (const change of fixes) {
+        lines.push(`- ${change.scope ? `**${change.scope}:** ` : ''}${change.description}`);
+      }
+      lines.push('');
+    }
+
+    return lines.join('\n');
+  }
 }

@@ -1,97 +1,79 @@
 import { describe, it, expect } from 'vitest';
-import {
-  parseCommit,
-  groupCommitsByType,
-  generateMarkdownChangelog,
-  generateChangelog,
-  getChangelogStats
-} from './changelog-generator';
+import { ChangelogGenerator, ChangeEntry } from './changelog-generator';
 
-describe('changelog-generator', () => {
-  describe('parseCommit', () => {
-    it('should parse feat commit', () => {
-      const commit = {
-        hash: 'abc123',
-        message: 'feat(auth): add login',
-        author: 'test@example.com',
-        date: new Date()
-      };
-      const parsed = parseCommit(commit);
-      expect(parsed.type).toBe('feat');
-      expect(parsed.scope).toBe('auth');
-    });
+describe('ChangelogGenerator', () => {
+  const generator = new ChangelogGenerator();
 
-    it('should parse fix commit', () => {
-      const commit = {
-        hash: 'def456',
-        message: 'fix: resolve bug',
-        author: 'test@example.com',
-        date: new Date()
-      };
-      const parsed = parseCommit(commit);
-      expect(parsed.type).toBe('fix');
-    });
+  const mockEntries: ChangeEntry[] = [
+    { type: 'feature', scope: 'api', description: 'Add new REST endpoints' },
+    { type: 'fix', scope: 'auth', description: 'Fix token expiration bug' },
+    { type: 'docs', description: 'Update API documentation' },
+    { type: 'breaking', scope: 'core', description: 'Remove deprecated methods' },
+  ];
 
-    it('should detect breaking changes', () => {
-      const commit = {
-        hash: 'ghi789',
-        message: 'feat!: breaking change',
-        author: 'test@example.com',
-        date: new Date()
-      };
-      const parsed = parseCommit(commit);
-      expect(parsed.breaking).toBe(true);
-    });
+  it('should generate changelog entry', async () => {
+    const entry = await generator.generateChangelog('repo-1', mockEntries, '1.0.0');
+    expect(entry.version).toBe('1.0.0');
+    expect(entry.changes.length).toBe(3);
+    expect(entry.breakingChanges.length).toBe(1);
   });
 
-  describe('groupCommitsByType', () => {
-    it('should group commits correctly', () => {
-      const commits = [
-        { hash: '1', message: 'feat: new feature', author: 'a', date: new Date(), type: 'feat' as const },
-        { hash: '2', message: 'fix: bug fix', author: 'b', date: new Date(), type: 'fix' as const }
-      ];
-      const grouped = groupCommitsByType(commits);
-      expect(grouped.added.length).toBeGreaterThan(0);
-      expect(grouped.fixed.length).toBeGreaterThan(0);
-    });
+  it('should get changelog by repo', async () => {
+    await generator.generateChangelog('repo-2', mockEntries, '1.0.0');
+    const changelog = await generator.getChangelog('repo-2');
+    expect(Array.isArray(changelog)).toBe(true);
+    expect((changelog as any[]).length).toBe(1);
   });
 
-  describe('generateChangelog', () => {
-    it('should generate markdown changelog', () => {
-      const entries = [{
-        version: '1.0.0',
-        date: new Date('2024-01-01'),
-        changes: { added: ['Feature 1'], changed: [], deprecated: [], removed: [], fixed: [], security: [] },
-        breaking: []
-      }];
-      const changelog = generateChangelog(entries, { format: 'conventionalcommits', includeBreaking: true });
-      expect(changelog).toContain('# Changelog');
-      expect(changelog).toContain('1.0.0');
-    });
-
-    it('should generate JSON format', () => {
-      const entries = [{
-        version: '1.0.0',
-        date: new Date(),
-        changes: { added: [], changed: [], deprecated: [], removed: [], fixed: [], security: [] },
-        breaking: []
-      }];
-      const changelog = generateChangelog(entries, { format: 'json', includeBreaking: true });
-      expect(() => JSON.parse(changelog)).not.toThrow();
-    });
+  it('should get changelog by version', async () => {
+    await generator.generateChangelog('repo-3', mockEntries, '2.0.0');
+    const entry = await generator.getChangelog('repo-3', '2.0.0');
+    expect(entry).not.toBeNull();
+    expect((entry as any).version).toBe('2.0.0');
   });
 
-  describe('getChangelogStats', () => {
-    it('should calculate statistics', () => {
-      const commits = [
-        { hash: '1', message: 'feat: one', author: 'a', date: new Date(), type: 'feat' as const, breaking: false },
-        { hash: '2', message: 'feat: two', author: 'b', date: new Date(), type: 'feat' as const, breaking: false },
-        { hash: '3', message: 'fix: one', author: 'a', date: new Date(), type: 'fix' as const, breaking: false }
-      ];
-      const stats = getChangelogStats(commits);
-      expect(stats.total).toBe(3);
-      expect(stats.byType.feat).toBe(2);
-      expect(stats.contributors).toContain('a');
-    });
+  it('should format changelog as markdown', async () => {
+    await generator.generateChangelog('repo-4', mockEntries, '1.0.0');
+    const md = await generator.formatChangelogMarkdown('repo-4');
+    expect(md).toContain('# Changelog');
+    expect(md).toContain('## 1.0.0');
+    expect(md).toContain('Feature');
+    expect(md).toContain('Fix');
+  });
+
+  it('should generate release notes', async () => {
+    await generator.generateChangelog('repo-5', mockEntries, '1.0.0');
+    const notes = await generator.generateReleaseNotes('repo-5', '1.0.0');
+    expect(notes).toContain('# Release 1.0.0');
+    expect(notes).toContain('New Features');
+    expect(notes).toContain('Bug Fixes');
+  });
+
+  it('should handle multiple versions', async () => {
+    await generator.generateChangelog('repo-6', mockEntries, '1.0.0');
+    await generator.generateChangelog('repo-6', mockEntries, '1.1.0');
+    const changelog = await generator.getChangelog('repo-6') as any[];
+    expect(changelog.length).toBe(2);
+  });
+
+  it('should return null for non-existent repo', async () => {
+    const result = await generator.getChangelog('nonexistent');
+    expect(result).toBeNull();
+  });
+
+  it('should return null for non-existent version', async () => {
+    await generator.generateChangelog('repo-7', mockEntries, '1.0.0');
+    const result = await generator.getChangelog('repo-7', '2.0.0');
+    expect(result).toBeNull();
+  });
+
+  it('should handle empty changelog in markdown', async () => {
+    const md = await generator.formatChangelogMarkdown('empty-repo');
+    expect(md).toContain('No releases yet');
+  });
+
+  it('should handle release notes for non-existent version', async () => {
+    const notes = await generator.generateReleaseNotes('repo-8', '1.0.0');
+    expect(notes).toContain('No release notes available');
   });
 });

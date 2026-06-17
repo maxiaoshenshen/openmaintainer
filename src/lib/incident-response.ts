@@ -1,225 +1,172 @@
-import type { Issue, PullRequest, Repository } from "./types";
+export type IncidentSeverity = 'critical' | 'high' | 'medium' | 'low';
+export type IncidentStatus = 'detected' | 'investigating' | 'mitigating' | 'resolved' | 'postmortem';
 
 export interface Incident {
   id: string;
-  type: "bug" | "security" | "regression" | "performance" | "outage";
-  severity: "critical" | "high" | "medium" | "low";
   title: string;
   description: string;
-  affectedVersions: string[];
-  status: "investigating" | "identified" | "monitoring" | "resolved";
-  createdAt: Date;
+  severity: IncidentSeverity;
+  status: IncidentStatus;
+  affectedComponents: string[];
+  detectedAt: Date;
   resolvedAt?: Date;
-  relatedIssues: number[];
-  relatedPRs: number[];
+  assignee?: string;
+  timeline: IncidentEvent[];
 }
 
-export interface IncidentResponsePlan {
-  repository: string;
-  incidents: Incident[];
-  activeIncidents: Incident[];
-  recentResolutions: Incident[];
-  recommendations: string[];
-  timeline: IncidentTimelineEntry[];
-}
-
-export interface IncidentTimelineEntry {
+export interface IncidentEvent {
   timestamp: Date;
-  type: "created" | "escalated" | "status_change" | "comment" | "resolved";
-  description: string;
+  action: string;
   actor: string;
+  details?: string;
 }
 
-export function analyzeIncidents(
-  repo: Repository,
-  issues: Issue[],
-  prs: PullRequest[]
-): IncidentResponsePlan {
-  const incidents = detectIncidents(issues, prs);
-  const activeIncidents = incidents.filter((i) => i.status !== "resolved");
-  const recentResolutions = incidents
-    .filter((i) => i.status === "resolved")
-    .slice(0, 5);
-
-  return {
-    repository: repo.identity.fullName,
-    incidents,
-    activeIncidents,
-    recentResolutions,
-    recommendations: generateIncidentRecommendations(activeIncidents),
-    timeline: buildTimeline(incidents),
-  };
+export interface IncidentMetrics {
+  totalIncidents: number;
+  resolvedIncidents: number;
+  avgResolutionTime: number;
+  incidentsBySeverity: Record<IncidentSeverity, number>;
+  incidentsByStatus: Record<IncidentStatus, number>;
 }
 
-function detectIncidents(issues: Issue[], prs: PullRequest[]): Incident[] {
-  const incidents: Incident[] = [];
+export class IncidentResponse {
+  private incidents: Map<string, Incident> = new Map();
+  private notificationCallbacks: Array<(incident: Incident) => void> = [];
 
-  // Detect security issues
-  const securityIssues = issues.filter(
-    (i) =>
-      i.labels.some((l) =>
-        ["security", "vulnerability", "cve", "security-alert"].some(
-          (s) => l.toLowerCase().includes(s)
-        )
-      ) || i.title.toLowerCase().includes("security")
-  );
+  async createIncident(data: {
+    title: string;
+    description: string;
+    severity: IncidentSeverity;
+    affectedComponents: string[];
+  }): Promise<Incident> {
+    const incident: Incident = {
+      id: `INC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      ...data,
+      status: 'detected',
+      detectedAt: new Date(),
+      timeline: [
+        {
+          timestamp: new Date(),
+          action: 'Incident created',
+          actor: 'system',
+          details: data.description,
+        },
+      ],
+    };
 
-  securityIssues.forEach((issue) => {
-    incidents.push({
-      id: `incident-sec-${issue.id}`,
-      type: "security",
-      severity: detectSeverity(issue, "security"),
-      title: issue.title,
-      description: issue.body || "",
-      affectedVersions: extractVersions(issue.body || ""),
-      status: issue.state === "closed" ? "resolved" : "investigating",
-      createdAt: new Date(issue.createdAt),
-      resolvedAt: issue.state === "closed" ? new Date(issue.updatedAt) : undefined,
-      relatedIssues: [issue.id],
-      relatedPRs: [],
-    });
-  });
-
-  // Detect bugs
-  const bugIssues = issues.filter(
-    (i) =>
-      i.labels.some((l) =>
-        ["bug", "bug-report", "defect"].some((b) => l.toLowerCase().includes(b))
-      ) && !securityIssues.some((s) => s.id === i.id)
-  );
-
-  bugIssues.slice(0, 10).forEach((issue) => {
-    incidents.push({
-      id: `incident-bug-${issue.id}`,
-      type: "bug",
-      severity: detectSeverity(issue, "bug"),
-      title: issue.title,
-      description: issue.body || "",
-      affectedVersions: extractVersions(issue.body || ""),
-      status: issue.state === "closed" ? "resolved" : "investigating",
-      createdAt: new Date(issue.createdAt),
-      resolvedAt: issue.state === "closed" ? new Date(issue.updatedAt) : undefined,
-      relatedIssues: [issue.id],
-      relatedPRs: [],
-    });
-  });
-
-  // Detect regressions
-  const regressionIssues = issues.filter(
-    (i) =>
-      i.labels.some((l) => l.toLowerCase().includes("regression")) ||
-      i.title.toLowerCase().includes("regression")
-  );
-
-  regressionIssues.forEach((issue) => {
-    incidents.push({
-      id: `incident-reg-${issue.id}`,
-      type: "regression",
-      severity: "high",
-      title: issue.title,
-      description: issue.body || "",
-      affectedVersions: extractVersions(issue.body || ""),
-      status: issue.state === "closed" ? "resolved" : "identified",
-      createdAt: new Date(issue.createdAt),
-      resolvedAt: issue.state === "closed" ? new Date(issue.updatedAt) : undefined,
-      relatedIssues: [issue.id],
-      relatedPRs: [],
-    });
-  });
-
-  return incidents;
-}
-
-function detectSeverity(
-  issue: Issue,
-  type: "security" | "bug"
-): "critical" | "high" | "medium" | "low" {
-  if (type === "security") return "critical";
-  if (issue.commentCount > 10) return "high";
-  if (issue.commentCount > 3) return "medium";
-  return "low";
-}
-
-function extractVersions(text: string): string[] {
-  const versionRegex = /\bv?(\d+\.\d+\.\d+)\b/g;
-  const matches = text.match(versionRegex);
-  return matches ? [...new Set(matches)] : [];
-}
-
-function generateIncidentRecommendations(activeIncidents: Incident[]): string[] {
-  const recs: string[] = [];
-
-  const critical = activeIncidents.filter((i) => i.severity === "critical");
-  if (critical.length > 0) {
-    recs.push(
-      `URGENT: ${critical.length} critical incident(s) require immediate attention`
-    );
+    this.incidents.set(incident.id, incident);
+    this.notify(incident);
+    return incident;
   }
 
-  const unresolved = activeIncidents.filter((i) => i.status === "investigating");
-  if (unresolved.length > 0) {
-    recs.push(
-      `${unresolved.length} incident(s) still under investigation`
-    );
-  }
+  async updateStatus(id: string, status: IncidentStatus, actor: string, details?: string): Promise<Incident | null> {
+    const incident = this.incidents.get(id);
+    if (!incident) return null;
 
-  if (activeIncidents.length === 0) {
-    recs.push("No active incidents - great job maintaining stability!");
-  }
-
-  return recs;
-}
-
-function buildTimeline(incidents: Incident[]): IncidentTimelineEntry[] {
-  const timeline: IncidentTimelineEntry[] = [];
-
-  incidents.forEach((incident) => {
-    timeline.push({
-      timestamp: incident.createdAt,
-      type: "created",
-      description: `Incident created: ${incident.title}`,
-      actor: "system",
+    incident.status = status;
+    incident.timeline.push({
+      timestamp: new Date(),
+      action: `Status changed to ${status}`,
+      actor,
+      details,
     });
 
-    if (incident.resolvedAt) {
-      timeline.push({
-        timestamp: incident.resolvedAt,
-        type: "resolved",
-        description: `Incident resolved: ${incident.title}`,
-        actor: "system",
-      });
+    if (status === 'resolved') {
+      incident.resolvedAt = new Date();
     }
-  });
 
-  return timeline.sort(
-    (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-  );
-}
-
-export function getSeverityColor(severity: Incident["severity"]): string {
-  switch (severity) {
-    case "critical":
-      return "text-red-600";
-    case "high":
-      return "text-orange-600";
-    case "medium":
-      return "text-yellow-600";
-    case "low":
-      return "text-blue-600";
+    this.notify(incident);
+    return incident;
   }
-}
 
-export function getIncidentTypeIcon(type: Incident["type"]): string {
-  switch (type) {
-    case "security":
-      return "🔒";
-    case "bug":
-      return "🐛";
-    case "regression":
-      return "↩️";
-    case "performance":
-      return "⚡";
-    case "outage":
-      return "🚨";
+  async assignIncident(id: string, assignee: string): Promise<Incident | null> {
+    const incident = this.incidents.get(id);
+    if (!incident) return null;
+
+    incident.assignee = assignee;
+    incident.timeline.push({
+      timestamp: new Date(),
+      action: 'Assignee updated',
+      actor: 'system',
+      details: `Assigned to ${assignee}`,
+    });
+
+    this.notify(incident);
+    return incident;
+  }
+
+  async getIncident(id: string): Promise<Incident | null> {
+    return this.incidents.get(id) || null;
+  }
+
+  async getAllIncidents(filters?: {
+    status?: IncidentStatus;
+    severity?: IncidentSeverity;
+  }): Promise<Incident[]> {
+    let incidents = Array.from(this.incidents.values());
+
+    if (filters?.status) {
+      incidents = incidents.filter(i => i.status === filters.status);
+    }
+    if (filters?.severity) {
+      incidents = incidents.filter(i => i.severity === filters.severity);
+    }
+
+    return incidents.sort((a, b) => b.detectedAt.getTime() - a.detectedAt.getTime());
+  }
+
+  async getMetrics(): Promise<IncidentMetrics> {
+    const incidents = Array.from(this.incidents.values());
+    const resolved = incidents.filter(i => i.status === 'resolved' && i.resolvedAt);
+    
+    const totalResolutionTime = resolved.reduce((sum, i) => {
+      return sum + (i.resolvedAt!.getTime() - i.detectedAt.getTime());
+    }, 0);
+
+    const incidentsBySeverity = {
+      critical: incidents.filter(i => i.severity === 'critical').length,
+      high: incidents.filter(i => i.severity === 'high').length,
+      medium: incidents.filter(i => i.severity === 'medium').length,
+      low: incidents.filter(i => i.severity === 'low').length,
+    };
+
+    const incidentsByStatus = {
+      detected: incidents.filter(i => i.status === 'detected').length,
+      investigating: incidents.filter(i => i.status === 'investigating').length,
+      mitigating: incidents.filter(i => i.status === 'mitigating').length,
+      resolved: incidents.filter(i => i.status === 'resolved').length,
+      postmortem: incidents.filter(i => i.status === 'postmortem').length,
+    };
+
+    return {
+      totalIncidents: incidents.length,
+      resolvedIncidents: resolved.length,
+      avgResolutionTime: resolved.length > 0 ? totalResolutionTime / resolved.length : 0,
+      incidentsBySeverity,
+      incidentsByStatus,
+    };
+  }
+
+  async addTimelineEvent(id: string, action: string, actor: string, details?: string): Promise<Incident | null> {
+    const incident = this.incidents.get(id);
+    if (!incident) return null;
+
+    incident.timeline.push({
+      timestamp: new Date(),
+      action,
+      actor,
+      details,
+    });
+
+    this.notify(incident);
+    return incident;
+  }
+
+  onNotification(callback: (incident: Incident) => void): void {
+    this.notificationCallbacks.push(callback);
+  }
+
+  private notify(incident: Incident): void {
+    this.notificationCallbacks.forEach(cb => cb(incident));
   }
 }
