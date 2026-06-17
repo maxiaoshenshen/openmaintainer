@@ -1,132 +1,120 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ReadmeGenerator, ReadmeConfig } from './readme-generator';
+import { GitHubClient } from './github-client';
 
 describe('ReadmeGenerator', () => {
-  const generator = new ReadmeGenerator();
+  let generator: ReadmeGenerator;
+  let mockGithub: GitHubClient;
 
-  const mockConfig: ReadmeConfig = {
-    repoName: 'awesome-project',
-    description: 'An awesome project for testing',
-    language: '5.0',
-    includeBadges: true,
-    includeInstall: true,
-    includeUsage: true,
-    includeContributing: true,
-    includeLicense: true,
-    includeCodeOfConduct: false,
-  };
-
-  it('should generate README with title', async () => {
-    const readme = await generator.generateReadme(mockConfig);
-    expect(readme).toContain('# awesome-project');
+  beforeEach(() => {
+    mockGithub = {
+      getFile: vi.fn().mockRejectedValue(new Error('Not found')),
+    } as unknown as GitHubClient;
+    generator = new ReadmeGenerator(mockGithub);
   });
 
-  it('should include description', async () => {
-    const readme = await generator.generateReadme(mockConfig);
-    expect(readme).toContain('An awesome project for testing');
-  });
+  describe('generate', () => {
+    it('should generate complete README', async () => {
+      const config: ReadmeConfig = {
+        projectName: 'test-project',
+        description: 'A test project'
+      };
 
-  it('should include badges section', async () => {
-    const readme = await generator.generateReadme(mockConfig);
-    expect(readme).toContain('![License]');
-  });
+      const readme = await generator.generate(config);
 
-  it('should include installation section', async () => {
-    const readme = await generator.generateReadme(mockConfig);
-    expect(readme).toContain('## Installation');
-    expect(readme).toContain('npm install');
-  });
-
-  it('should include usage section', async () => {
-    const readme = await generator.generateReadme(mockConfig);
-    expect(readme).toContain('## Usage');
-  });
-
-  it('should include contributing section', async () => {
-    const readme = await generator.generateReadme(mockConfig);
-    expect(readme).toContain('## Contributing');
-  });
-
-  it('should include license section', async () => {
-    const readme = await generator.generateReadme(mockConfig);
-    expect(readme).toContain('## License');
-  });
-
-  it('should add sections', async () => {
-    const section = await generator.addSection({
-      title: 'Custom Section',
-      content: 'Custom content here',
-      order: 1,
-      optional: true,
-    });
-    expect(section.id).toBeDefined();
-    expect(section.title).toBe('Custom Section');
-  });
-
-  it('should remove sections', async () => {
-    const section = await generator.addSection({
-      title: 'To Remove',
-      content: 'Will be removed',
-      order: 1,
-      optional: true,
+      expect(readme).toContain('# test-project');
+      expect(readme).toContain('## About');
+      expect(readme).toContain('## Installation');
+      expect(readme).toContain('## Usage');
     });
 
-    const removed = await generator.removeSection(section.id);
-    expect(removed).toBe(true);
-  });
+    it('should include badges when configured', async () => {
+      const config: ReadmeConfig = {
+        projectName: 'test',
+        description: 'Test',
+        includeBadges: true
+      };
 
-  it('should handle non-existent section removal', async () => {
-    const removed = await generator.removeSection('nonexistent');
-    expect(removed).toBe(false);
-  });
+      const readme = await generator.generate(config);
 
-  it('should reorder sections', async () => {
-    const gen = new ReadmeGenerator();
-    const s1 = await gen.addSection({
-      title: 'Section 1',
-      content: 'First',
-      order: 1,
-      optional: false,
+      expect(readme).toContain('License');
     });
 
-    const s2 = await gen.addSection({
-      title: 'Section 2',
-      content: 'Second',
-      order: 2,
-      optional: false,
-    });
+    it('should exclude TOC when disabled', async () => {
+      const config: ReadmeConfig = {
+        projectName: 'test',
+        description: 'Test',
+        includeToc: false
+      };
 
-    await gen.reorderSections([s2.id, s1.id]);
-    const sections = await gen.exportSections();
-    expect(sections.length).toBe(2);
+      const readme = await generator.generate(config);
+
+      expect(readme).not.toContain('Table of Contents');
+    });
   });
 
-  it('should export sections', async () => {
-    const gen = new ReadmeGenerator();
-    await gen.addSection({
-      title: 'Export Test',
-      content: 'Testing export',
-      order: 1,
-      optional: false,
-    });
+  describe('generateMinimal', () => {
+    it('should generate minimal README', async () => {
+      const readme = await generator.generateMinimal('MyProject');
 
-    const sections = await gen.exportSections();
-    expect(sections.length).toBeGreaterThan(0);
+      expect(readme).toContain('# MyProject');
+      expect(readme).toContain('npm install');
+    });
   });
 
-  it('should handle minimal config', async () => {
-    const minimalConfig: ReadmeConfig = {
-      repoName: 'minimal',
-      description: 'Minimal project',
-      includeBadges: false,
-      includeInstall: false,
-      includeUsage: false,
-      includeContributing: false,
-      includeLicense: false,
-      includeCodeOfConduct: false,
-    };
+  describe('generateApiDocs', () => {
+    it('should generate API documentation', async () => {
+      const endpoints = [
+        { method: 'GET', path: '/users', description: 'Get all users' },
+        { method: 'POST', path: '/users', description: 'Create a user' }
+      ];
 
-    const readme = await generator.generateReadme(minimalConfig);
-    expect(readme).toContain('# minimal');
+      const docs = await generator.generateApiDocs('API', endpoints);
+
+      expect(docs).toContain('# API');
+      expect(docs).toContain('GET');
+      expect(docs).toContain('/users');
+      expect(docs).toContain('Endpoints');
+    });
+  });
+
+  describe('getTemplates', () => {
+    it('should return available templates', () => {
+      const templates = generator.getTemplates();
+
+      expect(Array.isArray(templates)).toBe(true);
+      expect(templates.length).toBeGreaterThan(0);
+      expect(templates[0]).toHaveProperty('name');
+      expect(templates[0]).toHaveProperty('sections');
+    });
+
+    it('should include minimal template', () => {
+      const templates = generator.getTemplates();
+      const minimal = templates.find(t => t.name === 'minimal');
+
+      expect(minimal).toBeDefined();
+      expect(minimal?.description).toBeTruthy();
+    });
+  });
+
+  describe('updateExisting', () => {
+    it('should handle missing existing README', async () => {
+      vi.mocked(mockGithub.getFile).mockRejectedValue(new Error('Not found'));
+
+      const sections = [{ type: 'custom', content: '# Additional Section', order: 100 }];
+      const result = await generator.updateExisting(sections);
+
+      expect(result).toContain('Additional Section');
+    });
+
+    it('should append to existing README', async () => {
+      vi.mocked(mockGithub.getFile).mockResolvedValue('# Existing README' as any);
+
+      const sections = [{ type: 'custom', content: '# New Section', order: 1 }];
+      const result = await generator.updateExisting(sections);
+
+      expect(result).toContain('Existing README');
+      expect(result).toContain('New Section');
+    });
   });
 });

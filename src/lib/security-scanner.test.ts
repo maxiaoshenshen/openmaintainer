@@ -1,73 +1,88 @@
-import { describe, it, expect } from 'vitest';
-import { createSecurityScanner } from './security-scanner';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SecurityScanner } from './security-scanner';
+import { GitHubClient } from './github-client';
 
-describe('security-scanner', () => {
-  const { scanRepository, getSeverityColor, SeverityLevels } = createSecurityScanner();
+describe('SecurityScanner', () => {
+  let scanner: SecurityScanner;
+  let mockGithub: GitHubClient;
 
-  const mockRepo = {
-    id: '1',
-    name: 'test-repo',
-    fullName: 'owner/test-repo',
-    owner: 'owner',
-    description: 'Test repository',
-    isPrivate: false,
-    stars: 100,
-    forks: 20,
-    openIssues: 60,
-    language: 'TypeScript'
-  };
+  beforeEach(() => {
+    mockGithub = {
+      getFile: vi.fn().mockRejectedValue(new Error('Not found')),
+    } as unknown as GitHubClient;
+    scanner = new SecurityScanner(mockGithub);
+  });
 
-  describe('scanRepository', () => {
-    it('should scan repository and return results', () => {
-      const result = scanRepository(mockRepo);
-      
-      expect(result).toBeDefined();
-      expect(result.repository).toEqual(mockRepo);
-      expect(result.scanDate).toBeInstanceOf(Date);
-      expect(result.alerts).toBeDefined();
-      expect(Array.isArray(result.alerts)).toBe(true);
-      expect(result.riskLevel).toBeDefined();
-      expect(['low', 'medium', 'high', 'critical']).toContain(result.riskLevel);
+  describe('scan', () => {
+    it('should return security report', async () => {
+      const report = await scanner.scan();
+
+      expect(report).toHaveProperty('vulnerabilities');
+      expect(report).toHaveProperty('secrets');
+      expect(report).toHaveProperty('score');
+      expect(report).toHaveProperty('grade');
+      expect(report).toHaveProperty('recommendations');
+      expect(typeof report.score).toBe('number');
+      expect(['A', 'B', 'C', 'D', 'F']).toContain(report.grade);
     });
 
-    it('should detect JavaScript vulnerabilities', () => {
-      const jsRepo = { ...mockRepo, language: 'JavaScript' };
-      const result = scanRepository(jsRepo);
-      
-      expect(result.alerts.length).toBeGreaterThan(0);
-      expect(result.alerts.some(a => a.type === 'vulnerability')).toBe(true);
-    });
+    it('should calculate score based on issues', async () => {
+      const report = await scanner.scan();
 
-    it('should generate recommendations', () => {
-      const result = scanRepository(mockRepo);
-      
-      expect(result.recommendations).toBeDefined();
-      expect(Array.isArray(result.recommendations)).toBe(true);
-      expect(result.recommendations.length).toBeGreaterThan(0);
-    });
-
-    it('should include security policy recommendation', () => {
-      const result = scanRepository(mockRepo);
-      
-      expect(result.recommendations.some(r => r.includes('SECURITY.md'))).toBe(true);
+      expect(report.score).toBeGreaterThanOrEqual(0);
+      expect(report.score).toBeLessThanOrEqual(100);
     });
   });
 
-  describe('getSeverityColor', () => {
-    it('should return correct colors for each severity', () => {
-      expect(getSeverityColor('low')).toBe('#10b981');
-      expect(getSeverityColor('medium')).toBe('#f59e0b');
-      expect(getSeverityColor('high')).toBe('#f97316');
-      expect(getSeverityColor('critical')).toBe('#ef4444');
+  describe('checkVulnerabilities', () => {
+    it('should return vulnerabilities array', async () => {
+      const vulnerabilities = await scanner.checkVulnerabilities();
+
+      expect(Array.isArray(vulnerabilities)).toBe(true);
+    });
+
+    it('should detect lodash vulnerability', async () => {
+      vi.mocked(mockGithub.getFile).mockResolvedValue('{"dependencies": {"lodash": "^4.17.0"}}' as any);
+
+      const vulnerabilities = await scanner.checkVulnerabilities();
+
+      expect(vulnerabilities.some(v => v.title?.includes('Lodash'))).toBe(true);
     });
   });
 
-  describe('SeverityLevels', () => {
-    it('should contain all severity levels', () => {
-      expect(SeverityLevels).toContain('low');
-      expect(SeverityLevels).toContain('medium');
-      expect(SeverityLevels).toContain('high');
-      expect(SeverityLevels).toContain('critical');
+  describe('checkSecrets', () => {
+    it('should return secrets array', async () => {
+      const secrets = await scanner.checkSecrets();
+
+      expect(Array.isArray(secrets)).toBe(true);
+    });
+  });
+
+  describe('generateBadge', () => {
+    it('should return badge URL', async () => {
+      const badge = await scanner.generateBadge();
+
+      expect(typeof badge).toBe('string');
+      expect(badge).toContain('shields.io');
+      expect(badge).toContain('security');
+    });
+  });
+
+  describe('checkDependencies', () => {
+    it('should return dependency list', async () => {
+      const deps = await scanner.checkDependencies();
+
+      expect(Array.isArray(deps)).toBe(true);
+    });
+  });
+
+  describe('generateSecurityPolicy', () => {
+    it('should return security policy markdown', async () => {
+      const policy = await scanner.generateSecurityPolicy();
+
+      expect(typeof policy).toBe('string');
+      expect(policy).toContain('Security Policy');
+      expect(policy).toContain('Reporting a Vulnerability');
     });
   });
 });
