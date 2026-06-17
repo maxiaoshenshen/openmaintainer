@@ -1,128 +1,306 @@
 /**
- * Changelog Generator - Auto-generate changelogs from commits
+ * Changelog Generator - Auto-generate changelogs from commits and PRs
  */
 
+export interface Commit {
+  hash: string;
+  message: string;
+  author: string;
+  date: number;
+  type: CommitType;
+  scope?: string;
+  breaking?: boolean;
+}
+
+export type CommitType = 
+  | "feat" | "fix" | "docs" | "style" 
+  | "refactor" | "perf" | "test" | "build" 
+  | "ci" | "chore" | "revert" | "breaking";
+
+export interface ChangelogSection {
+  type: CommitType;
+  label: string;
+  icon: string;
+  commits: Commit[];
+}
+
 export interface ChangelogConfig {
-  types?: {
-    label: string;
-    section: string;
-    semver?: 'major' | 'minor' | 'patch';
-  }[];
-  includeCommit?: (commit: { type: string; message: string }) => boolean;
+  title?: string;
+  description?: string;
+  includeCommitHash?: boolean;
+  includeAuthor?: boolean;
+  includeDate?: boolean;
+  types?: CommitType[];
+  groupBy?: "type" | "scope" | "author";
 }
 
-export interface ChangelogEntry {
-  version: string;
-  date: string;
-  sections: Record<string, string[]>;
-  breaking?: string[];
-}
-
-export interface ReleaseInfo {
-  version: string;
-  tag: string;
-  date: string;
-  commits: Array<{
-    sha: string;
-    message: string;
-    author: string;
-  }>;
-}
-
-const DEFAULT_TYPES = [
-  { label: 'Features', section: 'Added', semver: 'minor' },
-  { label: 'Bug Fixes', section: 'Fixed', semver: 'patch' },
-  { label: 'Performance', section: 'Improved', semver: 'patch' },
-  { label: 'Refactoring', section: 'Changed', semver: 'patch' },
-  { label: 'Documentation', section: 'Changed', semver: 'patch' },
-  { label: 'Tests', section: 'Changed', semver: 'patch' },
-  { label: 'Maintenance', section: 'Changed', semver: 'patch' },
-  { label: 'Breaking Changes', section: 'Breaking', semver: 'major' },
+const DEFAULT_TYPES: CommitType[] = [
+  "breaking", "feat", "fix", "perf", "refactor",
+  "docs", "style", "test", "build", "ci", "chore", "revert"
 ];
 
-export function parseCommitForChangelog(message: string, type: string): { shortDesc: string; breaking: boolean } {
-  const breaking = message.includes('!:'); // Conventional commit breaking indicator
-  
-  // Extract description after the type prefix
-  const match = message.match(/^(\w+)(?:\([^)]+\))?[!]?:\s*(.+)/);
-  const shortDesc = match ? match[2] : message;
-  
-  return { shortDesc, breaking };
+const TYPE_CONFIG: Record<CommitType, { label: string; icon: string; order: number }> = {
+  breaking: { label: "Breaking Changes", icon: "💥", order: 0 },
+  feat: { label: "Features", icon: "✨", order: 1 },
+  fix: { label: "Bug Fixes", icon: "🐛", order: 2 },
+  perf: { label: "Performance Improvements", icon: "⚡", order: 3 },
+  refactor: { label: "Code Refactoring", icon: "♻️", order: 4 },
+  docs: { label: "Documentation", icon: "📝", order: 5 },
+  style: { label: "Styling", icon: "🎨", order: 6 },
+  test: { label: "Tests", icon: "✅", order: 7 },
+  build: { label: "Build System", icon: "📦", order: 8 },
+  ci: { label: "Continuous Integration", icon: "👷", order: 9 },
+  chore: { label: "Maintenance", icon: "🔧", order: 10 },
+  revert: { label: "Reverts", icon: "⏪", order: 11 },
+};
+
+/**
+ * Parse conventional commit message
+ */
+export function parseCommit(message: string): Omit<Commit, "hash" | "author" | "date"> {
+  const match = message.match(
+    /^(?<type>\w+)(?:\((?<scope>[^)]+)\))?(?<breaking>!)?:\s*(?<message>.+)$/
+  );
+
+  if (!match) {
+    return { message, type: "chore" };
+  }
+
+  const { type, scope, breaking, message: msg } = match.groups!;
+
+  return {
+    type: type as CommitType,
+    scope: scope?.trim(),
+    breaking: !!breaking || type === "breaking",
+    message: msg.trim(),
+  };
 }
 
-export function generateChangelog(releases: ReleaseInfo[], config?: ChangelogConfig): string {
-  const types = config?.types || DEFAULT_TYPES;
-  let changelog = '# Changelog\n\n';
+/**
+ * Parse multiple lines of commits
+ */
+export function parseCommits(lines: string[]): Commit[] {
+  return lines
+    .filter(line => line.trim())
+    .map(line => {
+      const [hashPart, ...msgParts] = line.split("|");
+      const hash = hashPart?.trim() || "";
+      const message = msgParts.join("|").trim();
+      const parsed = parseCommit(message);
+      return {
+        hash,
+        message: parsed.message,
+        author: "unknown",
+        date: Date.now(),
+        type: parsed.type,
+        scope: parsed.scope,
+        breaking: parsed.breaking,
+      } as Commit;
+    });
+}
 
-  releases.forEach((release, releaseIndex) => {
-    changelog += `## ${release.version} (${release.date})\n\n`;
+/**
+ * Group commits by type
+ */
+export function groupByType(commits: Commit[]): ChangelogSection[] {
+  const groups = new Map<CommitType, Commit[]>();
 
-    const sections: Record<string, string[]> = {};
-    const breaking: string[] = [];
+  for (const commit of commits) {
+    const list = groups.get(commit.type) || [];
+    list.push(commit);
+    groups.set(commit.type, list);
+  }
 
-    release.commits.forEach(commit => {
-      const { shortDesc, breaking: isBreaking } = parseCommitForChangelog(commit.message, '');
-      
-      if (isBreaking) {
-        breaking.push(`- ${shortDesc} (${commit.sha.slice(0, 7)})`);
-        return;
+  return DEFAULT_TYPES
+    .filter(type => groups.has(type) && groups.get(type)!.length > 0)
+    .map(type => ({
+      type,
+      label: TYPE_CONFIG[type].label,
+      icon: TYPE_CONFIG[type].icon,
+      commits: groups.get(type)!,
+    }));
+}
+
+/**
+ * Generate markdown changelog
+ */
+export function generateMarkdown(
+  commits: Commit[],
+  config?: ChangelogConfig
+): string {
+  const sections = groupByType(commits);
+  const lines: string[] = [];
+
+  // Header
+  lines.push(`# ${config?.title || "Changelog"}`);
+  lines.push("");
+
+  if (config?.description) {
+    lines.push(config.description);
+    lines.push("");
+  }
+
+  lines.push(`_Generated on ${new Date().toISOString().split("T")[0]}_`);
+  lines.push("");
+
+  // Sections
+  for (const section of sections) {
+    lines.push(`## ${section.icon} ${section.label}`);
+    lines.push("");
+
+    for (const commit of section.commits) {
+      let line = `- ${commit.message}`;
+
+      if (config?.includeCommitHash && commit.hash) {
+        line += ` \`${commit.hash.slice(0, 7)}\``;
       }
 
-      const typeInfo = types.find(t => commit.message.startsWith(t.label.slice(0, -1))) || types[5]; // Default to 'Changed'
-      const section = typeInfo.section;
-      
-      if (!sections[section]) sections[section] = [];
-      sections[section].push(`- ${shortDesc} (${commit.sha.slice(0, 7)})`);
-    });
-
-    // Output sections in order
-    types.forEach(type => {
-      if (sections[type.section]?.length) {
-        changelog += `### ${type.section}\n${sections[type.section].join('\n')}\n\n`;
+      if (config?.includeAuthor && commit.author) {
+        line += ` - @${commit.author}`;
       }
-    });
 
-    if (breaking.length) {
-      changelog += `### Breaking Changes\n${breaking.join('\n')}\n\n`;
+      if (commit.scope) {
+        line = `- **${commit.scope}:** ${commit.message}`;
+      }
+
+      if (commit.breaking) {
+        line += " ⚠️";
+      }
+
+      lines.push(line);
     }
-  });
 
-  return changelog;
+    lines.push("");
+  }
+
+  return lines.join("\n").trim();
 }
 
-export function generateReleaseNotes(release: ReleaseInfo): string {
-  let notes = `# Release ${release.version}\n\n`;
-  notes += `**Released on:** ${release.date}\n\n`;
-  
-  const grouped: Record<string, string[]> = {};
-  
-  release.commits.forEach(commit => {
-    const { shortDesc } = parseCommitForChangelog(commit.message, '');
-    const type = commit.message.split(':')[0].replace(/[(!)]/g, '') || 'Other';
-    
-    if (!grouped[type]) grouped[type] = [];
-    grouped[type].push(`- ${shortDesc}`);
-  });
+/**
+ * Generate markdown with custom grouping
+ */
+export function generateGroupedMarkdown(
+  commits: Commit[],
+  groupBy: "scope" | "author",
+  config?: ChangelogConfig
+): string {
+  const groups = new Map<string, Commit[]>();
 
-  Object.entries(grouped).forEach(([type, items]) => {
-    notes += `## ${type.charAt(0).toUpperCase() + type.slice(1)}\n${items.join('\n')}\n\n`;
-  });
+  for (const commit of commits) {
+    const key = groupBy === "scope" 
+      ? (commit.scope || "Others")
+      : commit.author;
+    const list = groups.get(key) || [];
+    list.push(commit);
+    groups.set(key, list);
+  }
 
-  return notes;
+  const lines: string[] = [];
+
+  lines.push(`# ${config?.title || "Changelog"}`);
+  lines.push("");
+
+  const sortedKeys = Array.from(groups.keys()).sort();
+
+  for (const key of sortedKeys) {
+    lines.push(`## ${key}`);
+    lines.push("");
+
+    for (const commit of groups.get(key)!) {
+      const typeIcon = TYPE_CONFIG[commit.type]?.icon || "📝";
+      let line = `${typeIcon} ${commit.message}`;
+
+      if (config?.includeCommitHash && commit.hash) {
+        line += ` (${commit.hash.slice(0, 7)})`;
+      }
+
+      lines.push(`- ${line}`);
+    }
+
+    lines.push("");
+  }
+
+  return lines.join("\n").trim();
 }
 
-export function determineVersion(currentVersion: string, commits: string[]): string {
-  const [major, minor, patch] = currentVersion.split('.').map(Number);
-  
-  let hasMajor = false;
-  let hasMinor = false;
-  
-  commits.forEach(msg => {
-    if (msg.includes('!') || msg.includes('BREAKING')) hasMajor = true;
-    if (msg.startsWith('feat')) hasMinor = true;
-  });
+/**
+ * Generate release notes summary
+ */
+export function generateReleaseSummary(commits: Commit[]): {
+  summary: string;
+  highlights: string[];
+  breakingCount: number;
+  featureCount: number;
+  fixCount: number;
+} {
+  const breaking = commits.filter(c => c.breaking || c.type === "breaking");
+  const features = commits.filter(c => c.type === "feat");
+  const fixes = commits.filter(c => c.type === "fix");
 
-  if (hasMajor) return `${major + 1}.0.0`;
-  if (hasMinor) return `${major}.${minor + 1}.0`;
-  return `${major}.${minor}.${patch + 1}`;
+  const highlights: string[] = [];
+  
+  if (features.length > 0) {
+    highlights.push(`${features.length} new feature${features.length > 1 ? "s" : ""}`);
+  }
+  if (fixes.length > 0) {
+    highlights.push(`${fixes.length} bug fix${fixes.length > 1 ? "es" : ""}`);
+  }
+  if (breaking.length > 0) {
+    highlights.push(`${breaking.length} breaking change${breaking.length > 1 ? "s" : ""}`);
+  }
+
+  const summary = highlights.length > 0
+    ? `This release includes ${highlights.join(", ")}.`
+    : "No significant changes in this release.";
+
+  return {
+    summary,
+    highlights,
+    breakingCount: breaking.length,
+    featureCount: features.length,
+    fixCount: fixes.length,
+  };
+}
+
+/**
+ * Filter commits by type
+ */
+export function filterByType(commits: Commit[], types: CommitType[]): Commit[] {
+  return commits.filter(c => types.includes(c.type));
+}
+
+/**
+ * Filter commits by scope
+ */
+export function filterByScope(commits: Commit[], scope: string): Commit[] {
+  return commits.filter(c => c.scope === scope || c.scope?.includes(scope));
+}
+
+/**
+ * Get commit statistics
+ */
+export function getCommitStats(commits: Commit[]): {
+  total: number;
+  byType: Record<CommitType, number>;
+  byAuthor: Record<string, number>;
+  byScope: Record<string, number>;
+} {
+  const byType: Record<CommitType, number> = {} as any;
+  const byAuthor: Record<string, number> = {};
+  const byScope: Record<string, number> = {};
+
+  for (const commit of commits) {
+    byType[commit.type] = (byType[commit.type] || 0) + 1;
+    byAuthor[commit.author] = (byAuthor[commit.author] || 0) + 1;
+    if (commit.scope) {
+      byScope[commit.scope] = (byScope[commit.scope] || 0) + 1;
+    }
+  }
+
+  return {
+    total: commits.length,
+    byType,
+    byAuthor,
+    byScope,
+  };
 }

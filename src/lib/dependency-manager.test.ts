@@ -1,113 +1,149 @@
-import { describe, it, expect } from 'vitest';
-import { 
-  analyzeDependencyHealth,
-  prioritizeDependencyUpdates,
-  createDependencyUpdatePR,
-  calculateUpdateRisk,
-  generateDependencyReport,
-  DependencyHealth
-} from './dependency-manager';
+import { describe, it, expect } from "vitest";
+import {
+  parseDependency,
+  satisfiesVersion,
+  determineUpdateType,
+  hasBreakingChanges,
+  auditDependencies,
+  calculateSecurityScore,
+  suggestDependencies,
+  type Dependency,
+} from "./dependency-manager";
 
-describe('Dependency Manager', () => {
-  const mockDependencies = [
-    { name: 'react', currentVersion: '17.0.0', latestVersion: '18.2.0', vulnerabilities: [] },
-    { name: 'lodash', currentVersion: '4.17.20', latestVersion: '4.17.21', vulnerabilities: [] },
-    { name: 'axios', currentVersion: '0.21.0', latestVersion: '1.0.0', vulnerabilities: [
-      { id: 'CVE-2021-1234', severity: 'high', title: 'Server-side forgery', vulnerableVersions: '<1.0.0', fixedIn: '1.0.0' }
-    ]},
-    { name: 'deprecated-pkg', currentVersion: '1.0.0', latestVersion: '1.0.0', deprecated: true, deprecatedMessage: 'Use new-pkg instead' }
-  ];
-
-  describe('analyzeDependencyHealth', () => {
-    it('should identify outdated dependencies', () => {
-      const health = analyzeDependencyHealth(mockDependencies);
-      expect(health.outdated.length).toBe(3);
-      expect(health.outdated.find(u => u.name === 'react')).toBeDefined();
+describe("DependencyManager", () => {
+  describe("parseDependency", () => {
+    it("should parse simple dependency", () => {
+      const result = parseDependency("lodash@4.17.21");
+      expect(result).toEqual({ name: "lodash", version: "4.17.21" });
     });
 
-    it('should categorize updates by type', () => {
-      const health = analyzeDependencyHealth(mockDependencies);
-      const react = health.outdated.find(u => u.name === 'react');
-      expect(react?.type).toBe('major');
-      
-      const lodash = health.outdated.find(u => u.name === 'lodash');
-      expect(lodash?.type).toBe('patch');
+    it("should parse scoped dependency", () => {
+      const result = parseDependency("@types/node@20.0.0");
+      expect(result).toEqual({ name: "@types/node", version: "20.0.0" });
     });
 
-    it('should detect vulnerabilities', () => {
-      const health = analyzeDependencyHealth(mockDependencies);
-      expect(health.vulnerable.length).toBe(1);
-      expect(health.vulnerable[0].package).toBe('axios');
-    });
-
-    it('should identify deprecated packages', () => {
-      const health = analyzeDependencyHealth(mockDependencies);
-      expect(health.deprecated.length).toBe(1);
-      expect(health.deprecated[0].name).toBe('deprecated-pkg');
+    it("should throw on invalid format", () => {
+      expect(() => parseDependency("invalid")).toThrow("Invalid dependency format");
     });
   });
 
-  describe('prioritizeDependencyUpdates', () => {
-    it('should prioritize security updates first', () => {
-      const health = analyzeDependencyHealth(mockDependencies);
-      const prioritized = prioritizeDependencyUpdates(health, { requireSecurityUpdates: true });
-      
-      const axios = prioritized.find(u => u.name === 'axios');
-      expect(axios).toBeDefined();
-      expect(prioritized[0].name).toBe('axios');
+  describe("satisfiesVersion", () => {
+    it("should match exact version", () => {
+      expect(satisfiesVersion("1.2.3", "1.2.3")).toBe(true);
+      expect(satisfiesVersion("1.2.4", "1.2.3")).toBe(false);
     });
 
-    it('should exclude specified packages', () => {
-      const health = analyzeDependencyHealth(mockDependencies);
-      const prioritized = prioritizeDependencyUpdates(health, { excludePackages: ['react'] });
-      
-      expect(prioritized.find(u => u.name === 'react')).toBeUndefined();
-    });
-  });
-
-  describe('createDependencyUpdatePR', () => {
-    it('should generate PR for dependency update', () => {
-      const health = analyzeDependencyHealth(mockDependencies);
-      const update = health.outdated[0];
-      const pr = createDependencyUpdatePR(update, 'Bug fixes', []);
-      
-      expect(pr.title).toContain(update.name);
-      expect(pr.labels).toContain('dependencies');
+    it("should match caret ranges", () => {
+      expect(satisfiesVersion("1.2.3", "^1.0.0")).toBe(true);
+      expect(satisfiesVersion("2.0.0", "^1.0.0")).toBe(false);
+      expect(satisfiesVersion("1.5.0", "^1.2.0")).toBe(true);
     });
 
-    it('should mark breaking changes', () => {
-      const health = analyzeDependencyHealth(mockDependencies);
-      const update = health.outdated.find(u => u.name === 'react')!;
-      const pr = createDependencyUpdatePR(update, 'New features', ['useEffect cleanup']);
-      
-      expect(pr.labels).toContain('breaking-change');
+    it("should match tilde ranges", () => {
+      expect(satisfiesVersion("1.2.5", "~1.2.0")).toBe(true);
+      expect(satisfiesVersion("1.3.0", "~1.2.0")).toBe(false);
+    });
+
+    it("should handle comparison operators", () => {
+      expect(satisfiesVersion("2.0.0", ">=1.0.0")).toBe(true);
+      expect(satisfiesVersion("0.5.0", ">=1.0.0")).toBe(false);
+      expect(satisfiesVersion("1.5.0", ">1.0.0")).toBe(true);
+      expect(satisfiesVersion("1.0.0", ">1.0.0")).toBe(false);
     });
   });
 
-  describe('calculateUpdateRisk', () => {
-    it('should calculate high risk for major updates', () => {
-      const health: DependencyHealth = { outdated: [], vulnerable: [], deprecated: [], unused: [], missing: [] };
-      const update = { name: 'react', currentVersion: '17.0.0', latestVersion: '18.0.0', type: 'major', urgency: 'high', breaking: true };
-      const { risk } = calculateUpdateRisk(update, health);
-      expect(risk).toBe('high');
+  describe("determineUpdateType", () => {
+    it("should detect major updates", () => {
+      expect(determineUpdateType("1.0.0", "2.0.0")).toBe("major");
+      expect(determineUpdateType("1.0.0", "3.0.0")).toBe("major");
     });
 
-    it('should calculate low risk for patch updates', () => {
-      const health: DependencyHealth = { outdated: [], vulnerable: [], deprecated: [], unused: [], missing: [] };
-      const update = { name: 'lodash', currentVersion: '4.17.20', latestVersion: '4.17.21', type: 'patch', urgency: 'low', breaking: false };
-      const { risk } = calculateUpdateRisk(update, health);
-      expect(risk).toBe('low');
+    it("should detect minor updates", () => {
+      expect(determineUpdateType("1.0.0", "1.1.0")).toBe("minor");
+      expect(determineUpdateType("1.2.3", "1.5.0")).toBe("minor");
+    });
+
+    it("should detect patch updates", () => {
+      expect(determineUpdateType("1.0.0", "1.0.1")).toBe("patch");
+      expect(determineUpdateType("1.2.3", "1.2.5")).toBe("patch");
     });
   });
 
-  describe('generateDependencyReport', () => {
-    it('should generate markdown report', () => {
-      const health = analyzeDependencyHealth(mockDependencies);
-      const report = generateDependencyReport(health, {});
-      
-      expect(report).toContain('# Dependency Health Report');
-      expect(report).toContain('Vulnerable');
-      expect(report).toContain('Deprecated');
+  describe("hasBreakingChanges", () => {
+    it("should detect breaking changes in major version", () => {
+      expect(hasBreakingChanges("1.0.0", "2.0.0")).toBe(true);
+      expect(hasBreakingChanges("1.0.0", "1.0.1")).toBe(false);
+    });
+  });
+
+  describe("auditDependencies", () => {
+    it("should count dependencies correctly", () => {
+      const deps: Dependency[] = [
+        { name: "express", version: "4.18.0", type: "production" },
+        { name: "vitest", version: "1.0.0", type: "development" },
+      ];
+      const audit = auditDependencies(deps);
+      expect(audit.total).toBe(2);
+      expect(audit.production).toBe(1);
+      expect(audit.development).toBe(1);
+    });
+
+    it("should detect outdated dependencies", () => {
+      const deps: Dependency[] = [
+        { name: "lodash", version: "4.0.0", type: "production", outdated: true, latestVersion: "4.17.21" },
+      ];
+      const audit = auditDependencies(deps);
+      expect(audit.outdated).toBe(1);
+      expect(audit.recommendations.length).toBe(1);
+    });
+
+    it("should detect license issues", () => {
+      const deps: Dependency[] = [
+        { name: "bad-license", version: "1.0.0", type: "production", license: "GPL-3.0" },
+      ];
+      const audit = auditDependencies(deps);
+      expect(audit.license.length).toBe(1);
+      expect(audit.license[0].compatible).toBe(false);
+    });
+  });
+
+  describe("calculateSecurityScore", () => {
+    it("should return 100 for clean audit", () => {
+      const audit = auditDependencies([]);
+      expect(calculateSecurityScore(audit)).toBe(100);
+    });
+
+    it("should deduct for vulnerabilities", () => {
+      const deps: Dependency[] = [
+        { 
+          name: "vuln-pkg", 
+          version: "1.0.0", 
+          type: "production",
+          vulnerabilities: [{ severity: "high" as const, title: "Vuln", description: "", affectedVersions: "1.0.0" }]
+        },
+      ];
+      const audit = auditDependencies(deps);
+      const score = calculateSecurityScore(audit);
+      expect(score).toBeLessThan(100);
+    });
+  });
+
+  describe("suggestDependencies", () => {
+    it("should suggest dependencies for Node project", () => {
+      const suggestions = suggestDependencies("node", ["testing", "logging"]);
+      expect(suggestions).toContain("vitest");
+      expect(suggestions).toContain("pino");
+    });
+
+    it("should suggest dependencies for Python project", () => {
+      const suggestions = suggestDependencies("python", ["testing"]);
+      expect(suggestions).toContain("pytest");
+    });
+
+    it("should suggest dependencies for Rust project", () => {
+      const suggestions = suggestDependencies("rust", ["security", "logging"]);
+      expect(suggestions).toContain("cargo-audit");
+      expect(suggestions).toContain("tracing");
     });
   });
 });

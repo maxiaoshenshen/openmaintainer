@@ -6,304 +6,386 @@ export interface PerformanceMetric {
   name: string;
   value: number;
   unit: string;
-  timestamp: Date;
+  timestamp: number;
   tags?: Record<string, string>;
 }
 
-export interface BuildMetrics {
-  duration: number;
-  success: boolean;
-  cacheHitRate: number;
-  artifactSize: number;
-  warnings: number;
-  errors: number;
-}
-
-export interface TestMetrics {
-  total: number;
-  passed: number;
-  failed: number;
-  skipped: number;
-  duration: number;
+export interface PerformanceSnapshot {
+  timestamp: number;
+  buildTime?: MetricSummary;
+  testTime?: MetricSummary;
+  bundleSize?: MetricSummary;
   coverage?: number;
+  lintErrors?: number;
 }
 
-export interface PRMetrics {
-  openTime: number;
-  reviewTime: number;
-  mergeTime: number;
-  commentCount: number;
-  reviewCount: number;
-  approvers: number;
-}
-
-export interface TrendAnalysis {
-  metric: string;
+export interface MetricSummary {
   current: number;
-  previous: number;
-  change: number;
-  changePercent: number;
-  trend: 'up' | 'down' | 'stable';
+  previous?: number;
+  average?: number;
+  min?: number;
+  max?: number;
+  trend: "up" | "down" | "stable";
+  changePercent?: number;
 }
 
-export class PerformanceMonitor {
-  private metrics: PerformanceMetric[] = [];
-  private baselines: Map<string, number> = new Map();
+export interface PerformanceReport {
+  generatedAt: number;
+  snapshots: PerformanceSnapshot[];
+  summary: {
+    overallHealth: number;
+    issues: PerformanceIssue[];
+    recommendations: string[];
+  };
+}
 
-  recordMetric(metric: Omit<PerformanceMetric, 'timestamp'>): void {
-    this.metrics.push({
-      ...metric,
-      timestamp: new Date(),
-    });
+export interface PerformanceIssue {
+  severity: "critical" | "major" | "minor" | "info";
+  metric: string;
+  message: string;
+  current: number;
+  threshold?: number;
+  trend: "improving" | "degrading" | "stable";
+}
+
+export interface CIWorkflow {
+  id: string;
+  name: string;
+  duration: number;
+  status: "success" | "failure" | "cancelled" | "running";
+  triggeredAt: number;
+  steps?: WorkflowStep[];
+}
+
+export interface WorkflowStep {
+  name: string;
+  duration: number;
+  status: "success" | "failure" | "skipped";
+  logs?: string;
+}
+
+const THRESHOLDS = {
+  buildTime: { warning: 300, critical: 600 }, // seconds
+  testTime: { warning: 120, critical: 300 },
+  bundleSize: { warning: 500, critical: 1000 }, // KB
+  coverage: { warning: 70, critical: 50 },
+  lintErrors: { warning: 10, critical: 50 },
+};
+
+/**
+ * Create performance metric
+ */
+export function createMetric(
+  name: string,
+  value: number,
+  unit: string,
+  tags?: Record<string, string>
+): PerformanceMetric {
+  return {
+    name,
+    value,
+    unit,
+    timestamp: Date.now(),
+    tags,
+  };
+}
+
+/**
+ * Calculate metric summary
+ */
+export function calculateMetricSummary(
+  current: number,
+  history: number[]
+): MetricSummary {
+  if (history.length === 0) {
+    return { current, trend: "stable" };
   }
 
-  recordBuild(metrics: BuildMetrics): void {
-    this.recordMetric({
-      name: 'build.duration',
-      value: metrics.duration,
-      unit: 'ms',
-      tags: { success: String(metrics.success) },
-    });
-    this.recordMetric({
-      name: 'build.cache_hit_rate',
-      value: metrics.cacheHitRate,
-      unit: 'percent',
-    });
-    this.recordMetric({
-      name: 'build.artifact_size',
-      value: metrics.artifactSize,
-      unit: 'bytes',
-    });
-  }
+  const previous = history[0];
+  const average = history.reduce((a, b) => a + b, 0) / history.length;
+  const min = Math.min(...history);
+  const max = Math.max(...history);
 
-  recordTests(metrics: TestMetrics): void {
-    this.recordMetric({
-      name: 'test.passed',
-      value: metrics.passed,
-      unit: 'count',
-    });
-    this.recordMetric({
-      name: 'test.failed',
-      value: metrics.failed,
-      unit: 'count',
-    });
-    this.recordMetric({
-      name: 'test.duration',
-      value: metrics.duration,
-      unit: 'ms',
-    });
-    if (metrics.coverage !== undefined) {
-      this.recordMetric({
-        name: 'test.coverage',
-        value: metrics.coverage,
-        unit: 'percent',
+  const changePercent = ((current - previous) / previous) * 100;
+  const trend = changePercent > 5 ? "up" : changePercent < -5 ? "down" : "stable";
+
+  return {
+    current,
+    previous,
+    average,
+    min,
+    max,
+    trend,
+    changePercent: Math.round(changePercent * 10) / 10,
+  };
+}
+
+/**
+ * Analyze performance snapshot
+ */
+export function analyzeSnapshot(snapshot: PerformanceSnapshot): PerformanceIssue[] {
+  const issues: PerformanceIssue[] = [];
+
+  if (snapshot.buildTime) {
+    if (snapshot.buildTime.current > THRESHOLDS.buildTime.critical) {
+      issues.push({
+        severity: "critical",
+        metric: "Build Time",
+        message: `Build time (${snapshot.buildTime.current}s) exceeds critical threshold (${THRESHOLDS.buildTime.critical}s)`,
+        current: snapshot.buildTime.current,
+        threshold: THRESHOLDS.buildTime.critical,
+        trend: snapshot.buildTime.trend as any,
+      });
+    } else if (snapshot.buildTime.current > THRESHOLDS.buildTime.warning) {
+      issues.push({
+        severity: "major",
+        metric: "Build Time",
+        message: `Build time (${snapshot.buildTime.current}s) exceeds warning threshold (${THRESHOLDS.buildTime.warning}s)`,
+        current: snapshot.buildTime.current,
+        threshold: THRESHOLDS.buildTime.warning,
+        trend: snapshot.buildTime.trend as any,
       });
     }
   }
 
-  recordPR(metrics: PRMetrics): void {
-    this.recordMetric({
-      name: 'pr.open_time',
-      value: metrics.openTime,
-      unit: 'hours',
-    });
-    this.recordMetric({
-      name: 'pr.review_time',
-      value: metrics.reviewTime,
-      unit: 'hours',
-    });
-    this.recordMetric({
-      name: 'pr.merge_time',
-      value: metrics.mergeTime,
-      unit: 'hours',
-    });
-    this.recordMetric({
-      name: 'pr.reviews',
-      value: metrics.reviewCount,
-      unit: 'count',
-    });
-  }
-
-  setBaseline(metric: string, value: number): void {
-    this.baselines.set(metric, value);
-  }
-
-  getMetrics(name?: string, limit = 100): PerformanceMetric[] {
-    let filtered = this.metrics;
-    if (name) {
-      filtered = filtered.filter(m => m.name === name);
+  if (snapshot.testTime) {
+    if (snapshot.testTime.current > THRESHOLDS.testTime.critical) {
+      issues.push({
+        severity: "critical",
+        metric: "Test Time",
+        message: `Test suite (${snapshot.testTime.current}s) is too slow`,
+        current: snapshot.testTime.current,
+        threshold: THRESHOLDS.testTime.critical,
+        trend: snapshot.testTime.trend as any,
+      });
     }
-    return filtered.slice(-limit);
   }
 
-  getLatestValue(name: string): number | undefined {
-    const matches = this.getMetrics(name, 1);
-    return matches[0]?.value;
-  }
-
-  analyzeTrend(metric: string, window = 10): TrendAnalysis | null {
-    const metrics = this.getMetrics(metric, window * 2);
-    if (metrics.length < 2) return null;
-
-    const current = metrics[metrics.length - 1].value;
-    const previous = metrics[0].value;
-    const change = current - previous;
-    const changePercent = previous !== 0 ? (change / previous) * 100 : 0;
-
-    let trend: 'up' | 'down' | 'stable' = 'stable';
-    if (Math.abs(changePercent) > 5) {
-      trend = change > 0 ? 'up' : 'down';
+  if (snapshot.bundleSize) {
+    if (snapshot.bundleSize.current > THRESHOLDS.bundleSize.critical) {
+      issues.push({
+        severity: "major",
+        metric: "Bundle Size",
+        message: `Bundle size (${snapshot.bundleSize.current}KB) is too large`,
+        current: snapshot.bundleSize.current,
+        threshold: THRESHOLDS.bundleSize.critical,
+        trend: snapshot.bundleSize.trend as any,
+      });
     }
-
-    return {
-      metric,
-      current,
-      previous,
-      change,
-      changePercent,
-      trend,
-    };
   }
 
-  getSummary(): {
-    totalMetrics: number;
-    uniqueMetrics: number;
-    dateRange: { start: Date; end: Date } | null;
-    latestValues: Record<string, number>;
-  } {
-    const sorted = [...this.metrics].sort(
-      (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
-    );
-
-    const uniqueMetrics = new Set(this.metrics.map(m => m.name));
-
-    return {
-      totalMetrics: this.metrics.length,
-      uniqueMetrics: uniqueMetrics.size,
-      dateRange:
-        sorted.length > 0
-          ? { start: sorted[0].timestamp, end: sorted[sorted.length - 1].timestamp }
-          : null,
-      latestValues: Object.fromEntries(
-        Array.from(uniqueMetrics).map(name => [name, this.getLatestValue(name) || 0])
-      ),
-    };
-  }
-
-  exportMetrics(format: 'json' | 'csv' = 'json'): string {
-    if (format === 'json') {
-      return JSON.stringify(this.metrics, null, 2);
+  if (snapshot.coverage !== undefined) {
+    if (snapshot.coverage < THRESHOLDS.coverage.critical) {
+      issues.push({
+        severity: "critical",
+        metric: "Test Coverage",
+        message: `Coverage (${snapshot.coverage}%) is below critical threshold`,
+        current: snapshot.coverage,
+        threshold: THRESHOLDS.coverage.critical,
+        trend: "stable",
+      });
+    } else if (snapshot.coverage < THRESHOLDS.coverage.warning) {
+      issues.push({
+        severity: "major",
+        metric: "Test Coverage",
+        message: `Coverage (${snapshot.coverage}%) is below warning threshold`,
+        current: snapshot.coverage,
+        threshold: THRESHOLDS.coverage.warning,
+        trend: "stable",
+      });
     }
-
-    const headers = ['name', 'value', 'unit', 'timestamp', 'tags'];
-    const rows = this.metrics.map(m => [
-      m.name,
-      String(m.value),
-      m.unit,
-      m.timestamp.toISOString(),
-      JSON.stringify(m.tags || {}),
-    ]);
-
-    return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
   }
+
+  if (snapshot.lintErrors !== undefined) {
+    if (snapshot.lintErrors > THRESHOLDS.lintErrors.critical) {
+      issues.push({
+        severity: "major",
+        metric: "Lint Errors",
+        message: `Too many lint errors (${snapshot.lintErrors})`,
+        current: snapshot.lintErrors,
+        threshold: THRESHOLDS.lintErrors.critical,
+        trend: "stable",
+      });
+    }
+  }
+
+  return issues;
 }
 
-export function calculatePercentile(values: number[], percentile: number): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const index = Math.ceil((percentile / 100) * sorted.length) - 1;
-  return sorted[Math.max(0, index)];
-}
+/**
+ * Generate performance report
+ */
+export function generatePerformanceReport(snapshots: PerformanceSnapshot[]): PerformanceReport {
+  const allIssues: PerformanceIssue[] = [];
 
-export function calculateStatistics(values: number[]): {
-  mean: number;
-  median: number;
-  stdDev: number;
-  min: number;
-  max: number;
-  p50: number;
-  p90: number;
-  p95: number;
-  p99: number;
-} {
-  if (values.length === 0) {
-    return { mean: 0, median: 0, stdDev: 0, min: 0, max: 0, p50: 0, p90: 0, p95: 0, p99: 0 };
+  for (const snapshot of snapshots) {
+    allIssues.push(...analyzeSnapshot(snapshot));
   }
 
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const sorted = [...values].sort((a, b) => a - b);
-  const median = calculatePercentile(values, 50);
+  // Calculate overall health
+  let healthScore = 100;
+  for (const issue of allIssues) {
+    switch (issue.severity) {
+      case "critical":
+        healthScore -= 25;
+        break;
+      case "major":
+        healthScore -= 10;
+        break;
+      case "minor":
+        healthScore -= 5;
+        break;
+    }
+  }
+  healthScore = Math.max(0, healthScore);
 
-  const squaredDiffs = values.map(v => Math.pow(v - mean, 2));
-  const stdDev = Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / values.length);
+  const recommendations = generateRecommendations(allIssues);
 
   return {
-    mean,
-    median,
-    stdDev,
-    min: sorted[0],
-    max: sorted[sorted.length - 1],
-    p50: calculatePercentile(values, 50),
-    p90: calculatePercentile(values, 90),
-    p95: calculatePercentile(values, 95),
-    p99: calculatePercentile(values, 99),
+    generatedAt: Date.now(),
+    snapshots,
+    summary: {
+      overallHealth: healthScore,
+      issues: allIssues,
+      recommendations,
+    },
   };
 }
 
-export function generatePerformanceReport(
-  metrics: PerformanceMetric[]
-): {
-  buildHealth: 'healthy' | 'warning' | 'critical';
-  testHealth: 'healthy' | 'warning' | 'critical';
-  overallHealth: 'healthy' | 'warning' | 'critical';
-  alerts: string[];
-  recommendations: string[];
-} {
-  const alerts: string[] = [];
+/**
+ * Generate recommendations based on issues
+ */
+export function generateRecommendations(issues: PerformanceIssue[]): string[] {
   const recommendations: string[] = [];
 
-  const latestBuildDuration = metrics
-    .filter(m => m.name === 'build.duration')
-    .pop()?.value;
-  const latestTestCoverage = metrics
-    .filter(m => m.name === 'test.coverage')
-    .pop()?.value;
-
-  let buildHealth: 'healthy' | 'warning' | 'critical' = 'healthy';
-  if (latestBuildDuration && latestBuildDuration > 600000) {
-    buildHealth = 'critical';
-    alerts.push('Build time exceeds 10 minutes');
-    recommendations.push('Consider optimizing build pipeline or adding caching');
-  } else if (latestBuildDuration && latestBuildDuration > 300000) {
-    buildHealth = 'warning';
-    alerts.push('Build time is above 5 minutes');
-    recommendations.push('Review build steps for optimization opportunities');
+  for (const issue of issues) {
+    switch (issue.metric) {
+      case "Build Time":
+        recommendations.push(
+          "Consider enabling build caching",
+          "Parallelize build steps where possible",
+          "Review and optimize dependency resolution"
+        );
+        break;
+      case "Test Time":
+        recommendations.push(
+          "Run tests in parallel with --parallel flag",
+          "Consider splitting tests into smaller suites",
+          "Use test filtering to run only affected tests"
+        );
+        break;
+      case "Bundle Size":
+        recommendations.push(
+          "Analyze bundle with source-map-explorer",
+          "Enable tree shaking for your bundler",
+          "Consider dynamic imports for large dependencies"
+        );
+        break;
+      case "Test Coverage":
+        recommendations.push(
+          "Add tests for untested modules",
+          "Focus on critical business logic first",
+          "Use coverage reports to identify gaps"
+        );
+        break;
+      case "Lint Errors":
+        recommendations.push(
+          "Run lint as part of pre-commit hook",
+          "Fix existing errors incrementally",
+          "Consider stricter linting rules gradually"
+        );
+        break;
+    }
   }
 
-  let testHealth: 'healthy' | 'warning' | 'critical' = 'healthy';
-  if (latestTestCoverage !== undefined && latestTestCoverage < 50) {
-    testHealth = 'critical';
-    alerts.push(`Test coverage is only ${latestTestCoverage}%`);
-    recommendations.push('Increase test coverage to at least 70%');
-  } else if (latestTestCoverage !== undefined && latestTestCoverage < 70) {
-    testHealth = 'warning';
-    alerts.push(`Test coverage is ${latestTestCoverage}%`);
-    recommendations.push('Consider adding more tests to improve coverage');
-  }
+  return [...new Set(recommendations)];
+}
 
-  const healthScore = { healthy: 3, warning: 2, critical: 1 };
-  const overallHealth =
-    healthScore[buildHealth] <= 1 || healthScore[testHealth] <= 1
-      ? 'critical'
-      : healthScore[buildHealth] === 2 || healthScore[testHealth] === 2
-      ? 'warning'
-      : 'healthy';
+/**
+ * Calculate workflow efficiency
+ */
+export function calculateWorkflowEfficiency(workflows: CIWorkflow[]): {
+  successRate: number;
+  avgDuration: number;
+  avgQueueTime: number;
+  flakyRate: number;
+} {
+  const completed = workflows.filter(w => w.status !== "running");
+  const successes = completed.filter(w => w.status === "success").length;
+
+  const successRate = completed.length > 0 ? (successes / completed.length) * 100 : 0;
+
+  const durations = completed.map(w => w.duration);
+  const avgDuration = durations.length > 0
+    ? durations.reduce((a, b) => a + b, 0) / durations.length
+    : 0;
+
+  // Estimate queue time (simplified)
+  const avgQueueTime = avgDuration * 0.1;
+
+  // Calculate flaky rate (failures followed by success)
+  let flakyCount = 0;
+  for (let i = 1; i < workflows.length; i++) {
+    if (workflows[i - 1].status === "failure" && workflows[i].status === "success") {
+      flakyCount++;
+    }
+  }
+  const flakyRate = completed.length > 0 ? (flakyCount / completed.length) * 100 : 0;
 
   return {
-    buildHealth,
-    testHealth,
-    overallHealth,
-    alerts,
-    recommendations,
+    successRate: Math.round(successRate * 10) / 10,
+    avgDuration: Math.round(avgDuration),
+    avgQueueTime: Math.round(avgQueueTime),
+    flakyRate: Math.round(flakyRate * 10) / 10,
   };
+}
+
+/**
+ * Compare performance between commits
+ */
+export function comparePerformance(
+  baseline: PerformanceSnapshot,
+  current: PerformanceSnapshot
+): {
+  improvements: string[];
+  regressions: string[];
+  overall: "improved" | "regressed" | "unchanged";
+} {
+  const improvements: string[] = [];
+  const regressions: string[] = [];
+
+  if (baseline.buildTime && current.buildTime) {
+    const change = current.buildTime.current - baseline.buildTime.current;
+    if (change < -10) {
+      improvements.push(`Build time improved by ${Math.abs(change)}s`);
+    } else if (change > 10) {
+      regressions.push(`Build time regressed by ${change}s`);
+    }
+  }
+
+  if (baseline.testTime && current.testTime) {
+    const change = current.testTime.current - baseline.testTime.current;
+    if (change < -5) {
+      improvements.push(`Test time improved by ${Math.abs(change)}s`);
+    } else if (change > 5) {
+      regressions.push(`Test time regressed by ${change}s`);
+    }
+  }
+
+  if (baseline.coverage !== undefined && current.coverage !== undefined) {
+    const change = current.coverage - baseline.coverage;
+    if (change > 5) {
+      improvements.push(`Coverage increased by ${change}%`);
+    } else if (change < -5) {
+      regressions.push(`Coverage decreased by ${Math.abs(change)}%`);
+    }
+  }
+
+  const overall = regressions.length > improvements.length
+    ? "regressed"
+    : improvements.length > regressions.length
+    ? "improved"
+    : "unchanged";
+
+  return { improvements, regressions, overall };
 }

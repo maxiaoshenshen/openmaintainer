@@ -1,241 +1,259 @@
-import { Issue, PullRequest, Contributor, Repository, DependencyUpdate, VulnerabilityReport } from './types';
+/**
+ * Dependency Manager - Track and manage project dependencies
+ */
 
-export interface DependencyManagerConfig {
-  autoUpdateDevDependencies?: boolean;
-  autoUpdatePatchVersions?: boolean;
-  requireSecurityUpdates?: boolean;
-  excludePackages?: string[];
-  schedule?: 'daily' | 'weekly' | 'manual';
+export interface Dependency {
+  name: string;
+  version: string;
+  type: "production" | "development" | "peer" | "optional";
+  description?: string;
+  repository?: string;
+  homepage?: string;
+  license?: string;
+  lastPublish?: number;
+  downloads?: number;
+  vulnerabilities?: Vulnerability[];
+  outdated?: boolean;
+  latestVersion?: string;
 }
 
-export interface DependencyHealth {
-  outdated: DependencyUpdate[];
-  vulnerable: VulnerabilityReport[];
-  deprecated: { name: string; message: string }[];
-  unused: string[];
-  missing: string[];
+export interface Vulnerability {
+  severity: "low" | "medium" | "high" | "critical";
+  title: string;
+  description: string;
+  affectedVersions: string;
+  fixedIn?: string;
+  url?: string;
 }
 
-const VULNERABILITY_SEVERITY_SCORES = {
-  critical: 100,
-  high: 75,
-  medium: 50,
-  low: 25,
-  unknown: 10
-};
+export interface UpdateRecommendation {
+  dependency: string;
+  current: string;
+  latest: string;
+  type: "major" | "minor" | "patch";
+  breaking?: boolean;
+  changelog?: string;
+}
 
-export function analyzeDependencyHealth(dependencies: any[]): DependencyHealth {
-  const health: DependencyHealth = {
-    outdated: [],
-    vulnerable: [],
-    deprecated: [],
-    unused: [],
-    missing: []
+export interface DependencyAudit {
+  total: number;
+  production: number;
+  development: number;
+  outdated: number;
+  vulnerable: number;
+  license: LicenseIssue[];
+  recommendations: UpdateRecommendation[];
+}
+
+export interface LicenseIssue {
+  dependency: string;
+  license: string;
+  compatible: boolean;
+  spdxId?: string;
+}
+
+const ALLOWED_LICENSES = [
+  "MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC",
+  "CC0-1.0", "Unlicense", "0BSD", "Zlib", "Python-2.0"
+];
+
+const RESTRICTIVE_LICENSES = [
+  "GPL-3.0", "AGPL-3.0", "LGPL-3.0", "MPL-2.0", "EUPL-1.2"
+];
+
+/**
+ * Parse dependency string into name and version
+ */
+export function parseDependency(depString: string): { name: string; version: string } {
+  const match = depString.match(/^(@?[^@]+)@(.+)$/);
+  if (!match) {
+    throw new Error(`Invalid dependency format: ${depString}`);
+  }
+  return { name: match[1], version: match[2] };
+}
+
+/**
+ * Check if dependency version satisfies constraint
+ */
+export function satisfiesVersion(version: string, constraint: string): boolean {
+  const op = constraint.match(/^([\^~>=<]+)?(.+)$/);
+  if (!op) return false;
+
+  const operator = op[1] || "=";
+  const target = op[2];
+  const [v1, v2, v3] = version.split(/[.-]/).map(Number);
+  const [t1, t2, t3] = target.split(/[.-]/).map(Number) || [0, 0, 0];
+
+  switch (operator) {
+    case "^":
+      return v1 === t1 && (v2 > t2 || (v2 === t2 && v3 >= t3));
+    case "~":
+      return v1 === t1 && v2 === t2 && v3 >= t3;
+    case ">=":
+      return compareVersionParts(v1, v2, v3, t1, t2, t3) >= 0;
+    case ">":
+      return compareVersionParts(v1, v2, v3, t1, t2, t3) > 0;
+    case "<=":
+      return compareVersionParts(v1, v2, v3, t1, t2, t3) <= 0;
+    case "<":
+      return compareVersionParts(v1, v2, v3, t1, t2, t3) < 0;
+    case "=":
+    default:
+      return version === target || `${v1}.${v2}.${v3}` === target;
+  }
+}
+
+function compareVersionParts(v1: number, v2: number, v3: number, t1: number, t2: number, t3: number): number {
+  if (v1 !== t1) return v1 - t1;
+  if (v2 !== t2) return v2 - t2;
+  return v3 - t3;
+}
+
+/**
+ * Determine update type from version changes
+ */
+export function determineUpdateType(current: string, latest: string): "major" | "minor" | "patch" {
+  const [c1, c2, c3] = current.split(/[.-]/).map(Number);
+  const [l1, l2, l3] = latest.split(/[.-]/).map(Number);
+
+  if (l1 > c1) return "major";
+  if (l2 > c2) return "minor";
+  return "patch";
+}
+
+/**
+ * Check for breaking changes between versions
+ */
+export function hasBreakingChanges(current: string, latest: string): boolean {
+  const [c1] = current.split(".").map(Number);
+  const [l1] = latest.split(".").map(Number);
+  return l1 > c1;
+}
+
+/**
+ * Audit dependencies for issues
+ */
+export function auditDependencies(dependencies: Dependency[]): DependencyAudit {
+  const audit: DependencyAudit = {
+    total: dependencies.length,
+    production: dependencies.filter(d => d.type === "production").length,
+    development: dependencies.filter(d => d.type === "development").length,
+    outdated: 0,
+    vulnerable: 0,
+    license: [],
+    recommendations: [],
   };
 
-  dependencies.forEach(dep => {
-    if (dep.latestVersion && dep.currentVersion) {
-      const isOutdated = dep.latestVersion !== dep.currentVersion;
-      if (isOutdated) {
-        const currentParts = dep.currentVersion.split('.').map(Number);
-        const latestParts = dep.latestVersion.split('.').map(Number);
-        const isMajor = latestParts[0] > currentParts[0];
-        const isMinor = latestParts[1] > currentParts[1];
-        
-        health.outdated.push({
-          name: dep.name,
-          currentVersion: dep.currentVersion,
-          latestVersion: dep.latestVersion,
-          type: isMajor ? 'major' : isMinor ? 'minor' : 'patch',
-          urgency: isMajor ? 'high' : 'medium',
-          breaking: isMajor,
-          changelogUrl: dep.changelogUrl,
-          diffUrl: `https://diff.io/${dep.name}/${dep.currentVersion}..${dep.latestVersion}`
+  for (const dep of dependencies) {
+    // Check for outdated
+    if (dep.outdated && dep.latestVersion) {
+      audit.outdated++;
+      audit.recommendations.push({
+        dependency: dep.name,
+        current: dep.version,
+        latest: dep.latestVersion,
+        type: determineUpdateType(dep.version, dep.latestVersion),
+        breaking: hasBreakingChanges(dep.version, dep.latestVersion),
+      });
+    }
+
+    // Check for vulnerabilities
+    if (dep.vulnerabilities && dep.vulnerabilities.length > 0) {
+      audit.vulnerable++;
+    }
+
+    // Check license compatibility
+    if (dep.license) {
+      const isAllowed = ALLOWED_LICENSES.some(l => 
+        dep.license!.toLowerCase().includes(l.toLowerCase())
+      );
+      const isRestrictive = RESTRICTIVE_LICENSES.some(l =>
+        dep.license!.toLowerCase().includes(l.toLowerCase())
+      );
+      
+      if (!isAllowed || isRestrictive) {
+        audit.license.push({
+          dependency: dep.name,
+          license: dep.license,
+          compatible: isAllowed && !isRestrictive,
         });
       }
     }
+  }
 
-    if (dep.vulnerabilities?.length) {
-      dep.vulnerabilities.forEach((v: any) => {
-        health.vulnerable.push({
-          package: dep.name,
-          severity: v.severity,
-          vulnerabilityId: v.id,
-          vulnerableVersions: v.vulnerableVersions,
-          patchedIn: v.fixedIn,
-          title: v.title,
-          url: v.url,
-          severityScore: VULNERABILITY_SEVERITY_SCORES[v.severity] || 10
-        });
-      });
-    }
-
-    if (dep.deprecated) {
-      health.deprecated.push({
-        name: dep.name,
-        message: dep.deprecatedMessage || 'Package is deprecated'
-      });
-    }
-  });
-
-  return health;
+  return audit;
 }
 
-export function prioritizeDependencyUpdates(health: DependencyHealth, config: DependencyManagerConfig): DependencyUpdate[] {
-  let updates = [...health.outdated];
-
-  if (config.excludePackages?.length) {
-    updates = updates.filter(u => !config.excludePackages!.includes(u.name));
-  }
-
-  if (!config.requireSecurityUpdates) {
-    updates = updates.filter(u => {
-      const hasVuln = health.vulnerable.find(v => v.package === u.name);
-      return !hasVuln;
-    });
-  }
-
-  const securityUpdates = updates.filter(u => {
-    return health.vulnerable.some(v => v.package === u.name);
-  });
+/**
+ * Get security score based on vulnerabilities
+ */
+export function calculateSecurityScore(audit: DependencyAudit): number {
+  let score = 100;
   
-  const majorUpdates = updates.filter(u => u.type === 'major');
-  const minorUpdates = updates.filter(u => u.type === 'minor');
-  const patchUpdates = updates.filter(u => u.type === 'patch');
-
-  const regularUpdates = updates.filter(u => {
-    return !securityUpdates.includes(u) && !majorUpdates.includes(u);
-  });
-
-  if (!config.autoUpdateDevDependencies) {
-    regularUpdates.forEach(u => {
-      u.flags = u.flags || [];
-      u.flags.push('dev-dependency');
-    });
+  for (const dep of audit.recommendations) {
+    if (hasBreakingChanges(dep.current, dep.latest)) {
+      score -= 15;
+    }
   }
-
-  if (!config.autoUpdatePatchVersions) {
-    patchUpdates.forEach(u => {
-      u.flags = u.flags || [];
-      u.flags.push('patch-update');
-    });
-  }
-
-  return [...securityUpdates, ...majorUpdates, ...minorUpdates, ...patchUpdates];
+  
+  score -= audit.vulnerable * 20;
+  score -= audit.outdated * 5;
+  score -= audit.license.filter(l => !l.compatible).length * 10;
+  
+  return Math.max(0, score);
 }
 
-export function createDependencyUpdatePR(
-  dependency: DependencyUpdate,
-  changelog: string,
-  breakingChanges: string[]
-): Partial<PullRequest> {
-  const isBreaking = dependency.breaking || breakingChanges.length > 0;
-  
-  return {
-    title: `Update ${dependency.name} from ${dependency.currentVersion} to ${dependency.latestVersion}${isBreaking ? ' (breaking)' : ''}`,
-    body: generateDependencyUpdateBody(dependency, changelog, breakingChanges),
-    labels: [
-      'dependencies',
-      `type:${dependency.type}`,
-      dependency.urgency,
-      ...(isBreaking ? ['breaking-change'] : [])
-    ].filter(Boolean),
-    state: 'open'
+/**
+ * Suggest dependencies to add based on usage patterns
+ */
+export function suggestDependencies(
+  projectType: "node" | "python" | "rust" | "go" | "java",
+  categories: ("testing" | "ci" | "security" | "docs" | "performance" | "logging")[]
+): string[] {
+  const suggestions: Record<string, Record<string, string>> = {
+    node: {
+      testing: "vitest",
+      ci: "github-actions",
+      security: "snyk",
+      docs: "typedoc",
+      performance: "clinic",
+      logging: "pino",
+    },
+    python: {
+      testing: "pytest",
+      ci: "github-actions",
+      security: "bandit",
+      docs: "sphinx",
+      performance: "py-spy",
+      logging: "structlog",
+    },
+    rust: {
+      testing: "cargo-test",
+      ci: "github-actions",
+      security: "cargo-audit",
+      docs: "cargo-docs",
+      performance: "perf",
+      logging: "tracing",
+    },
+    go: {
+      testing: "go test",
+      ci: "github-actions",
+      security: "gosec",
+      docs: "godoc",
+      performance: "pprof",
+      logging: "zap",
+    },
+    java: {
+      testing: "junit",
+      ci: "github-actions",
+      security: "owasp",
+      docs: "javadoc",
+      performance: "async-profiler",
+      logging: "log4j",
+    },
   };
-}
 
-function generateDependencyUpdateBody(dep: DependencyUpdate, changelog: string, breaking: string[]): string {
-  return `## ${dep.name} Update
-
-**${dep.currentVersion} → ${dep.latestVersion}** ${dep.breaking ? '(breaking change)' : ''}
-
-### Changes
-
-${changelog || 'View full changelog on the package page.'}
-
-${breaking.length > 0 ? `
-### Breaking Changes
-
-${breaking.map(b => `- ${b}`).join('\n')}
-` : ''}
-
-### Diff
-
-[View diff](${dep.diffUrl})
-
-### Action Required
-
-- [ ] Review the changes
-- [ ] Update any affected code
-${dep.breaking ? '- [ ] This is a **breaking change** - major version bump' : ''}
-- [ ] Verify tests pass
-- [ ] Update documentation if needed
-`;
-}
-
-export function calculateUpdateRisk(update: DependencyUpdate, health: DependencyHealth): {
-  risk: 'low' | 'medium' | 'high' | 'critical';
-  factors: string[];
-} {
-  const factors: string[] = [];
-  let riskScore = 0;
-
-  const hasVuln = health.vulnerable.find(v => v.package === update.name);
-  if (hasVuln) {
-    riskScore += hasVuln.severityScore;
-    factors.push(`Fixes vulnerability: ${hasVuln.title} (${hasVuln.severity})`);
-  }
-
-  if (update.type === 'major') {
-    riskScore += 30;
-    factors.push('Major version update - likely breaking changes');
-  } else if (update.type === 'minor') {
-    riskScore += 15;
-    factors.push('Minor version update - new features, backwards compatible');
-  } else {
-    riskScore += 5;
-    factors.push('Patch version update - bug fixes only');
-  }
-
-  if (update.breaking) {
-    riskScore += 20;
-    factors.push('Package signals breaking changes');
-  }
-
-  let risk: 'low' | 'medium' | 'high' | 'critical';
-  if (riskScore >= 80) risk = 'critical';
-  else if (riskScore >= 50) risk = 'high';
-  else if (riskScore >= 25) risk = 'medium';
-  else risk = 'low';
-
-  return { risk, factors };
-}
-
-export function generateDependencyReport(health: DependencyHealth, config: DependencyManagerConfig): string {
-  const prioritized = prioritizeDependencyUpdates(health, config);
-  
-  const security = health.vulnerable.map(v => `- ${v.package}@${v.severity}: ${v.title}`).join('\n');
-  const breaking = prioritized.filter(u => u.breaking);
-  
-  return `
-# Dependency Health Report
-
-## Summary
-- **Outdated**: ${health.outdated.length}
-- **Vulnerable**: ${health.vulnerable.length}
-- **Deprecated**: ${health.deprecated.length}
-- **Safe to update**: ${prioritized.length}
-
-## Security Vulnerabilities
-${security || 'No known vulnerabilities'}
-
-## Breaking Changes
-${breaking.length > 0 ? breaking.map(u => `- ${u.name}: ${u.currentVersion} → ${u.latestVersion}`).join('\n') : 'No breaking changes pending'}
-
-## Recommended Updates
-${prioritized.slice(0, 10).map(u => `- ${u.name}: ${u.currentVersion} → ${u.latestVersion}`).join('\n')}
-
-## Deprecated Packages
-${health.deprecated.map(d => `- ${d.name}: ${d.message}`).join('\n') || 'None'}
-`.trim();
+  return categories
+    .map(cat => suggestions[projectType]?.[cat])
+    .filter(Boolean) as string[];
 }
