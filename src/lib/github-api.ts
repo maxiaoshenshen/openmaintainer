@@ -1,304 +1,268 @@
-// GitHub API Client for OpenMaintainer
-// Provides real data integration with GitHub
+/**
+ * GitHub API Client - Structured API for GitHub operations
+ */
 
-import type { Repository, Contributor, PullRequest, Issue } from './types';
-
-// Convenience exports - delegate to GitHubAPIClient
-export async function getRepository(owner: string, repo: string): Promise<GitHubRepoData> {
-  return getGitHubClient().getRepository(owner, repo);
-}
-export async function getContributors(owner: string, repo: string): Promise<GitHubContributorData[]> {
-  return getGitHubClient().getContributors(owner, repo);
-}
-export async function getIssues(owner: string, repo: string, options?: { state?: 'open' | 'closed' | 'all'; perPage?: number; page?: number }): Promise<GitHubIssueData[]> {
-  return getGitHubClient().getIssues(owner, repo, options);
-}
-export async function getPullRequests(owner: string, repo: string, options?: { state?: 'open' | 'closed' | 'all'; perPage?: number; page?: number }): Promise<GitHubPRData[]> {
-  return getGitHubClient().getPullRequests(owner, repo, options);
-}
-export async function getPullRequest(owner: string, repo: string, number: number): Promise<GitHubPRData | null> {
-  const prs = await getGitHubClient().getPullRequests(owner, repo, { state: 'all', perPage: 100 });
-  return prs.find(pr => pr.number === number) || null;
-}
-export async function getReleases(owner: string, repo: string, perPage?: number): Promise<any[]> {
-  return getGitHubClient().getReleases(owner, repo, perPage);
-}
-export async function getCommits(owner: string, repo: string, options?: { since?: string; until?: string; perPage?: number }): Promise<any[]> {
-  return getGitHubClient().getCommits(owner, repo, options);
-}
+import { CacheManager } from "./cache-manager";
 
 export interface GitHubConfig {
-  token?: string;
+  token: string;
   owner: string;
   repo: string;
 }
 
-export interface GitHubRateLimit {
-  limit: number;
-  remaining: number;
-  reset: number;
+export interface Repository {
+  id: number;
+  name: string;
+  full_name: string;
+  description: string | null;
+  private: boolean;
+  fork: boolean;
+  url: string;
+  stargazers_count: number;
+  forks_count: number;
+  open_issues_count: number;
+  watchers_count: number;
+  language: string | null;
+  default_branch: string;
+  created_at: string;
+  updated_at: string;
+  pushed_at: string;
+  topics: string[];
+  license: { key: string; name: string } | null;
 }
 
-export interface GitHubRepoData {
-  fullName: string;
-  description: string;
+export interface PullRequest {
+  id: number;
+  number: number;
+  title: string;
+  body: string | null;
+  state: "open" | "closed";
+  merged: boolean;
+  mergeable: boolean | null;
+  user: { login: string; avatar_url: string };
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  merged_at: string | null;
+  draft: boolean;
+  labels: { id: number; name: string; color: string }[];
+  requested_reviewers: { login: string; avatar_url: string }[];
+  head: { ref: string; sha: string };
+  base: { ref: string; sha: string };
+}
+
+export interface Issue {
+  id: number;
+  number: number;
+  title: string;
+  body: string | null;
+  state: "open" | "closed";
+  user: { login: string; avatar_url: string };
+  labels: { id: number; name: string; color: string }[];
+  assignees: { login: string; avatar_url: string }[];
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  comments: number;
+}
+
+export interface Contributor {
+  login: string;
+  avatar_url: string;
+  contributions: number;
+  type: string;
+}
+
+export interface GitHubMetrics {
   stars: number;
   forks: number;
   openIssues: number;
   openPRs: number;
-  language: string;
-  license: string;
-  createdAt: string;
-  updatedAt: string;
-  lastRelease: string | null;
-  topics: string[];
-  defaultBranch: string;
+  closedIssuesThisWeek: number;
+  closedPRsThisWeek: number;
+  averageMergeTime: number;
+  activeContributors: number;
 }
 
-export interface GitHubContributorData {
-  login: string;
-  avatarUrl: string;
-  contributions: number;
-  type: 'User' | 'Bot';
-}
+export class GitHubAPIClient {
+  private baseUrl = "https://api.github.com";
+  private token: string;
+  private cache: CacheManager;
+  private requestCount = 0;
+  private lastReset = Date.now();
 
-export interface GitHubIssueData {
-  number: number;
-  title: string;
-  state: 'open' | 'closed';
-  author: string;
-  createdAt: string;
-  updatedAt: string;
-  labels: string[];
-  comments: number;
-  assignees: string[];
-}
-
-export interface GitHubPRData {
-  number: number;
-  title: string;
-  state: 'open' | 'closed' | 'merged';
-  author: string;
-  createdAt: string;
-  updatedAt: string;
-  mergedAt: string | null;
-  labels: string[];
-  additions: number;
-  deletions: number;
-  reviewers: string[];
-  baseBranch: string;
-  headBranch: string;
-}
-
-class GitHubAPIClient {
-  private baseUrl = 'https://api.github.com';
-  private token?: string;
-
-  constructor(config?: { token?: string }) {
-    this.token = config?.token;
+  constructor(config: GitHubConfig, cache: CacheManager) {
+    this.token = config.token;
+    this.cache = cache;
   }
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const headers: HeadersInit = {
-      'Accept': 'application/vnd.github.v3+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    };
-
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    // Simple rate limiting: 10 requests per second
+    this.requestCount++;
+    if (this.requestCount > 10) {
+      const now = Date.now();
+      if (now - this.lastReset < 1000) {
+        await new Promise(r => setTimeout(r, 1000 - (now - this.lastReset)));
+      }
+      this.requestCount = 0;
+      this.lastReset = Date.now();
     }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
       headers: {
-        ...headers,
+        Authorization: `Bearer ${this.token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
         ...options?.headers,
       },
     });
 
     if (!response.ok) {
-      if (response.status === 403) {
-        const rateLimit = response.headers.get('X-RateLimit-Remaining');
-        if (rateLimit === '0') {
-          throw new Error('GitHub API rate limit exceeded. Please wait or use a token.');
-        }
-      }
-      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+      const error = await response.json().catch(() => ({ message: response.statusText }));
+      throw new GitHubAPIError(response.status, error.message || response.statusText, endpoint);
     }
 
     return response.json();
   }
 
-  async getRateLimit(): Promise<GitHubRateLimit> {
-    return this.request<GitHubRateLimit>('/rate_limit');
+  async getRepository(owner: string, repo: string): Promise<Repository> {
+    const cacheKey = `repo:${owner}/${repo}`;
+    const cached = this.cache.get<Repository>(cacheKey);
+    if (cached) return cached;
+
+    const data = await this.request<Repository>(`/repos/${owner}/${repo}`);
+    this.cache.set(cacheKey, data, 300);
+    return data;
   }
 
-  async getRepository(owner: string, repo: string): Promise<GitHubRepoData> {
-    const data = await this.request<any>(`/repos/${owner}/${repo}`);
+  async getPullRequests(owner: string, repo: string, state: "open" | "closed" | "all" = "open"): Promise<PullRequest[]> {
+    const cacheKey = `prs:${owner}/${repo}:${state}`;
+    const cached = this.cache.get<PullRequest[]>(cacheKey);
+    if (cached) return cached;
+
+    const data = await this.request<PullRequest[]>(`/repos/${owner}/${repo}/pulls?state=${state}&per_page=100`);
+    this.cache.set(cacheKey, data, 60);
+    return data;
+  }
+
+  async getIssues(owner: string, repo: string, state: "open" | "closed" | "all" = "open"): Promise<Issue[]> {
+    const cacheKey = `issues:${owner}/${repo}:${state}`;
+    const cached = this.cache.get<Issue[]>(cacheKey);
+    if (cached) return cached;
+
+    const data = await this.request<Issue[]>(`/repos/${owner}/${repo}/issues?state=${state}&per_page=100`);
+    this.cache.set(cacheKey, data, 60);
+    return data;
+  }
+
+  async getContributors(owner: string, repo: string): Promise<Contributor[]> {
+    const cacheKey = `contributors:${owner}/${repo}`;
+    const cached = this.cache.get<Contributor[]>(cacheKey);
+    if (cached) return cached;
+
+    const data = await this.request<Contributor[]>(`/repos/${owner}/${repo}/contributors?per_page=100`);
+    this.cache.set(cacheKey, data, 600);
+    return data;
+  }
+
+  async getMetrics(owner: string, repo: string): Promise<GitHubMetrics> {
+    const [repoData, openPRs, closedPRs, openIssues, closedIssues, contributors] = await Promise.all([
+      this.getRepository(owner, repo),
+      this.getPullRequests(owner, repo, "open"),
+      this.getPullRequests(owner, repo, "closed"),
+      this.getIssues(owner, repo, "open"),
+      this.getIssues(owner, repo, "closed"),
+      this.getContributors(owner, repo),
+    ]);
+
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const closedPRsThisWeek = closedPRs.filter((pr) => pr.merged_at && new Date(pr.merged_at) > oneWeekAgo);
+    const closedIssuesThisWeek = closedIssues.filter((issue) => issue.closed_at && new Date(issue.closed_at) > oneWeekAgo);
+
+    let totalMergeTime = 0;
+    const mergedPRs = closedPRs.filter((pr) => pr.merged_at);
+    for (const pr of mergedPRs) {
+      const created = new Date(pr.created_at);
+      const merged = new Date(pr.merged_at!);
+      totalMergeTime += (merged.getTime() - created.getTime()) / (1000 * 60 * 60);
+    }
+    const averageMergeTime = mergedPRs.length > 0 ? totalMergeTime / mergedPRs.length : 0;
+
     return {
-      fullName: data.identity.fullName,
-      description: data.description,
-      stars: data.stargazers_count,
-      forks: data.forks_count,
-      openIssues: data.open_issues_count,
-      openPRs: 0,
-      language: data.language,
-      license: data.license?.spdx_id || 'Unknown',
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
-      lastRelease: data.release?.tag_name || null,
-      topics: data.topics || [],
-      defaultBranch: data.default_branch,
+      stars: repoData.stargazers_count,
+      forks: repoData.forks_count,
+      openIssues: openIssues.length,
+      openPRs: openPRs.length,
+      closedIssuesThisWeek: closedIssuesThisWeek.length,
+      closedPRsThisWeek: closedPRsThisWeek.length,
+      averageMergeTime: Math.round(averageMergeTime * 10) / 10,
+      activeContributors: contributors.length,
     };
   }
 
-  async getContributors(owner: string, repo: string): Promise<GitHubContributorData[]> {
-    const data = await this.request<any[]>(`/repos/${owner}/${repo}/contributors`);
-    return data.map((contributor) => ({
-      login: contributor.login,
-      avatarUrl: contributor.avatar_url,
-      contributions: contributor.contributions,
-      type: contributor.type,
-    }));
-  }
-
-  async getIssues(owner: string, repo: string, options?: {
-    state?: 'open' | 'closed' | 'all';
-    perPage?: number;
-    page?: number;
-  }): Promise<GitHubIssueData[]> {
-    const params = new URLSearchParams({
-      state: options?.state || 'open',
-      per_page: String(options?.perPage || 30),
-      page: String(options?.page || 1),
-      sort: 'updated',
-      direction: 'desc',
+  async createIssue(owner: string, repo: string, title: string, body: string, labels?: string[]): Promise<Issue> {
+    return this.request<Issue>(`/repos/${owner}/${repo}/issues`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, body, labels }),
     });
-
-    const data = await this.request<any[]>(`/repos/${owner}/${repo}/issues?${params}`);
-    return data
-      .filter((issue) => !issue.pull_request)
-      .map((issue) => ({
-        number: issue.number,
-        title: issue.title,
-        state: issue.state as 'open' | 'closed',
-        author: issue.author,
-        createdAt: issue.createdAt,
-        updatedAt: issue.updatedAt,
-        labels: issue.labels.map((l: any) => l.name),
-        comments: issue.commentCount,
-        assignees: issue.assignees.map((a: any) => a.login),
-      }));
   }
 
-  async getPullRequests(owner: string, repo: string, options?: {
-    state?: 'open' | 'closed' | 'all';
-    perPage?: number;
-    page?: number;
-  }): Promise<GitHubPRData[]> {
-    const params = new URLSearchParams({
-      state: options?.state || 'open',
-      per_page: String(options?.perPage || 30),
-      page: String(options?.page || 1),
-      sort: 'updated',
-      direction: 'desc',
+  async createPullRequest(owner: string, repo: string, title: string, head: string, base: string, body?: string): Promise<PullRequest> {
+    return this.request<PullRequest>(`/repos/${owner}/${repo}/pulls`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, head, base, body }),
     });
-
-    const data = await this.request<any[]>(`/repos/${owner}/${repo}/pulls?${params}`);
-    return data.map((pr) => ({
-      number: pr.number,
-      title: pr.title,
-      state: pr.mergedAt_at ? 'merged' : pr.state as 'open' | 'closed',
-      author: pr.author,
-      createdAt: pr.createdAt,
-      updatedAt: pr.updatedAt,
-      mergedAt: pr.mergedAt_at,
-      labels: pr.labels.map((l: any) => l.name),
-      additions: pr.additions || 0,
-      deletions: pr.deletions || 0,
-      reviewers: pr.requested_reviewers?.map((r: any) => r.login) || [],
-      baseBranch: pr.base.ref,
-      headBranch: pr.head.ref,
-    }));
   }
 
-  async getReleases(owner: string, repo: string, perPage = 10): Promise<any[]> {
-    return this.request<any[]>(`/repos/${owner}/${repo}/releases?per_page=${perPage}`);
+  async addLabels(owner: string, repo: string, issueNumber: number, labels: string[]): Promise<void> {
+    await this.request(`/repos/${owner}/${repo}/issues/${issueNumber}/labels`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ labels }),
+    });
   }
 
-  async getCommits(owner: string, repo: string, options?: {
-    since?: string;
-    until?: string;
-    perPage?: number;
-  }): Promise<any[]> {
-    const params = new URLSearchParams({ per_page: String(options?.perPage || 100) });
-    if (options?.since) params.set('since', options.since);
-    if (options?.until) params.set('until', options.until);
-    return this.request<any[]>(`/repos/${owner}/${repo}/commits?${params}`);
+  async requestReview(owner: string, repo: string, prNumber: number, reviewers: string[]): Promise<void> {
+    await this.request(`/repos/${owner}/${repo}/pulls/${prNumber}/requested_reviewers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reviewers }),
+    });
   }
 
-  toRepository(data: GitHubRepoData, contributors: GitHubContributorData[]): Partial<Repository> {
-    return {
-      name: data.fullName.split('/')[1],
-      owner: data.fullName.split('/')[0],
-      stars: data.stars,
-      forks: data.forks,
-      openIssues: data.openIssues,
-      language: data.language,
-      description: data.description,
-      license: data.license,
-      createdAt: new Date(data.createdAt),
-      updatedAt: new Date(data.updatedAt),
-      topics: data.topics,
-      defaultBranch: data.defaultBranch,
-      contributors: contributors.map((c) => ({
-        username: c.login,
-        avatar: c.avatarUrl,
-        contributions: c.contributions,
-        joinedAt: new Date(),
-      })),
-    };
+  async mergePullRequest(owner: string, repo: string, prNumber: number, method: "merge" | "squash" | "rebase" = "squash"): Promise<void> {
+    await this.request(`/repos/${owner}/${repo}/pulls/${prNumber}/merge`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ merge_method: method }),
+    });
   }
 
-  toPullRequests(prs: GitHubPRData[]): Partial<PullRequest>[] {
-    return prs.map((pr) => ({
-      number: pr.number,
-      title: pr.title,
-      author: pr.author,
-      status: pr.state === 'open' ? 'open' : pr.state === 'merged' ? 'merged' : 'closed',
-      createdAt: new Date(pr.createdAt),
-      updatedAt: new Date(pr.updatedAt),
-      additions: pr.additions,
-      deletions: pr.deletions,
-      reviewers: pr.reviewers,
-      labels: pr.labels,
-      baseBranch: pr.baseBranch,
-      headBranch: pr.headBranch,
-    }));
+  async closeIssue(owner: string, repo: string, issueNumber: number): Promise<Issue> {
+    return this.request<Issue>(`/repos/${owner}/${repo}/issues/${issueNumber}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: "closed" }),
+    });
   }
 
-  toIssues(issues: GitHubIssueData[]): Partial<Issue>[] {
-    return issues.map((issue) => ({
-      number: issue.number,
-      title: issue.title,
-      author: issue.author,
-      status: issue.state === 'open' ? 'open' : 'closed',
-      labels: issue.labels,
-      assignees: issue.assignees,
-      createdAt: new Date(issue.createdAt),
-      updatedAt: new Date(issue.updatedAt),
-      comments: issue.commentCount,
-    }));
+  clearCache(): void {
+    this.cache.clear();
   }
 }
 
-let githubClient: GitHubAPIClient | null = null;
-
-export function getGitHubClient(config?: { token?: string }): GitHubAPIClient {
-  if (!githubClient) {
-    githubClient = new GitHubAPIClient(config);
+export class GitHubAPIError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public endpoint: string
+  ) {
+    super(message);
+    this.name = "GitHubAPIError";
   }
-  return githubClient;
 }
-
-export { GitHubAPIClient };

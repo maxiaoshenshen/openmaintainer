@@ -1,123 +1,151 @@
-import { describe, it, expect } from 'vitest';
-import { GitHubAPIClient } from './github-api';
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { GitHubAPIClient, GitHubAPIError } from "./github-api";
+import { CacheManager } from "./cache-manager";
 
-describe('GitHubAPI Client', () => {
-  it('creates client instance', () => {
-    const client = new GitHubAPIClient();
-    expect(client).toBeDefined();
+describe("GitHubAPIClient", () => {
+  let client: GitHubAPIClient;
+  let cache: CacheManager;
+
+  beforeEach(() => {
+    cache = new CacheManager({ maxSize: 100 });
+    client = new GitHubAPIClient(
+      { token: "test-token", owner: "test-owner", repo: "test-repo" },
+      cache
+    );
+    global.fetch = vi.fn();
   });
 
-  it('creates client with token', () => {
-    const client = new GitHubAPIClient({ token: 'test-token' });
-    expect(client).toBeDefined();
-  });
-
-  describe('data conversion methods', () => {
-    it('converts GitHub repo data to Repository format', () => {
-      const client = new GitHubAPIClient();
-      const repoData = {
-        fullName: 'test-owner/test-repo',
-        description: 'A test repository',
-        stars: 100,
-        forks: 50,
-        openIssues: 10,
-        openPRs: 5,
-        language: 'TypeScript',
-        license: 'MIT',
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-06-01T00:00:00Z',
-        lastRelease: 'v1.0.0',
-        topics: ['typescript', 'nodejs'],
-        defaultBranch: 'main',
+  describe("getRepository", () => {
+    it("should fetch repository data", async () => {
+      const mockRepo = {
+        id: 123, name: "test-repo", full_name: "test-owner/test-repo",
+        description: "Test repository", private: false, fork: false,
+        url: "https://github.com/test-owner/test-repo", stargazers_count: 100,
+        forks_count: 50, open_issues_count: 10, watchers_count: 100,
+        language: "TypeScript", default_branch: "main",
+        created_at: "2024-01-01", updated_at: "2024-06-01", pushed_at: "2024-06-15",
+        topics: ["typescript"], license: { key: "mit", name: "MIT" },
       };
-      const contributors = [
-        { login: 'user1', avatarUrl: 'https://example.com/avatar.png', contributions: 100, type: 'User' as const },
-        { login: 'bot1', avatarUrl: 'https://example.com/bot.png', contributions: 50, type: 'Bot' as const },
-      ];
 
-      const result = client.toRepository(repoData, contributors);
-      expect(result.name).toBe('test-repo');
-      expect(result.owner).toBe('test-owner');
-      expect(result.stars).toBe(100);
-      expect(result.language).toBe('TypeScript');
-      expect(result.topics).toContain('typescript');
-      expect(result.contributors).toHaveLength(2);
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true, json: () => Promise.resolve(mockRepo),
+      });
+
+      const repo = await client.getRepository("test-owner", "test-repo");
+      expect(repo.name).toBe("test-repo");
+      expect(repo.stargazers_count).toBe(100);
     });
 
-    it('converts GitHub PR data to PullRequest format', () => {
-      const client = new GitHubAPIClient();
-      const prs = [
-        {
-          number: 1,
-          title: 'Fix bug',
-          state: 'open' as const,
-          author: 'user1',
-          createdAt: '2024-06-01T00:00:00Z',
-          updatedAt: '2024-06-02T00:00:00Z',
-          mergedAt: null,
-          labels: ['bug', 'high-priority'],
-          additions: 50,
-          deletions: 10,
-          reviewers: ['reviewer1'],
-          baseBranch: 'main',
-          headBranch: 'fix-bug',
-        },
-      ];
+    it("should use cache for subsequent requests", async () => {
+      const mockRepo = {
+        id: 123, name: "test-repo", full_name: "test-owner/test-repo",
+        description: "Test", private: false, fork: false,
+        url: "https://github.com/test/test", stargazers_count: 100,
+        forks_count: 50, open_issues_count: 10, watchers_count: 100,
+        language: "TypeScript", default_branch: "main",
+        created_at: "2024-01-01", updated_at: "2024-06-01", pushed_at: "2024-06-15",
+        topics: [], license: null,
+      };
 
-      const result = client.toPullRequests(prs);
-      expect(result).toHaveLength(1);
-      expect(result[0].number).toBe(1);
-      expect(result[0].title).toBe('Fix bug');
-      expect(result[0].status).toBe('open');
-      expect(result[0].additions).toBe(50);
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true, json: () => Promise.resolve(mockRepo),
+      });
+
+      await client.getRepository("test-owner", "test-repo");
+      await client.getRepository("test-owner", "test-repo");
+      expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
-    it('converts merged PRs correctly', () => {
-      const client = new GitHubAPIClient();
-      const prs = [
-        {
-          number: 2,
-          title: 'Add feature',
-          state: 'merged' as const,
-          author: 'user2',
-          createdAt: '2024-05-01T00:00:00Z',
-          updatedAt: '2024-05-02T00:00:00Z',
-          mergedAt: '2024-05-02T12:00:00Z',
-          labels: ['enhancement'],
-          additions: 200,
-          deletions: 20,
-          reviewers: ['reviewer1', 'reviewer2'],
-          baseBranch: 'main',
-          headBranch: 'add-feature',
-        },
-      ];
+    it("should throw GitHubAPIError on failure", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false, status: 404, json: () => Promise.resolve({ message: "Not Found" }),
+      });
 
-      const result = client.toPullRequests(prs);
-      expect(result[0].status).toBe('merged');
+      await expect(client.getRepository("nonexistent", "repo")).rejects.toThrow(GitHubAPIError);
     });
+  });
 
-    it('converts GitHub issue data to Issue format', () => {
-      const client = new GitHubAPIClient();
-      const issues = [
-        {
-          number: 10,
-          title: 'Question about API',
-          state: 'open' as const,
-          author: 'newuser',
-          createdAt: '2024-06-01T00:00:00Z',
-          updatedAt: '2024-06-01T00:00:00Z',
-          labels: ['question'] as any,
-          commentCount: 2,
-          assignees: ['maintainer1'],
-        },
+  describe("getPullRequests", () => {
+    it("should fetch open pull requests", async () => {
+      const mockPRs = [{
+        id: 1, number: 1, title: "Test PR", body: "Description",
+        state: "open", merged: false, mergeable: true,
+        user: { login: "user1", avatar_url: "https://avatar.com/1" },
+        created_at: "2024-06-01", updated_at: "2024-06-15", closed_at: null, merged_at: null,
+        draft: false, labels: [], requested_reviewers: [],
+        head: { ref: "feature", sha: "abc123" }, base: { ref: "main", sha: "def456" },
+      }];
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true, json: () => Promise.resolve(mockPRs),
+      });
+
+      const prs = await client.getPullRequests("test-owner", "test-repo", "open");
+      expect(prs).toHaveLength(1);
+      expect(prs[0].title).toBe("Test PR");
+    });
+  });
+
+  describe("getIssues", () => {
+    it("should fetch issues", async () => {
+      const mockIssues = [{
+        id: 1, number: 1, title: "Bug issue", body: "Bug description",
+        state: "open", user: { login: "user1", avatar_url: "https://avatar.com/1" },
+        labels: [{ id: 1, name: "bug", color: "ff0000" }],
+        assignees: [], created_at: "2024-06-01", updated_at: "2024-06-15",
+        closed_at: null, comments: 5,
+      }];
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true, json: () => Promise.resolve(mockIssues),
+      });
+
+      const issues = await client.getIssues("test-owner", "test-repo", "open");
+      expect(issues).toHaveLength(1);
+      expect(issues[0].labels[0].name).toBe("bug");
+    });
+  });
+
+  describe("getContributors", () => {
+    it("should fetch contributors", async () => {
+      const mockContributors = [
+        { login: "contributor1", avatar_url: "https://avatar.com/1", contributions: 100, type: "User" },
       ];
 
-      const result = client.toIssues(issues);
-      expect(result).toHaveLength(1);
-      expect(result[0].number).toBe(10);
-      expect(result[0].title).toBe('Question about API');
-      expect(result[0].status).toBe('open');
-      expect(result[0].comments).toBe(2);
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true, json: () => Promise.resolve(mockContributors),
+      });
+
+      const contributors = await client.getContributors("test-owner", "test-repo");
+      expect(contributors).toHaveLength(1);
+      expect(contributors[0].contributions).toBe(100);
+    });
+  });
+
+  describe("createIssue", () => {
+    it("should create a new issue", async () => {
+      const mockIssue = {
+        id: 999, number: 42, title: "New Issue", body: "Issue body",
+        state: "open", user: { login: "test-owner", avatar_url: "https://avatar.com/1" },
+        labels: [], assignees: [], created_at: "2024-06-15", updated_at: "2024-06-15",
+        closed_at: null, comments: 0,
+      };
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: true, json: () => Promise.resolve(mockIssue),
+      });
+
+      const issue = await client.createIssue("test-owner", "test-repo", "New Issue", "Issue body");
+      expect(issue.number).toBe(42);
+    });
+  });
+
+  describe("GitHubAPIError", () => {
+    it("should have correct properties", () => {
+      const error = new GitHubAPIError(404, "Not Found", "/repos/owner/repo");
+      expect(error.status).toBe(404);
+      expect(error.message).toBe("Not Found");
+      expect(error.endpoint).toBe("/repos/owner/repo");
     });
   });
 });
