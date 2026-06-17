@@ -175,8 +175,16 @@ export function generateExtendedDemoData(repoName?: string) {
   const codeReview = performCodeReview({ pr: demoPullRequests[0], repo: demoRepository, reviewer: demoContributors[0] });
   const onboarding = generateOnboardingPath(demoRepository, demoIssues, demoContributors);
   const incidents = analyzeIncidents(demoRepository, demoIssues, demoPullRequests);
-  const dependencies = analyzeDependencies(demoRepository);
-  const licenses = analyzeLicenses(demoRepository);
+  const dependencies = analyzeDependencies({
+    dependencies: [
+      { name: "react", version: "18.2.0" },
+      { name: "typescript", version: "5.0.0" },
+    ],
+  });
+  const licenses = analyzeLicenses([
+    { name: "react", version: "18.2.0", type: "production", deprecated: false, health: "healthy", weeklyDownloads: 100000, lastUpdated: "2026-01-01" },
+    { name: "typescript", version: "5.0.0", type: "development", deprecated: false, health: "healthy", weeklyDownloads: 50000, lastUpdated: "2026-01-01" },
+  ]);
 
   return {
     communityHealth,
