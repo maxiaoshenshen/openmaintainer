@@ -1,199 +1,159 @@
-/**
- * Release Manager - Automate release workflow
- */
+import type { Repository, PullRequest } from './types';
 
+/**
+ * Release Manager - Manages release planning and tracking
+ */
 export interface Release {
+  id: string;
   version: string;
-  tag: string;
-  date: Date;
+  tagName: string;
+  status: 'draft' | 'prerelease' | 'released' | 'cancelled';
+  targetDate: Date;
+  actualDate?: Date;
   notes: string;
-  changes: string[];
-  isPrerelease: boolean;
-  isDraft: boolean;
+  changes: ReleaseChange[];
+  contributors: string[];
+  downloadCount?: number;
 }
 
-export interface ReleaseConfig {
-  owner: string;
-  repo: string;
-  branch: string;
-  changelogPath: string;
-  draft: boolean;
-  prerelease: boolean;
+export interface ReleaseChange {
+  type: 'feature' | 'bugfix' | 'breaking' | 'security' | 'performance' | 'docs';
+  description: string;
+  prNumber?: number;
+  breakingChanges?: string[];
 }
 
-export interface SemanticVersion {
-  major: number;
-  minor: number;
-  patch: number;
-  prerelease?: string;
-}
-
-export type BumpType = 'major' | 'minor' | 'patch' | 'prerelease';
-
-/**
- * Parse semantic version string
- */
-export function parseVersion(version: string): SemanticVersion {
-  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.]+))?$/);
-  if (!match) {
-    throw new Error(`Invalid version format: ${version}`);
-  }
-  return {
-    major: parseInt(match[1]),
-    minor: parseInt(match[2]),
-    patch: parseInt(match[3]),
-    prerelease: match[4]
-  };
-}
-
-/**
- * Format semantic version to string
- */
-export function formatVersion(version: SemanticVersion): string {
-  let result = `${version.major}.${version.minor}.${version.patch}`;
-  if (version.prerelease) {
-    result += `-${version.prerelease}`;
-  }
-  return result;
-}
-
-/**
- * Bump version based on type
- */
-export function bumpVersion(version: SemanticVersion, type: BumpType): SemanticVersion {
-  const newVersion = { ...version };
-  
-  switch (type) {
-    case 'major':
-      newVersion.major += 1;
-      newVersion.minor = 0;
-      newVersion.patch = 0;
-      delete newVersion.prerelease;
-      break;
-    case 'minor':
-      newVersion.minor += 1;
-      newVersion.patch = 0;
-      delete newVersion.prerelease;
-      break;
-    case 'patch':
-      newVersion.patch += 1;
-      delete newVersion.prerelease;
-      break;
-    case 'prerelease':
-      newVersion.prerelease = newVersion.prerelease 
-        ? `${newVersion.prerelease}.1`
-        : 'alpha.1';
-      break;
-  }
-  
-  return newVersion;
-}
-
-/**
- * Determine release type from commits
- */
-export function determineReleaseType(commits: string[]): BumpType {
-  let hasBreaking = false;
-  let hasFeature = false;
-  let hasFix = false;
-
-  commits.forEach(commit => {
-    if (commit.includes('!') || commit.includes('BREAKING')) {
-      hasBreaking = true;
-    }
-    if (commit.startsWith('feat:')) {
-      hasFeature = true;
-    }
-    if (commit.startsWith('fix:')) {
-      hasFix = true;
-    }
-  });
-
-  if (hasBreaking) return 'major';
-  if (hasFeature) return 'minor';
-  if (hasFix) return 'patch';
-  return 'patch';
-}
-
-/**
- * Generate release notes
- */
-export function generateReleaseNotes(release: Release, config: ReleaseConfig): string {
-  let notes = `# Release ${release.version}\n\n`;
-  notes += `**Release Date:** ${release.date.toISOString().split('T')[0]}\n\n`;
-  
-  if (release.isPrerelease) {
-    notes += `> ⚠️ **This is a pre-release version.**\n\n`;
-  }
-
-  notes += `## What's Changed\n\n`;
-  
-  release.changes.forEach(change => {
-    notes += `- ${change}\n`;
-  });
-
-  notes += `\n---\n`;
-  notes += `**Full Changelog:** https://github.com/${config.owner}/${config.repo}/compare/${getPreviousTag(release.version)}...${release.tag}`;
-
-  return notes;
-}
-
-function getPreviousTag(version: string): string {
-  const v = parseVersion(version);
-  if (v.patch > 0) {
-    return `v${v.major}.${v.minor}.${v.patch - 1}`;
-  }
-  if (v.minor > 0) {
-    return `v${v.major}.${v.minor - 1}.0`;
-  }
-  return `v${v.major - 1}.0.0`;
-}
-
-/**
- * Validate release readiness
- */
-export function checkReleaseReadiness(release: Release): {
-  ready: boolean;
+export interface ReleasePlan {
+  repository: Repository;
+  upcomingRelease: Release;
+  releaseHistory: Release[];
+  changelog: string;
+  readinessScore: number;
   blockers: string[];
-  warnings: string[];
-} {
-  const blockers: string[] = [];
-  const warnings: string[] = [];
-
-  if (!release.version) {
-    blockers.push('Version is required');
-  }
-
-  if (release.changes.length === 0) {
-    blockers.push('At least one change is required');
-  }
-
-  if (release.notes.length < 10) {
-    warnings.push('Release notes seem too short');
-  }
-
-  return {
-    ready: blockers.length === 0,
-    blockers,
-    warnings
-  };
 }
 
-/**
- * Create release object
- */
-export function createRelease(
-  version: string,
-  changes: string[],
-  options?: { isDraft?: boolean; isPrerelease?: boolean }
-): Release {
+export function createReleaseManager() {
+  const generateReleasePlan = (repo: Repository): ReleasePlan => {
+    const upcomingRelease = generateUpcomingRelease(repo);
+    const releaseHistory = generateReleaseHistory(repo);
+
+    return {
+      repository: repo,
+      upcomingRelease,
+      releaseHistory,
+      changelog: generateChangelog(upcomingRelease, releaseHistory),
+      readinessScore: calculateReadinessScore(upcomingRelease),
+      blockers: identifyBlockers(upcomingRelease)
+    };
+  };
+
+  const generateUpcomingRelease = (repo: Repository): Release => {
+    const version = '2.1.0';
+    return {
+      id: `release-${Date.now()}`,
+      version,
+      tagName: `v${version}`,
+      status: 'draft',
+      targetDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      notes: `Release ${version} of ${repo.name}`,
+      changes: [
+        { type: 'feature', description: 'New dashboard analytics', prNumber: 142 },
+        { type: 'bugfix', description: 'Fix authentication timeout', prNumber: 145 },
+        { type: 'performance', description: 'Optimize database queries' },
+        { type: 'docs', description: 'Update API documentation' }
+      ],
+      contributors: ['alice', 'bob', 'charlie']
+    };
+  };
+
+  const generateReleaseHistory = (repo: Repository): Release[] => {
+    return [
+      {
+        id: 'rel-1',
+        version: '2.0.0',
+        tagName: 'v2.0.0',
+        status: 'released',
+        targetDate: new Date('2026-05-01'),
+        actualDate: new Date('2026-05-01'),
+        notes: 'Major release with new architecture',
+        changes: [
+          { type: 'breaking', description: 'Migration to new plugin system' },
+          { type: 'feature', description: 'Cloud deployment support' }
+        ],
+        contributors: ['alice', 'bob'],
+        downloadCount: 15420
+      },
+      {
+        id: 'rel-2',
+        version: '1.9.0',
+        tagName: 'v1.9.0',
+        status: 'released',
+        targetDate: new Date('2026-04-01'),
+        actualDate: new Date('2026-04-03'),
+        notes: 'Incremental improvement release',
+        changes: [
+          { type: 'feature', description: 'Enhanced search' },
+          { type: 'bugfix', description: 'Multiple bug fixes' }
+        ],
+        contributors: ['charlie', 'diana'],
+        downloadCount: 12300
+      }
+    ];
+  };
+
+  const generateChangelog = (upcoming: Release, history: Release[]): string => {
+    const lines = [`# Changelog\n`];
+    
+    lines.push(`## ${upcoming.version} (Upcoming)\n`);
+    upcoming.changes.forEach(change => {
+      const emoji = { feature: '✨', bugfix: '🐛', breaking: '💥', security: '🔒', performance: '⚡', docs: '📝' };
+      lines.push(`- ${emoji[change.type] || '-'} ${change.description}`);
+    });
+
+    history.forEach(rel => {
+      lines.push(`\n## ${rel.version} (${rel.actualDate?.toISOString().split('T')[0] || 'Unknown'})\n`);
+      rel.changes.forEach(change => {
+        const emoji = { feature: '✨', bugfix: '🐛', breaking: '💥', security: '🔒', performance: '⚡', docs: '📝' };
+        lines.push(`- ${emoji[change.type] || '-'} ${change.description}`);
+      });
+    });
+
+    return lines.join('\n');
+  };
+
+  const calculateReadinessScore = (release: Release): number => {
+    let score = 100;
+    
+    if (release.changes.filter(c => c.type === 'bugfix').length > 3) score -= 10;
+    if (release.changes.some(c => c.type === 'breaking')) score -= 20;
+    if (release.changes.filter(c => c.type === 'feature').length > 5) score -= 15;
+    
+    return Math.max(0, score);
+  };
+
+  const identifyBlockers = (release: Release): string[] => {
+    const blockers: string[] = [];
+    
+    if (release.changes.some(c => c.type === 'breaking')) {
+      blockers.push('Breaking changes require migration guide');
+    }
+    
+    if (release.status === 'draft') {
+      blockers.push('Release notes not finalized');
+    }
+    
+    return blockers;
+  };
+
+  const formatReleaseNotes = (release: Release): string => {
+    return `# ${release.tagName}\n\n${release.notes}\n\n## Changes\n` +
+      release.changes.map(c => `- **${c.type}**: ${c.description}`).join('\n');
+  };
+
   return {
-    version,
-    tag: `v${version}`,
-    date: new Date(),
-    notes: '',
-    changes,
-    isPrerelease: options?.isPrerelease || false,
-    isDraft: options?.isDraft || false
+    generateReleasePlan,
+    formatReleaseNotes,
+    releaseStatuses: ['draft', 'prerelease', 'released', 'cancelled'] as const,
+    changeTypes: ['feature', 'bugfix', 'breaking', 'security', 'performance', 'docs'] as const
   };
 }
