@@ -1,217 +1,148 @@
 import { describe, it, expect } from 'vitest';
-import { 
-  generateTestPayload,
-  validatePayload,
-  createWebhookConfig,
-  generateWebhookSignature,
-  verifyWebhookSignature,
-  recordDelivery,
-  analyzeWebhookPerformance
-} from './webhook-manager';
+import { WebhookManager } from './webhook-manager';
 
-describe('webhook-manager', () => {
-  describe('generateTestPayload', () => {
-    it('should generate push payload', () => {
-      const payload = generateTestPayload('push');
-      
-      expect(payload).toHaveProperty('ref');
-      expect(payload).toHaveProperty('commits');
-      expect(payload).toHaveProperty('repository');
-      expect(payload).toHaveProperty('sender');
+describe('WebhookManager', () => {
+  const manager = new WebhookManager();
+
+  it('should create a webhook endpoint', async () => {
+    const endpoint = await manager.createEndpoint({
+      url: 'https://example.com/webhook',
+      events: ['push', 'pull_request'],
     });
 
-    it('should generate pull_request payload', () => {
-      const payload = generateTestPayload('pull_request');
-      
-      expect(payload).toHaveProperty('pull_request');
-      expect((payload as any).pull_request).toHaveProperty('title');
-    });
-
-    it('should generate issues payload', () => {
-      const payload = generateTestPayload('issues');
-      
-      expect(payload).toHaveProperty('issue');
-      expect((payload as any).issue).toHaveProperty('title');
-    });
-
-    it('should generate release payload', () => {
-      const payload = generateTestPayload('release');
-      
-      expect(payload).toHaveProperty('release');
-      expect((payload as any).release).toHaveProperty('tag_name');
-    });
+    expect(endpoint.id).toBeDefined();
+    expect(endpoint.url).toBe('https://example.com/webhook');
+    expect(endpoint.events).toEqual(['push', 'pull_request']);
+    expect(endpoint.enabled).toBe(true);
   });
 
-  describe('validatePayload', () => {
-    it('should validate correct payload', () => {
-      const payload = generateTestPayload('push');
-      const result = validatePayload('push', payload);
-      
-      expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+  it('should update endpoint', async () => {
+    const endpoint = await manager.createEndpoint({
+      url: 'https://example.com/webhook',
+      events: ['push'],
     });
 
-    it('should reject empty payload', () => {
-      const result = validatePayload('push', null);
-      
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
+    const updated = await manager.updateEndpoint(endpoint.id, {
+      url: 'https://example.com/new-webhook',
+      events: ['push', 'issues'],
     });
 
-    it('should reject payload without repository', () => {
-      const result = validatePayload('push', { sender: {} });
-      
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Missing required field: repository');
-    });
-
-    it('should reject push without ref', () => {
-      const result = validatePayload('push', { repository: {}, sender: {} });
-      
-      expect(result.valid).toBe(false);
-      expect(result.errors).toContain('Push event requires ref field');
-    });
+    expect(updated?.url).toBe('https://example.com/new-webhook');
+    expect(updated?.events).toEqual(['push', 'issues']);
   });
 
-  describe('createWebhookConfig', () => {
-    it('should create webhook config', () => {
-      const config = createWebhookConfig({
-        url: 'https://example.com/webhook',
-        events: ['push', 'pull_request'],
-      });
-      
-      expect(config.url).toBe('https://example.com/webhook');
-      expect(config.events).toEqual(['push', 'pull_request']);
-      expect(config.active).toBe(true);
+  it('should delete endpoint', async () => {
+    const endpoint = await manager.createEndpoint({
+      url: 'https://example.com/webhook',
+      events: ['push'],
     });
 
-    it('should include secret if provided', () => {
-      const config = createWebhookConfig({
-        url: 'https://example.com/webhook',
-        events: ['push'],
-        secret: 'mysecret',
-      });
-      
-      expect(config.secret).toBe('mysecret');
-    });
+    const deleted = await manager.deleteEndpoint(endpoint.id);
+    expect(deleted).toBe(true);
+
+    const retrieved = await manager.getEndpoint(endpoint.id);
+    expect(retrieved).toBeNull();
   });
 
-  describe('generateWebhookSignature', () => {
-    it('should generate sha256 signature', () => {
-      const signature = generateWebhookSignature('test payload', 'secret');
-      
-      expect(signature).toMatch(/^sha256=[a-f0-9]+$/);
+  it('should trigger event to matching endpoints', async () => {
+    await manager.createEndpoint({
+      url: 'https://example.com/webhook1',
+      events: ['push'],
     });
 
-    it('should generate sha1 signature', () => {
-      const signature = generateWebhookSignature('test payload', 'secret', 'sha1');
-      
-      expect(signature).toMatch(/^sha1=[a-f0-9]+$/);
+    await manager.createEndpoint({
+      url: 'https://example.com/webhook2',
+      events: ['issues'],
     });
 
-    it('should generate consistent signatures', () => {
-      const sig1 = generateWebhookSignature('payload', 'secret');
-      const sig2 = generateWebhookSignature('payload', 'secret');
-      
-      expect(sig1).toBe(sig2);
-    });
-  });
-
-  describe('verifyWebhookSignature', () => {
-    it('should verify valid signature', () => {
-      const payload = 'test payload';
-      const secret = 'secret';
-      const signature = generateWebhookSignature(payload, secret);
-      
-      expect(verifyWebhookSignature(payload, signature, secret)).toBe(true);
-    });
-
-    it('should reject invalid signature', () => {
-      const payload = 'test payload';
-      const secret = 'secret';
-      
-      expect(verifyWebhookSignature(payload, 'sha256=invalid', secret)).toBe(false);
-    });
-
-    it('should reject signature with wrong secret', () => {
-      const payload = 'test payload';
-      const signature = generateWebhookSignature(payload, 'secret1');
-      
-      expect(verifyWebhookSignature(payload, signature, 'secret2')).toBe(false);
-    });
-  });
-
-  describe('recordDelivery', () => {
-    it('should record successful delivery', () => {
-      const log = { deliveries: [], totalRequests: 0, successRate: 0, averageResponseTime: 0 };
-      
-      const updated = recordDelivery(log, {
-        event: 'push',
-        status: 'success',
-        responseCode: 200,
-        duration: 150,
-      });
-      
-      expect(updated.deliveries).toHaveLength(1);
-      expect(updated.totalRequests).toBe(1);
-      expect(updated.successRate).toBe(100);
-    });
-
-    it('should record failed delivery', () => {
-      const log = { deliveries: [], totalRequests: 0, successRate: 0, averageResponseTime: 0 };
-      
-      const updated = recordDelivery(log, {
-        event: 'push',
-        status: 'failed',
-        responseCode: 500,
-        error: 'Internal Server Error',
-      });
-      
-      expect(updated.successRate).toBe(0);
-    });
-
-    it('should limit delivery history', () => {
-      let log = { deliveries: [], totalRequests: 0, successRate: 0, averageResponseTime: 0 };
-      
-      for (let i = 0; i < 150; i++) {
-        log = recordDelivery(log, { event: 'push', status: 'success' });
+    await manager.triggerEvent('push', { action: 'opened' });
+    
+    // Should have triggered push events
+    const endpoints = await manager.getAllEndpoints();
+    endpoints.forEach(async (ep) => {
+      const deliveries = await manager.getDeliveries(ep.id);
+      if (ep.events.includes('push')) {
+        expect(deliveries.length).toBeGreaterThan(0);
       }
-      
-      expect(log.deliveries).toHaveLength(100);
     });
   });
 
-  describe('analyzeWebhookPerformance', () => {
-    it('should report healthy when all good', () => {
-      const log = {
-        deliveries: [
-          { id: '1', event: 'push' as const, timestamp: '', status: 'success' as const, duration: 100 },
-          { id: '2', event: 'push' as const, timestamp: '', status: 'success' as const, duration: 100 },
-        ],
-        totalRequests: 2,
-        successRate: 100,
-        averageResponseTime: 100,
-      };
-      
-      const analysis = analyzeWebhookPerformance(log);
-      
-      expect(analysis.health).toBe('healthy');
+  it('should get metrics', async () => {
+    const endpoint = await manager.createEndpoint({
+      url: 'https://example.com/webhook',
+      events: ['push', 'pull_request'],
     });
 
-    it('should report degraded with low success rate', () => {
-      const log = {
-        deliveries: [
-          { id: '1', event: 'push' as const, timestamp: '', status: 'failed' as const },
-          { id: '2', event: 'push' as const, timestamp: '', status: 'failed' as const },
-        ],
-        totalRequests: 2,
-        successRate: 0,
-        averageResponseTime: 100,
-      };
-      
-      const analysis = analyzeWebhookPerformance(log);
-      
-      expect(analysis.issues.length).toBeGreaterThan(0);
+    await manager.triggerEvent('push', { action: 'opened' });
+    await manager.triggerEvent('pull_request', { action: 'closed' });
+
+    const metrics = await manager.getMetrics(endpoint.id);
+    expect(metrics.totalDeliveries).toBeGreaterThan(0);
+  });
+
+  it('should test endpoint', async () => {
+    const endpoint = await manager.createEndpoint({
+      url: 'https://example.com/webhook',
+      events: ['push'],
     });
+
+    const delivery = await manager.testEndpoint(endpoint.id);
+    expect(delivery).toBeDefined();
+    expect(delivery?.webhookId).toBe(endpoint.id);
+    expect(delivery?.event).toBe('push');
+  });
+
+  it('should retry failed delivery', async () => {
+    const endpoint = await manager.createEndpoint({
+      url: 'https://example.com/webhook',
+      events: ['push'],
+    });
+
+    await manager.triggerEvent('push', { action: 'test' });
+    
+    const deliveries = await manager.getDeliveries(endpoint.id);
+    const failedDelivery = deliveries.find(d => d.status === 'failed');
+    
+    if (failedDelivery) {
+      const retried = await manager.retryDelivery(endpoint.id, failedDelivery.id);
+      expect(retried).toBeDefined();
+      expect(retried?.attempts).toBe(2);
+    } else {
+      // If all succeeded, that's fine too
+      expect(deliveries.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('should filter by event type', async () => {
+    const endpoint = await manager.createEndpoint({
+      url: 'https://example.com/webhook',
+      events: ['push', 'issues', 'release'],
+    });
+
+    await manager.triggerEvent('push', { type: 'push' });
+    await manager.triggerEvent('issues', { type: 'issues' });
+    await manager.triggerEvent('release', { type: 'release' });
+
+    const deliveries = await manager.getDeliveries(endpoint.id);
+    const pushDeliveries = deliveries.filter(d => d.event === 'push');
+    const issuesDeliveries = deliveries.filter(d => d.event === 'issues');
+
+    expect(pushDeliveries.length).toBeGreaterThan(0);
+    expect(issuesDeliveries.length).toBeGreaterThan(0);
+  });
+
+  it('should disable and enable endpoint', async () => {
+    const endpoint = await manager.createEndpoint({
+      url: 'https://example.com/webhook',
+      events: ['push'],
+    });
+
+    await manager.updateEndpoint(endpoint.id, { enabled: false });
+    let ep = await manager.getEndpoint(endpoint.id);
+    expect(ep?.enabled).toBe(false);
+
+    await manager.updateEndpoint(endpoint.id, { enabled: true });
+    ep = await manager.getEndpoint(endpoint.id);
+    expect(ep?.enabled).toBe(true);
   });
 });

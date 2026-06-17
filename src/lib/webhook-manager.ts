@@ -1,357 +1,199 @@
-/**
- * Webhook Manager - Manage and test GitHub webhooks
- */
+export type WebhookEvent = 
+  | 'push' | 'pull_request' | 'issues' | 'issue_comment'
+  | 'release' | 'fork' | 'star' | 'watch'
+  | 'create' | 'delete' | 'member' | 'public';
 
-export interface WebhookConfig {
+export type WebhookDeliveryStatus = 'pending' | 'success' | 'failed' | 'retrying';
+
+export interface WebhookEndpoint {
+  id: string;
   url: string;
   events: WebhookEvent[];
   secret?: string;
-  active: boolean;
+  enabled: boolean;
+  createdAt: Date;
+  lastDeliveryAt?: Date;
 }
-
-export type WebhookEvent = 
-  | 'push'
-  | 'pull_request'
-  | 'issues'
-  | 'issue_comment'
-  | 'create'
-  | 'delete'
-  | 'release'
-  | 'workflow_run'
-  | 'star'
-  | 'fork'
-  | 'watch'
-  | 'member'
-  | 'public';
 
 export interface WebhookDelivery {
   id: string;
+  webhookId: string;
   event: WebhookEvent;
-  timestamp: string;
-  status: 'pending' | 'success' | 'failed';
-  responseCode?: number;
-  duration?: number;
-  payload?: unknown;
-  error?: string;
+  payload: Record<string, unknown>;
+  status: WebhookDeliveryStatus;
+  attempts: number;
+  response?: {
+    statusCode: number;
+    body: string;
+    headers: Record<string, string>;
+  };
+  createdAt: Date;
+  deliveredAt?: Date;
 }
 
-export interface WebhookLog {
-  deliveries: WebhookDelivery[];
-  totalRequests: number;
-  successRate: number;
+export interface WebhookMetrics {
+  totalDeliveries: number;
+  successfulDeliveries: number;
+  failedDeliveries: number;
   averageResponseTime: number;
-  lastDelivery?: WebhookDelivery;
+  deliveryRate: number;
 }
 
-export interface WebhookTest {
-  event: WebhookEvent;
-  payload: unknown;
-  expectedResponse?: {
-    status: number;
-    body?: string;
-  };
-  result?: 'passed' | 'failed' | 'skipped';
-  actualResponse?: {
-    status: number;
-    duration: number;
-    body?: string;
-  };
-}
+export class WebhookManager {
+  private endpoints: Map<string, WebhookEndpoint> = new Map();
+  private deliveries: Map<string, WebhookDelivery[]> = new Map();
 
-// Simple hash function for tests (in production use crypto)
-function simpleHash(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+  async createEndpoint(data: {
+    url: string;
+    events: WebhookEvent[];
+    secret?: string;
+  }): Promise<WebhookEndpoint> {
+    const endpoint: WebhookEndpoint = {
+      id: `WH-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      ...data,
+      enabled: true,
+      createdAt: new Date(),
+    };
+
+    this.endpoints.set(endpoint.id, endpoint);
+    this.deliveries.set(endpoint.id, []);
+    return endpoint;
   }
-  return Math.abs(hash).toString(16).padStart(16, '0');
-}
 
-/**
- * Generate webhook payload for testing
- */
-export function generateTestPayload(event: WebhookEvent): unknown {
-  const basePayload = {
-    action: 'opened',
-    repository: {
-      id: 123456789,
-      full_name: 'owner/repo',
-      name: 'repo',
-      owner: {
-        login: 'owner',
-        id: 12345,
-      },
-      private: false,
-      default_branch: 'main',
-    },
-    sender: {
-      login: 'testuser',
-      id: 67890,
-    },
-  };
+  async updateEndpoint(id: string, updates: Partial<{
+    url: string;
+    events: WebhookEvent[];
+    secret: string;
+    enabled: boolean;
+  }>): Promise<WebhookEndpoint | null> {
+    const endpoint = this.endpoints.get(id);
+    if (!endpoint) return null;
 
-  switch (event) {
-    case 'push':
-      return {
-        ...basePayload,
-        ref: 'refs/heads/main',
-        before: 'abc123',
-        after: 'def456',
-        commits: [
-          {
-            id: 'def456',
-            message: 'Test commit',
-            author: { name: 'Test User', email: 'test@example.com' },
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      };
-
-    case 'pull_request':
-      return {
-        ...basePayload,
-        action: 'opened',
-        number: 42,
-        pull_request: {
-          id: 1,
-          number: 42,
-          title: 'Test PR',
-          state: 'open',
-          user: { login: 'testuser' },
-          body: 'Test PR description',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      };
-
-    case 'issues':
-      return {
-        ...basePayload,
-        action: 'opened',
-        issue: {
-          id: 1,
-          number: 42,
-          title: 'Test Issue',
-          state: 'open',
-          user: { login: 'testuser' },
-          body: 'Test issue description',
-          labels: [],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      };
-
-    case 'release':
-      return {
-        ...basePayload,
-        action: 'published',
-        release: {
-          id: 1,
-          tag_name: 'v1.0.0',
-          name: 'Version 1.0.0',
-          draft: false,
-          prerelease: false,
-          created_at: new Date().toISOString(),
-          published_at: new Date().toISOString(),
-        },
-      };
-
-    case 'workflow_run':
-      return {
-        ...basePayload,
-        action: 'completed',
-        workflow_run: {
-          id: 1,
-          name: 'CI',
-          head_branch: 'main',
-          status: 'completed',
-          conclusion: 'success',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      };
-
-    default:
-      return basePayload;
+    Object.assign(endpoint, updates);
+    return endpoint;
   }
-}
 
-/**
- * Validate webhook payload structure
- */
-export function validatePayload(event: WebhookEvent, payload: unknown): {
-  valid: boolean;
-  errors: string[];
-} {
-  const errors: string[] = [];
-  
-  if (!payload || typeof payload !== 'object') {
-    return { valid: false, errors: ['Payload must be an object'] };
+  async deleteEndpoint(id: string): Promise<boolean> {
+    return this.endpoints.delete(id) && this.deliveries.delete(id);
   }
-  
-  const p = payload as Record<string, unknown>;
-  
-  // Check required fields
-  if (!p.repository) {
-    errors.push('Missing required field: repository');
-  }
-  
-  if (!p.sender) {
-    errors.push('Missing required field: sender');
-  }
-  
-  // Event-specific validation
-  switch (event) {
-    case 'push':
-      if (!p.ref) errors.push('Push event requires ref field');
-      if (!p.commits) errors.push('Push event requires commits field');
-      break;
-      
-    case 'pull_request':
-      if (!(p as { pull_request?: unknown }).pull_request) {
-        errors.push('Pull request event requires pull_request field');
-      }
-      break;
-      
-    case 'issues':
-      if (!(p as { issue?: unknown }).issue) {
-        errors.push('Issues event requires issue field');
-      }
-      break;
-  }
-  
-  return { valid: errors.length === 0, errors };
-}
 
-/**
- * Create webhook configuration
- */
-export function createWebhookConfig(config: {
-  url: string;
-  events: WebhookEvent[];
-  secret?: string;
-}): WebhookConfig {
-  return {
-    url: config.url,
-    events: config.events,
-    secret: config.secret,
-    active: true,
-  };
-}
-
-/**
- * Generate webhook signature for verification
- */
-export function generateWebhookSignature(
-  payload: string,
-  secret: string,
-  algorithm: 'sha1' | 'sha256' = 'sha256'
-): string {
-  const combined = payload + secret;
-  const hash = simpleHash(combined);
-  
-  // Pad to simulate hex string length
-  const paddedHash = (hash + hash).slice(0, algorithm === 'sha1' ? 40 : 64);
-  
-  return `${algorithm === 'sha1' ? 'sha1=' : 'sha256='}${paddedHash}`;
-}
-
-/**
- * Verify webhook signature
- */
-export function verifyWebhookSignature(
-  payload: string,
-  signature: string,
-  secret: string
-): boolean {
-  const parts = signature.split('=');
-  if (parts.length !== 2) return false;
-  
-  const [alg, hash] = parts;
-  const expected = generateWebhookSignature(payload, secret, alg as 'sha1' | 'sha256');
-  
-  // Constant-time comparison to prevent timing attacks
-  if (expected.length !== signature.length) return false;
-  
-  let result = 0;
-  for (let i = 0; i < expected.length; i++) {
-    result |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+  async getEndpoint(id: string): Promise<WebhookEndpoint | null> {
+    return this.endpoints.get(id) || null;
   }
-  
-  return result === 0;
-}
 
-/**
- * Record webhook delivery
- */
-export function recordDelivery(
-  log: WebhookLog,
-  delivery: Omit<WebhookDelivery, 'id' | 'timestamp'>
-): WebhookLog {
-  const newDelivery: WebhookDelivery = {
-    ...delivery,
-    id: `delivery-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    timestamp: new Date().toISOString(),
-  };
-  
-  const deliveries = [newDelivery, ...log.deliveries].slice(0, 100); // Keep last 100
-  
-  const successful = deliveries.filter(d => d.status === 'success').length;
-  
-  return {
-    deliveries,
-    totalRequests: log.totalRequests + 1,
-    successRate: Math.round((successful / deliveries.length) * 100),
-    averageResponseTime: calculateAverageResponseTime(deliveries),
-    lastDelivery: newDelivery,
-  };
-}
-
-function calculateAverageResponseTime(deliveries: WebhookDelivery[]): number {
-  const withDuration = deliveries.filter(d => d.duration !== undefined);
-  if (withDuration.length === 0) return 0;
-  
-  const sum = withDuration.reduce((acc, d) => acc + (d.duration || 0), 0);
-  return Math.round(sum / withDuration.length);
-}
-
-/**
- * Analyze webhook performance
- */
-export function analyzeWebhookPerformance(log: WebhookLog): {
-  health: 'healthy' | 'degraded' | 'unhealthy';
-  issues: string[];
-  recommendations: string[];
-} {
-  const issues: string[] = [];
-  const recommendations: string[] = [];
-  
-  if (log.successRate < 80) {
-    issues.push(`Low success rate: ${log.successRate}%`);
-    recommendations.push('Check webhook endpoint availability and fix any errors');
+  async getAllEndpoints(): Promise<WebhookEndpoint[]> {
+    return Array.from(this.endpoints.values());
   }
-  
-  if (log.averageResponseTime > 5000) {
-    issues.push(`Slow response time: ${log.averageResponseTime}ms average`);
-    recommendations.push('Optimize webhook handler or consider async processing');
+
+  async triggerEvent(event: WebhookEvent, payload: Record<string, unknown>): Promise<void> {
+    for (const endpoint of this.endpoints.values()) {
+      if (!endpoint.enabled || !endpoint.events.includes(event)) continue;
+
+      const delivery = await this.simulateDelivery(endpoint, event, payload);
+      const deliveries = this.deliveries.get(endpoint.id) || [];
+      deliveries.push(delivery);
+      this.deliveries.set(endpoint.id, deliveries);
+      endpoint.lastDeliveryAt = new Date();
+    }
   }
-  
-  const failed = log.deliveries.filter(d => d.status === 'failed');
-  if (failed.length > 0) {
-    const recentFailures = failed.slice(0, 3);
-    issues.push(`${failed.length} failed deliveries in recent history`);
-    recommendations.push('Review error logs and fix webhook endpoint issues');
+
+  private async simulateDelivery(
+    endpoint: WebhookEndpoint,
+    event: WebhookEvent,
+    payload: Record<string, unknown>
+  ): Promise<WebhookDelivery> {
+    const delivery: WebhookDelivery = {
+      id: `DEL-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      webhookId: endpoint.id,
+      event,
+      payload,
+      status: 'pending',
+      attempts: 1,
+      createdAt: new Date(),
+    };
+
+    // Simulate delivery (in real implementation, this would make HTTP request)
+    const success = Math.random() > 0.1;
     
-    recentFailures.forEach(f => {
-      if (f.error) issues.push(`Recent error: ${f.error.slice(0, 100)}`);
-    });
+    delivery.status = success ? 'success' : 'failed';
+    delivery.deliveredAt = new Date();
+    delivery.response = {
+      statusCode: success ? 200 : 500,
+      body: success ? '{"ok":true}' : '{"error":"Internal error"}',
+      headers: { 'content-type': 'application/json' },
+    };
+
+    return delivery;
   }
-  
-  const health = issues.length === 0 ? 'healthy'
-    : issues.length <= 2 ? 'degraded'
-    : 'unhealthy';
-  
-  return { health, issues, recommendations };
+
+  async getDeliveries(webhookId: string, limit = 50): Promise<WebhookDelivery[]> {
+    const deliveries = this.deliveries.get(webhookId) || [];
+    return deliveries.slice(-limit);
+  }
+
+  async retryDelivery(webhookId: string, deliveryId: string): Promise<WebhookDelivery | null> {
+    const deliveries = this.deliveries.get(webhookId) || [];
+    const delivery = deliveries.find(d => d.id === deliveryId);
+    if (!delivery || delivery.status !== 'failed') return null;
+
+    delivery.attempts += 1;
+    delivery.status = 'retrying';
+
+    // Simulate retry
+    const success = Math.random() > 0.3;
+    delivery.status = success ? 'success' : 'failed';
+    delivery.deliveredAt = new Date();
+    delivery.response = {
+      statusCode: success ? 200 : 500,
+      body: success ? '{"ok":true}' : '{"error":"Still failing"}',
+      headers: { 'content-type': 'application/json' },
+    };
+
+    return delivery;
+  }
+
+  async getMetrics(webhookId?: string): Promise<WebhookMetrics | Record<string, WebhookMetrics>> {
+    const endpointIds = webhookId ? [webhookId] : Array.from(this.endpoints.keys());
+
+    const getMetricsForEndpoint = (id: string): WebhookMetrics => {
+      const deliveries = this.deliveries.get(id) || [];
+      const successful = deliveries.filter(d => d.status === 'success').length;
+      const failed = deliveries.filter(d => d.status === 'failed').length;
+
+      return {
+        totalDeliveries: deliveries.length,
+        successfulDeliveries: successful,
+        failedDeliveries: failed,
+        averageResponseTime: 150 + Math.random() * 100, // Simulated
+        deliveryRate: deliveries.length > 0 ? successful / deliveries.length : 0,
+      };
+    };
+
+    if (webhookId) {
+      return getMetricsForEndpoint(webhookId);
+    }
+
+    const result: Record<string, WebhookMetrics> = {};
+    for (const id of endpointIds) {
+      result[id] = getMetricsForEndpoint(id);
+    }
+    return result;
+  }
+
+  async testEndpoint(id: string): Promise<WebhookDelivery | null> {
+    const endpoint = this.endpoints.get(id);
+    if (!endpoint) return null;
+
+    const delivery = await this.simulateDelivery(endpoint, 'push', {
+      action: 'test',
+      repository: { name: 'test-repo', full_name: 'test/test-repo' },
+    });
+
+    const deliveries = this.deliveries.get(id) || [];
+    deliveries.push(delivery);
+    this.deliveries.set(id, deliveries);
+    endpoint.lastDeliveryAt = new Date();
+
+    return delivery;
+  }
 }
