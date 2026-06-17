@@ -1,14 +1,16 @@
 // Backup Manager for OpenMaintainer
 // Handles automated backups of maintainer data and settings
 
-import type { Repository, Analysis } from './types';
+import type { MaintainerRepository } from './types';
 
 export interface BackupConfig {
-  repository: Repository;
+  repository: MaintainerRepository;
   includeIssues: boolean;
   includePRs: boolean;
   includeSettings: boolean;
   includeAnalytics: boolean;
+  includeConfig?: boolean;
+  storagePath?: string;
 }
 
 export interface Backup {
@@ -37,22 +39,27 @@ export interface BackupSchedule {
   nextRun?: Date;
 }
 
-class BackupManager {
+export class BackupManager {
   private backups: Map<string, Backup> = new Map();
   private schedules: Map<string, BackupSchedule> = new Map();
+  private storagePath: string;
+
+  constructor(options?: { storagePath?: string }) {
+    this.storagePath = options?.storagePath ?? '/tmp/backups';
+  }
 
   createBackup(config: BackupConfig): Backup {
     const backup: Backup = {
       id: `backup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date(),
-      repository: config.repository.fullName,
+      repository: config.repository.identity.fullName,
       size: this.estimateSize(config),
       type: 'full',
       status: 'pending',
       metadata: {
-        issuesCount: config.includeIssues ? config.repository.openIssues : 0,
-        prsCount: config.includePRs ? config.repository.openPRs : 0,
-        contributorsCount: config.repository(repo as any).contributors.length,
+        issuesCount: config.includeIssues ? config.repository.issues?.length ?? 0 : 0,
+        prsCount: config.includePRs ? config.repository.pullRequests?.length ?? 0 : 0,
+        contributorsCount: config.repository.contributors?.length ?? 0,
         analysisCount: config.includeAnalytics ? 1 : 0,
       },
     };
@@ -62,11 +69,10 @@ class BackupManager {
   }
 
   private estimateSize(config: BackupConfig): number {
-    // Rough estimate in bytes
-    const baseSize = 1024; // Base metadata
-    const issuesSize = config.includeIssues ? config.repository.openIssues * 512 : 0;
-    const prsSize = config.includePRs ? config.repository.openPRs * 1024 : 0;
-    const settingsSize = config.includeSettings ? 4096 : 0;
+    const baseSize = 1024;
+    const issuesSize = config.includeIssues ? (config.repository.issues?.length ?? 0) * 512 : 0;
+    const prsSize = config.includePRs ? (config.repository.pullRequests?.length ?? 0) * 1024 : 0;
+    const settingsSize = config.includeSettings || config.includeConfig ? 4096 : 0;
     return baseSize + issuesSize + prsSize + settingsSize;
   }
 
@@ -159,5 +165,3 @@ export const backupManager = new BackupManager();
 export function createBackupManager(): BackupManager {
   return new BackupManager();
 }
-
-export { BackupManager };

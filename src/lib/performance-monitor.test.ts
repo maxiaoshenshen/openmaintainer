@@ -5,7 +5,7 @@ import {
   getPerformanceTrend,
   formatMetricValue,
 } from "./performance-monitor";
-import type { MaintainerRepository as Repository, MaintainerIssue as Issue, MaintainerPullRequest as PullRequest } from "./types";
+import type { MaintainerRepository, MaintainerIssue, MaintainerPullRequest } from "./types";
 
 describe("performance-monitor", () => {
   describe("analyzePerformance", () => {
@@ -127,69 +127,60 @@ describe("performance-monitor", () => {
   });
 });
 
-function createMockRepo(name: string): Repository {
+function createMockRepo(name: string): MaintainerRepository {
+  const parts = name.split("/");
   return {
-    id: 1,
-    name: name.split("/")[1],
-    full_name: name,
-    owner: { login: name.split("/")[0], id: 1, avatar_url: "", url: "" },
+    identity: {
+      owner: parts[0],
+      name: parts[1],
+      fullName: name,
+      url: `https://github.com/${name}`,
+    },
     description: "Test repo",
-    html_url: `https://github.com/${name}`,
-    stargazers_count: 100,
-    forks_count: 20,
-    open_issues_count: 10,
-    watchers_count: 50,
-    language: "TypeScript",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    pushed_at: new Date().toISOString(),
-    topics: ["typescript"],
-    has_wiki: true,
-    homepage: "https://example.com",
-    private: false,
-    default_branch: "main",
+    stars: 100,
+    forks: 20,
+    watchers: 50,
+    openIssues: 10,
+    defaultBranch: "main",
+    license: "MIT",
+    updatedAt: new Date().toISOString(),
+    issues: [],
+    pullRequests: [],
+    contributors: [],
   };
 }
 
-function createMockIssues(count: number): Issue[] {
+function createMockIssues(count: number): MaintainerIssue[] {
   return Array.from({ length: count }, (_, i) => ({
     id: i + 1,
     number: i + 1,
     title: `Issue ${i + 1}`,
     body: "Test body",
-    state: i % 2 === 0 ? "closed" : "open",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    user: { login: `user${i}`, id: i, avatar_url: "", url: "" },
+    author: `user${i}`,
     labels: [],
-    assignees: [],
     comments: i % 3,
-    url: "",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    url: `https://github.com/owner/repo/issues/${i + 1}`,
+    state: i % 2 === 0 ? "closed" : "open",
   }));
 }
 
-function createMockPRs(count: number): PullRequest[] {
+function createMockPRs(count: number): MaintainerPullRequest[] {
   return Array.from({ length: count }, (_, i) => ({
     id: i + 1,
     number: i + 1,
     title: `PR ${i + 1}`,
     body: "Test PR",
-    state: "closed",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    user: { login: `user${i}`, id: i, avatar_url: "", url: "" },
+    author: `user${i}`,
     labels: [],
-    assignees: [],
-    head: { ref: "feature", sha: "", repo: { full_name: "" } },
-    base: { ref: "main", sha: "", repo: { full_name: "" } },
-    merged: true,
-    mergeable: true,
-    comments: i,
-    commits: 2,
     additions: 100,
     deletions: 50,
-    changed_files: 3,
-    url: "",
+    changedFiles: 3,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    url: `https://github.com/owner/repo/pull/${i + 1}`,
+    state: "closed",
   }));
 }
 

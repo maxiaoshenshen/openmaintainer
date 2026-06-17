@@ -109,7 +109,7 @@ class OnboardingWizard {
   createProfile(data: Partial<OnboardingProfile>): OnboardingProfile {
     this.profile = {
       userId: data.authorId || `user_${Date.now()}`,
-      username: data.author || 'New User',
+      username: data.username || 'New User',
       email: data.email,
       githubConnected: data.githubConnected || false,
       preferences: {
@@ -202,7 +202,7 @@ class OnboardingWizard {
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
-    return `${greeting}, ${profile.author}!
+    return `${greeting}, ${profile.username}!
 
 Welcome to OpenMaintainer, your AI-powered OSS maintenance workbench.
 

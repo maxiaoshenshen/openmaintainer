@@ -4,7 +4,7 @@ import {
   getSeverityColor,
   getIncidentTypeIcon,
 } from "./incident-response";
-import type { MaintainerRepository as Repository, MaintainerIssue as Issue, MaintainerPullRequest as PullRequest } from "./types";
+import type { MaintainerRepository, MaintainerIssue, MaintainerPullRequest } from "./types";
 
 describe("incident-response", () => {
   describe("analyzeIncidents", () => {
@@ -15,7 +15,7 @@ describe("incident-response", () => {
           "security",
         ]),
       ];
-      const prs: PullRequest[] = [];
+      const prs: MaintainerPullRequest[] = [];
 
       const plan = analyzeIncidents(repo, issues, prs);
 
@@ -29,7 +29,7 @@ describe("incident-response", () => {
       const issues = [
         createMockIssue(1, "App crashes on startup", "open", ["bug"], 15),
       ];
-      const prs: PullRequest[] = [];
+      const prs: MaintainerPullRequest[] = [];
 
       const plan = analyzeIncidents(repo, issues, prs);
 
@@ -42,7 +42,7 @@ describe("incident-response", () => {
         createMockIssue(1, "Open bug", "open", ["bug"]),
         createMockIssue(2, "Fixed bug", "closed", ["bug"]),
       ];
-      const prs: PullRequest[] = [];
+      const prs: MaintainerPullRequest[] = [];
 
       const plan = analyzeIncidents(repo, issues, prs);
 
@@ -55,7 +55,7 @@ describe("incident-response", () => {
       const issues = [
         createMockIssue(1, "Critical security issue", "open", ["security"]),
       ];
-      const prs: PullRequest[] = [];
+      const prs: MaintainerPullRequest[] = [];
 
       const plan = analyzeIncidents(repo, issues, prs);
 
@@ -83,27 +83,26 @@ describe("incident-response", () => {
   });
 });
 
-function createMockRepo(name: string): Repository {
+function createMockRepo(name: string): MaintainerRepository {
+  const parts = name.split("/");
   return {
-    id: 1,
-    name: name.split("/")[1],
-    full_name: name,
-    owner: { login: name.split("/")[0], id: 1, avatar_url: "", url: "" },
+    identity: {
+      owner: parts[0],
+      name: parts[1],
+      fullName: name,
+      url: `https://github.com/${name}`,
+    },
     description: "A test repository",
-    html_url: `https://github.com/${name}`,
-    stargazers_count: 100,
-    forks_count: 20,
-    open_issues_count: 10,
-    watchers_count: 50,
-    language: "TypeScript",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    pushed_at: new Date().toISOString(),
-    topics: ["javascript"],
-    has_wiki: true,
-    homepage: "https://example.com",
-    private: false,
-    default_branch: "main",
+    stars: 100,
+    forks: 20,
+    watchers: 50,
+    openIssues: 10,
+    defaultBranch: "main",
+    license: "MIT",
+    updatedAt: new Date().toISOString(),
+    issues: [],
+    pullRequests: [],
+    contributors: [],
   };
 }
 
@@ -113,19 +112,18 @@ function createMockIssue(
   state: string,
   labels: string[],
   comments = 0
-): Issue {
+): MaintainerIssue {
   return {
     id,
     number: id,
     title,
     body: "Test body",
-    state: state as "open" | "closed",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    user: { login: "testuser", id: 1, avatar_url: "", url: "" },
+    author: "testuser",
     labels,
-    assignees: [],
     comments,
-    url: "",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    url: `https://github.com/owner/repo/issues/${id}`,
+    state: state as "open" | "closed",
   };
 }

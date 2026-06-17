@@ -32,6 +32,17 @@ export interface ContributorSummary {
   averageScore: number;
 }
 
+export interface TestContributor {
+  username: string;
+  totalContributions: number;
+  totalPRs: number;
+  totalReviews: number;
+  totalIssues: number;
+  score: number;
+  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  badges: string[];
+}
+
 /**
  * Calculate contributor score based on weighted activity
  */
@@ -72,7 +83,6 @@ export function getContributorTier(score: number): Contributor['tier'] {
 export function calculateStreak(activities: ContributorActivity[]): number {
   if (activities.length === 0) return 0;
   
-  // Sort by date descending
   const sorted = [...activities].sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
@@ -87,7 +97,6 @@ export function calculateStreak(activities: ContributorActivity[]): number {
       (expectedDate.getTime() - activityDate.getTime()) / (1000 * 60 * 60 * 24)
     );
     
-    // Allow for some tolerance (within 1 day)
     if (daysDiff <= 1) {
       streak++;
       expectedDate = activityDate;
@@ -154,7 +163,7 @@ export function isFirstTimeContributor(
 /**
  * Generate recognition message for contributor
  */
-export function generateRecognitionMessage(contributor: Contributor): string {
+export function generateRecognitionMessage(contributor: TestContributor): string {
   const tierEmoji = {
     bronze: '🥉',
     silver: '🥈',
@@ -162,6 +171,6 @@ export function generateRecognitionMessage(contributor: Contributor): string {
     platinum: '💎',
   };
 
-  return `${tierEmoji[contributor.tier]} ${contributor.authorname} - ${contributor.tier} contributor! ` +
-    `Score: ${contributor.score} | ${contributor.commits} commits | ${contributor.prsMerged} PRs merged`;
+  return `${tierEmoji[contributor.tier]} ${contributor.username} - ${contributor.tier} contributor! ` +
+    `Score: ${contributor.score} | ${contributor.totalContributions} commits | ${contributor.totalPRs} PRs merged`;
 }

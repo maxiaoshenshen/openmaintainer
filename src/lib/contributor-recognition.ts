@@ -48,7 +48,7 @@ export class ContributorRecognition {
 
   evaluateContributor(contributor: Partial<Contributor>): Contributor {
     const full: Contributor = {
-      username: contributor.authorname ?? "unknown",
+      username: contributor.username ?? "unknown",
       avatarUrl: contributor.avatarUrl,
       contributions: contributor.contributions ?? 0,
       firstContribution: contributor.firstContribution,
@@ -112,21 +112,21 @@ export class ContributorRecognition {
     return specialties;
   }
 
-  getLeaderboard(contributors: Contributor[], limit: number = 10): Contributor[] {
+  getLeaderboard(contributors: Partial<Contributor>[], limit: number = 10): Contributor[] {
     return [...contributors]
       .sort((a, b) => {
         const aScore = this.calculateScore(a);
         const bScore = this.calculateScore(b);
         return bScore - aScore;
       })
-      .slice(0, limit);
+      .slice(0, limit) as Contributor[];
   }
 
-  calculateScore(contributor: Contributor): number {
-    const prScore = contributor.impact.prsMerged * 10;
-    const issueScore = contributor.impact.issuesClosed * 5;
-    const reviewScore = contributor.impact.reviewsGiven * 2;
-    const badgeBonus = contributor.badges.reduce((sum, b) => {
+  calculateScore(contributor: Partial<Contributor>): number {
+    const prScore = (contributor.impact?.prsMerged ?? 0) * 10;
+    const issueScore = (contributor.impact?.issuesClosed ?? 0) * 5;
+    const reviewScore = (contributor.impact?.reviewsGiven ?? 0) * 2;
+    const badgeBonus = (contributor.badges ?? []).reduce((sum, b) => {
       const tierBonus: Record<string, number> = { bronze: 5, silver: 10, gold: 20, platinum: 50 };
       return sum + (tierBonus[b.tier] ?? 0);
     }, 0);
@@ -134,18 +134,19 @@ export class ContributorRecognition {
     return prScore + issueScore + reviewScore + badgeBonus;
   }
 
-  generateRecognitionMessage(contributor: Contributor): string {
+  generateRecognitionMessage(contributor: Partial<Contributor>): string {
     const score = this.calculateScore(contributor);
-    const topBadge = contributor.badges.sort((a, b) => {
-      const order = { platinum: 0, gold: 1, silver: 2, bronze: 3 };
+    const badges = contributor.badges ?? [];
+    const topBadge = badges.sort((a, b) => {
+      const order: Record<string, number> = { platinum: 0, gold: 1, silver: 2, bronze: 3 };
       return order[a.tier] - order[b.tier];
     })[0];
 
     if (!topBadge) {
-      return `Thanks @${contributor.authorname} for your contribution! Keep up the great work!`;
+      return `Thanks @${contributor.username} for your contribution! Keep up the great work!`;
     }
 
-    return `Amazing work @${contributor.authorname}! You've earned the ${topBadge.name} ${topBadge.icon} badge! (Score: ${score})`;
+    return `Amazing work @${contributor.username}! You've earned the ${topBadge.name} ${topBadge.icon} badge! (Score: ${score})`;
   }
 
   getProgressToNextBadge(contributor: Contributor): { next: Achievement; progress: number } | null {

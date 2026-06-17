@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   analyzeCommunityHealth,
   getHealthScoreColor,
@@ -115,34 +115,28 @@ describe("community-health", () => {
 function createMockRepo(name: string): Repository {
   return {
     id: 1,
-    name: name.split("/")[1],
-    full_name: name,
-    owner: { login: name.split("/")[0], id: 1, avatar_url: "", url: "" },
+    name: name.split("/")[1] || name,
+    fullName: name,
     description: "A test repository",
-    html_url: `https://github.com/${name}`,
-    stargazers_count: 100,
-    forks_count: 20,
-    open_issues_count: 10,
-    watchers_count: 50,
+    stars: 100,
+    forks: 20,
+    openIssues: 10,
+    openPRs: 5,
     language: "TypeScript",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    pushed_at: new Date().toISOString(),
-    topics: ["javascript", "typescript"],
-    has_wiki: true,
-    homepage: "https://example.com",
-    private: false,
-    default_branch: "main",
+    license: "MIT",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    url: `https://github.com/${name}`,
   };
 }
 
 function createMockContributors(count: number): Contributor[] {
   return Array.from({ length: count }, (_, i) => ({
-    login: `user${i}/company${i % 5}`,
     id: i + 1,
-    avatar_url: `https://avatar.url/${i}`,
-    url: "",
-    contributions: new Date().toISOString(),
+    username: `user${i}`,
+    avatarUrl: `https://avatar.url/${i}`,
+    contributions: 10 + (i * 5),
+    type: "User" as const,
   }));
 }
 
@@ -152,13 +146,12 @@ function createMockIssues(total: number, closed: number): Issue[] {
     number: i + 1,
     title: `Issue ${i + 1}`,
     body: "Test issue body",
-    state: i < closed ? "closed" : "open",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    user: { login: `user${i}`, id: i, avatar_url: "", url: "" },
-    labels: [],
-    assignees: [],
-    comments: 0,
+    state: (i < closed ? "closed" : "open") as "open" | "closed",
+    author: `user${i}`,
+    labels: [] as string[],
+    assignees: [] as string[],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     url: "",
   }));
 }
@@ -169,21 +162,15 @@ function createMockPRs(total: number, merged: number): PullRequest[] {
     number: i + 1,
     title: `PR ${i + 1}`,
     body: "Test PR body",
-    state: i < merged ? "closed" : "open",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    user: { login: `user${i}`, id: i, avatar_url: "", url: "" },
-    labels: [],
-    assignees: [],
-    head: { ref: "feature", sha: "", repo: { full_name: "" } },
-    base: { ref: "main", sha: "", repo: { full_name: "" } },
-    merged: i < merged,
-    mergeable: true,
-    comments: 0,
-    commits: 1,
+    author: `user${i}`,
+    state: (i < merged ? "merged" : "open") as "open" | "closed" | "merged",
+    status: (i < merged ? "merged" : "open") as "open" | "merged" | "closed",
+    labels: [] as string[],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    url: "",
     additions: 100,
     deletions: 50,
-    changed_files: 3,
-    url: "",
+    changedFiles: 3,
   }));
 }

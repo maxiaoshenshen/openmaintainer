@@ -106,8 +106,8 @@ describe('GitHubAPI Client', () => {
           author: 'newuser',
           createdAt: '2024-06-01T00:00:00Z',
           updatedAt: '2024-06-01T00:00:00Z',
-          labels: ['question'],
-          comments: 2,
+          labels: ['question'] as any,
+          commentCount: 2,
           assignees: ['maintainer1'],
         },
       ];
