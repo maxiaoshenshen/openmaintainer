@@ -1,246 +1,352 @@
 /**
- * Maintainer Workload Analyzer
- * Help distribute tasks fairly and prevent burnout
+ * Maintainer Workload Module
+ * Track and balance maintainer workload
  */
 
-import type { Contributor, Issue, PullRequest } from './types';
-
-export type BurnoutRisk = 'low' | 'moderate' | 'high' | 'critical';
+export interface Maintainer {
+  id: string;
+  username: string;
+  email?: string;
+  role: 'owner' | 'maintainer' | 'contributor';
+  joinedAt: string;
+  isActive: boolean;
+}
 
 export interface WorkloadMetrics {
-  contributor: string;
   openIssues: number;
   openPRs: number;
-  recentComments: number;
-  recentReviews: number;
-  avgResponseTime: number;
-  workloadScore: number;
-  burnoutRisk: BurnoutRisk;
+  closedThisWeek: number;
+  avgResponseTime: number; // hours
+  commitCount: number;
+  lastActive: string;
+}
+
+export interface WorkloadBalance {
+  maintainerId: string;
+  metrics: WorkloadMetrics;
+  score: number; // 0-100, higher = more overloaded
   recommendations: string[];
 }
 
-export interface TaskDistribution {
-  totalTasks: number;
-  distribution: Record<string, number>;
-  fairness: number;
-  overloaded: string[];
-  underutilized: string[];
-}
-
-export interface BurnoutWarning {
-  contributor: string;
-  risk: BurnoutRisk;
-  signals: string[];
+export interface BurnoutRisk {
+  level: 'low' | 'medium' | 'high' | 'critical';
+  score: number;
+  factors: string[];
   suggestions: string[];
 }
 
-export interface ReviewLoad {
-  reviewer: string;
-  pendingReviews: number;
-  avgReviewTime: number;
-  capacity: number;
-  utilization: number;
-}
+export class MaintainerWorkload {
+  private maintainers: Map<string, Maintainer> = new Map();
+  private workloads: Map<string, WorkloadMetrics> = new Map();
 
-export function calculateWorkloadScore(metrics: {
-  openIssues: number;
-  openPRs: number;
-  recentComments: number;
-  recentReviews: number;
-  daysActive: number;
-}): number {
-  const { openIssues, openPRs, recentComments, recentReviews, daysActive } = metrics;
-  const issueWeight = openIssues * 2;
-  const prWeight = openPRs * 3;
-  const commentWeight = recentComments * 0.5;
-  const reviewWeight = recentReviews * 1.5;
-  const activityRate = daysActive > 0 ? recentComments / daysActive : 0;
-  
-  return Math.min(100, Math.round(issueWeight + prWeight + commentWeight + reviewWeight + activityRate * 10));
-}
-
-export function assessBurnoutRisk(score: number, consecutiveHighDays: number): BurnoutRisk {
-  if (score > 80 || consecutiveHighDays > 5) return 'critical';
-  if (score > 60 || consecutiveHighDays > 3) return 'high';
-  if (score > 40 || consecutiveHighDays > 1) return 'moderate';
-  return 'low';
-}
-
-export function analyzeContributorWorkload(
-  contributor: Contributor,
-  issues: Issue[],
-  pullRequests: PullRequest[],
-  comments: number[],
-  reviews: number[]
-): WorkloadMetrics {
-  const assignedIssues = issues.filter(i => 
-    i.author === contributor.username || 
-    i.assignees?.some(a => a === contributor.username)
-  );
-  
-  const authoredPRs = pullRequests.filter(pr => pr.author === contributor.username);
-  
-  const totalComments = comments.reduce((a, b) => a + b, 0);
-  const totalReviews = reviews.reduce((a, b) => a + b, 0);
-  
-  const metrics = {
-    openIssues: assignedIssues.filter(i => i.state !== 'closed').length,
-    openPRs: authoredPRs.filter(pr => pr.state !== 'merged' && pr.state !== 'closed').length,
-    recentComments: totalComments,
-    recentReviews: totalReviews,
-    daysActive: Math.max(1, comments.length),
-  };
-  
-  const score = calculateWorkloadScore(metrics);
-  const risk = assessBurnoutRisk(score, Math.floor(Math.random() * 6));
-  
-  const recommendations: string[] = [];
-  if (score > 60) recommendations.push('Consider delegating some issues to other contributors');
-  if (metrics.openIssues > 10) recommendations.push('Too many open issues - consider closing or prioritizing');
-  if (metrics.openPRs > 5) recommendations.push('Multiple open PRs - ensure timely reviews');
-  if (risk === 'high' || risk === 'critical') recommendations.push('Take a break - your health matters!');
-  
-  return {
-    contributor: contributor.username,
-    openIssues: metrics.openIssues,
-    openPRs: metrics.openPRs,
-    recentComments: metrics.recentComments,
-    recentReviews: metrics.recentReviews,
-    avgResponseTime: Math.round(Math.random() * 48 + 2),
-    workloadScore: score,
-    burnoutRisk: risk,
-    recommendations,
-  };
-}
-
-export function calculateTaskDistribution(
-  contributors: Contributor[],
-  issues: Issue[],
-  pullRequests: PullRequest[]
-): TaskDistribution {
-  const distribution: Record<string, number> = {};
-  
-  for (const c of contributors) {
-    distribution[c.username] = 0;
-  }
-  
-  for (const issue of issues) {
-    if (issue.state !== 'closed') {
-      distribution[issue.author] = (distribution[issue.author] || 0) + 1;
-      for (const assignee of issue.assignees || []) {
-        distribution[assignee] = (distribution[assignee] || 0) + 1;
-      }
-    }
-  }
-  
-  for (const pr of pullRequests) {
-    if (pr.state !== 'merged' && pr.state !== 'closed') {
-      distribution[pr.author] = (distribution[pr.author] || 0) + 2;
-    }
-  }
-  
-  const values = Object.values(distribution);
-  const avg = values.reduce((a, b) => a + b, 0) / values.length || 0;
-  const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
-  const fairness = avg > 0 ? Math.max(0, Math.round((1 - Math.sqrt(variance) / (avg || 1)) * 100)) : 100;
-  
-  const overloaded = Object.entries(distribution)
-    .filter(([_, count]) => count > avg * 1.5)
-    .map(([name]) => name);
-  
-  const underutilized = Object.entries(distribution)
-    .filter(([_, count]) => count < avg * 0.5)
-    .map(([name]) => name);
-  
-  return {
-    totalTasks: values.reduce((a, b) => a + b, 0),
-    distribution,
-    fairness,
-    overloaded,
-    underutilized,
-  };
-}
-
-export function generateBurnoutWarnings(
-  workloads: WorkloadMetrics[]
-): BurnoutWarning[] {
-  return workloads
-    .filter(w => w.burnoutRisk === 'high' || w.burnoutRisk === 'critical')
-    .map(w => {
-      const signals: string[] = [];
-      if (w.workloadScore > 60) signals.push('High workload score');
-      if (w.openIssues > 10) signals.push('Many open issues assigned');
-      if (w.openPRs > 5) signals.push('Multiple open pull requests');
-      if (w.avgResponseTime > 48) signals.push('Slow response times');
-      
-      const suggestions: string[] = [];
-      if (signals.includes('Many open issues assigned')) {
-        suggestions.push('Unassign some issues and let the community help');
-      }
-      if (signals.includes('Multiple open pull requests')) {
-        suggestions.push('Prioritize PR reviews and ask for help');
-      }
-      if (signals.some(s => s.includes('Slow'))) {
-        suggestions.push('Set clearer expectations for response times');
-      }
-      suggestions.push('Consider taking a break - the project will survive');
-      
-      return {
-        contributor: w.contributor,
-        risk: w.burnoutRisk,
-        signals,
-        suggestions,
-      };
+  /**
+   * Register a maintainer
+   */
+  register(data: {
+    username: string;
+    email?: string;
+    role?: 'owner' | 'maintainer' | 'contributor';
+  }): Maintainer {
+    const id = `user_${data.username}`;
+    const maintainer: Maintainer = {
+      id,
+      username: data.username,
+      email: data.email,
+      role: data.role || 'contributor',
+      joinedAt: new Date().toISOString(),
+      isActive: true,
+    };
+    this.maintainers.set(id, maintainer);
+    this.workloads.set(id, {
+      openIssues: 0,
+      openPRs: 0,
+      closedThisWeek: 0,
+      avgResponseTime: 0,
+      commitCount: 0,
+      lastActive: new Date().toISOString(),
     });
-}
-
-export function suggestReviewers(
-  pr: PullRequest,
-  contributors: Contributor[],
-  currentWorkloads: Map<string, number>
-): { name: string; score: number; reason: string }[] {
-  const suggestions: { name: string; score: number; reason: string }[] = [];
-  
-  for (const contributor of contributors) {
-    if (contributor.username === pr.author) continue;
-    
-    const workload = currentWorkloads.get(contributor.username) || 50;
-    let score = 100 - workload;
-    let reason = 'Available capacity';
-    
-    const expertise = Math.random();
-    if (expertise > 0.7) {
-      score += 30;
-      reason = 'High expertise in this area';
-    }
-    
-    const pastReviews = Math.random();
-    if (pastReviews > 0.6) {
-      score += 20;
-      reason = 'Has reviewed similar PRs before';
-    }
-    
-    suggestions.push({ name: contributor.username, score, reason });
+    return maintainer;
   }
-  
-  return suggestions.sort((a, b) => b.score - a.score).slice(0, 3);
+
+  /**
+   * Update maintainer metrics
+   */
+  updateMetrics(
+    maintainerId: string,
+    metrics: Partial<WorkloadMetrics>
+  ): void {
+    const existing = this.workloads.get(maintainerId);
+    if (existing) {
+      Object.assign(existing, metrics);
+      existing.lastActive = new Date().toISOString();
+    }
+  }
+
+  /**
+   * Get maintainer workload
+   */
+  getWorkload(maintainerId: string): WorkloadMetrics | undefined {
+    return this.workloads.get(maintainerId);
+  }
+
+  /**
+   * Calculate workload balance for all maintainers
+   */
+  calculateBalance(): WorkloadBalance[] {
+    const balances: WorkloadBalance[] = [];
+
+    for (const [id, maintainer] of this.maintainers) {
+      const metrics = this.workloads.get(id);
+      if (!metrics) continue;
+
+      const score = this.calculateScore(metrics);
+      const recommendations = this.generateRecommendations(id, metrics, score);
+
+      balances.push({
+        maintainerId: id,
+        metrics,
+        score,
+        recommendations,
+      });
+    }
+
+    return balances.sort((a, b) => b.score - a.score);
+  }
+
+  /**
+   * Calculate workload score
+   */
+  private calculateScore(metrics: WorkloadMetrics): number {
+    let score = 0;
+
+    // Open issues contribute to workload
+    score += Math.min(metrics.openIssues * 2, 30);
+
+    // Open PRs contribute
+    score += Math.min(metrics.openPRs * 3, 30);
+
+    // Slow response time adds burden
+    if (metrics.avgResponseTime > 48) score += 20;
+    else if (metrics.avgResponseTime > 24) score += 10;
+
+    // Recent activity is good
+    const daysSinceActive = (Date.now() - new Date(metrics.lastActive).getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceActive > 30) score += 20;
+    else if (daysSinceActive > 7) score += 10;
+
+    // High commit count might indicate burnout risk
+    if (metrics.commitCount > 50) score += 10;
+
+    return Math.min(100, score);
+  }
+
+  /**
+   * Generate workload recommendations
+   */
+  private generateRecommendations(
+    maintainerId: string,
+    metrics: WorkloadMetrics,
+    score: number
+  ): string[] {
+    const recommendations: string[] = [];
+
+    if (metrics.openIssues > 20) {
+      recommendations.push('Consider triaging or closing stale issues');
+    }
+    if (metrics.openPRs > 10) {
+      recommendations.push('Prioritize reviewing pending pull requests');
+    }
+    if (metrics.avgResponseTime > 48) {
+      recommendations.push('Set up automated responses for common issues');
+    }
+    if (score > 70) {
+      recommendations.push('Consider delegating some responsibilities');
+    }
+    if (metrics.closedThisWeek < 2) {
+      recommendations.push('Focus on closing resolved items');
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Assess burnout risk
+   */
+  assessBurnoutRisk(maintainerId: string): BurnoutRisk {
+    const metrics = this.workloads.get(maintainerId);
+    if (!metrics) {
+      return { level: 'low', score: 0, factors: [], suggestions: [] };
+    }
+
+    const factors: string[] = [];
+    let riskScore = 0;
+
+    // High open issues
+    if (metrics.openIssues > 30) {
+      factors.push('High number of open issues');
+      riskScore += 30;
+    } else if (metrics.openIssues > 15) {
+      riskScore += 15;
+    }
+
+    // High open PRs
+    if (metrics.openPRs > 20) {
+      factors.push('Large PR backlog');
+      riskScore += 25;
+    } else if (metrics.openPRs > 10) {
+      riskScore += 10;
+    }
+
+    // Slow response
+    if (metrics.avgResponseTime > 168) {
+      factors.push('Very slow average response time');
+      riskScore += 20;
+    } else if (metrics.avgResponseTime > 72) {
+      riskScore += 10;
+    }
+
+    // High commit volume
+    if (metrics.commitCount > 100) {
+      factors.push('High commit frequency');
+      riskScore += 15;
+    }
+
+    // Inactivity
+    const daysSinceActive = (Date.now() - new Date(metrics.lastActive).getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceActive > 14) {
+      factors.push('Recent inactivity');
+      riskScore += 10;
+    }
+
+    // Determine level
+    let level: BurnoutRisk['level'] = 'low';
+    if (riskScore >= 70) level = 'critical';
+    else if (riskScore >= 50) level = 'high';
+    else if (riskScore >= 30) level = 'medium';
+
+    // Generate suggestions
+    const suggestions = this.generateBurnoutSuggestions(level, factors);
+
+    return { level, score: riskScore, factors, suggestions };
+  }
+
+  /**
+   * Generate burnout mitigation suggestions
+   */
+  private generateBurnoutSuggestions(level: BurnoutRisk['level'], factors: string[]): string[] {
+    const suggestions: string[] = [];
+
+    if (level === 'critical' || level === 'high') {
+      suggestions.push('Take a break - consider a vacation');
+      suggestions.push('Delegate responsibilities temporarily');
+      suggestions.push('Communicate with community about delays');
+    }
+
+    if (factors.includes('High number of open issues')) {
+      suggestions.push('Use issue templates to reduce duplicates');
+      suggestions.push('Archive or close stale issues');
+    }
+
+    if (factors.includes('Large PR backlog')) {
+      suggestions.push('Set clear PR review guidelines');
+      suggestions.push('Consider automated PR merging for well-tested changes');
+    }
+
+    suggestions.push('Automate repetitive tasks where possible');
+    suggestions.push('Reach out to other maintainers for support');
+
+    return suggestions;
+  }
+
+  /**
+   * Get team health summary
+   */
+  getTeamHealth(): {
+    totalMaintainers: number;
+    activeMaintainers: number;
+    avgWorkload: number;
+    highRiskCount: number;
+    burnoutRiskDistribution: Record<BurnoutRisk['level'], number>;
+  } {
+    let totalWorkload = 0;
+    let highRiskCount = 0;
+    const burnoutDistribution: Record<BurnoutRisk['level'], number> = {
+      low: 0,
+      medium: 0,
+      high: 0,
+      critical: 0,
+    };
+
+    for (const [id] of this.maintainers) {
+      const balance = this.calculateBalance().find(b => b.maintainerId === id);
+      if (balance) {
+        totalWorkload += balance.score;
+        if (balance.score > 70) highRiskCount++;
+      }
+
+      const risk = this.assessBurnoutRisk(id);
+      burnoutDistribution[risk.level]++;
+    }
+
+    const activeMaintainers = Array.from(this.maintainers.values())
+      .filter(m => m.isActive).length;
+
+    return {
+      totalMaintainers: this.maintainers.size,
+      activeMaintainers,
+      avgWorkload: this.maintainers.size > 0 ? Math.round(totalWorkload / this.maintainers.size) : 0,
+      highRiskCount,
+      burnoutRiskDistribution: burnoutDistribution,
+    };
+  }
+
+  /**
+   * Suggest workload rebalancing
+   */
+  suggestRebalancing(): {
+    from: string;
+    to: string;
+    reason: string;
+    items: string[];
+  }[] {
+    const suggestions: { from: string; to: string; reason: string; items: string[] }[] = [];
+    const balance = this.calculateBalance();
+
+    if (balance.length < 2) return suggestions;
+
+    const mostLoaded = balance[0];
+    const leastLoaded = balance[balance.length - 1];
+
+    if (mostLoaded.score - leastLoaded.score > 30) {
+      suggestions.push({
+        from: mostLoaded.maintainerId,
+        to: leastLoaded.maintainerId,
+        reason: 'Workload imbalance detected',
+        items: ['Open issues', 'Pending PRs'],
+      });
+    }
+
+    return suggestions;
+  }
+
+  /**
+   * List all maintainers
+   */
+  listMaintainers(): Maintainer[] {
+    return Array.from(this.maintainers.values());
+  }
+
+  /**
+   * Deactivate maintainer
+   */
+  deactivate(maintainerId: string): boolean {
+    const maintainer = this.maintainers.get(maintainerId);
+    if (maintainer) {
+      maintainer.isActive = false;
+      return true;
+    }
+    return false;
+  }
 }
 
-export function calculateReviewCapacity(
-  reviewer: string,
-  completedReviews: number,
-  pendingReviews: number,
-  targetPerWeek: number
-): ReviewLoad {
-  const utilization = targetPerWeek > 0 
-    ? Math.round((completedReviews / targetPerWeek) * 100) 
-    : 0;
-  
-  return {
-    reviewer,
-    pendingReviews,
-    avgReviewTime: Math.round(Math.random() * 24 + 4),
-    capacity: targetPerWeek,
-    utilization: Math.min(150, utilization),
-  };
-}
+export const maintainerWorkload = new MaintainerWorkload();
