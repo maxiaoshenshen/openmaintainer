@@ -1,477 +1,338 @@
 /**
- * Workflow Automation Module
- * Automates GitHub Actions workflows and CI/CD processes
+ * Workflow Automation - Automate repetitive maintainer tasks
  */
 
-export interface WorkflowConfig {
-  name: string;
-  trigger: string[];
-  jobs: WorkflowJob[];
-  env?: Record<string, string>;
-}
+import type { Repository, Contributor, PullRequest, Issue } from "./types";
 
-export interface WorkflowJob {
-  name: string;
-  runsOn: string;
-  steps: WorkflowStep[];
-  needs?: string[];
-  if?: string;
-}
+export type WorkflowTrigger = 
+  | "pr_opened"
+  | "pr_merged"
+  | "pr_closed"
+  | "issue_opened"
+  | "issue_closed"
+  | "release_published"
+  | "contributor_joined"
+  | "label_added"
+  | "comment_added";
 
-export interface WorkflowStep {
-  name: string;
-  uses?: string;
-  run?: string;
-  with?: Record<string, string>;
-  env?: Record<string, string>;
-  if?: string;
-}
+export type WorkflowAction =
+  | { type: "add_labels"; labels: string[] }
+  | { type: "remove_labels"; labels: string[] }
+  | { type: "assign_reviewer"; reviewers: string[] }
+  | { type: "assign_user"; users: string[] }
+  | { type: "post_comment"; body: string }
+  | { type: "notify_channel"; channel: string; message: string }
+  | { type: "request_info"; fields: string[] }
+  | { type: "welcome_contributor"; template: string }
+  | { type: "auto_close"; reason: string }
+  | { type: "escalate"; priority: "low" | "medium" | "high" | "critical" };
 
-export interface WorkflowRun {
+export interface WorkflowRule {
   id: string;
   name: string;
-  status: 'queued' | 'in_progress' | 'completed';
-  conclusion?: 'success' | 'failure' | 'cancelled' | 'skipped';
-  headBranch: string;
-  runNumber: number;
-  event: string;
-  createdAt: string;
-  updatedAt: string;
-  htmlUrl: string;
+  description: string;
+  enabled: boolean;
+  trigger: WorkflowTrigger;
+  conditions?: WorkflowCondition[];
+  actions: WorkflowAction[];
+  priority: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
-export interface WorkflowMetrics {
-  totalRuns: number;
+export interface WorkflowCondition {
+  field: string;
+  operator: "equals" | "contains" | "starts_with" | "ends_with" | "greater_than" | "less_than" | "in" | "not_in";
+  value: string | number | string[];
+}
+
+export interface WorkflowExecution {
+  id: string;
+  workflowId: string;
+  trigger: WorkflowTrigger;
+  targetId: string;
+  targetType: "pr" | "issue" | "release" | "contributor";
+  status: "pending" | "running" | "completed" | "failed";
+  actionsExecuted: WorkflowAction[];
+  errors?: string[];
+  startedAt: number;
+  completedAt?: number;
+}
+
+export interface WorkflowStats {
+  totalExecutions: number;
   successRate: number;
   averageDuration: number;
-  failedJobs: string[];
-  bottlenecks: string[];
+  executionsByWorkflow: Record<string, number>;
+  executionsByTrigger: Record<string, number>;
 }
 
-export class WorkflowAutomation {
-  private workflows: Map<string, WorkflowConfig> = new Map();
-  private runHistory: WorkflowRun[] = [];
+/**
+ * Create a new workflow rule
+ */
+export function createWorkflowRule(
+  params: Omit<WorkflowRule, "id" | "createdAt" | "updatedAt">
+): WorkflowRule {
+  return {
+    ...params,
+    id: `workflow_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+}
 
-  /**
-   * Register a new workflow configuration
-   */
-  registerWorkflow(config: WorkflowConfig): void {
-    if (!config.name || !config.jobs.length) {
-      throw new Error('Workflow must have a name and at least one job');
-    }
-    this.workflows.set(config.name, config);
-  }
-
-  /**
-   * Get workflow by name
-   */
-  getWorkflow(name: string): WorkflowConfig | undefined {
-    return this.workflows.get(name);
-  }
-
-  /**
-   * List all registered workflows
-   */
-  listWorkflows(): string[] {
-    return Array.from(this.workflows.keys());
-  }
-
-  /**
-   * Generate CI workflow for Node.js projects
-   */
-  generateNodeCIWorkflow(options: {
-    nodeVersion?: string;
-    testCommand?: string;
-    lintCommand?: string;
-    coverageThreshold?: number;
-  } = {}): WorkflowConfig {
-    const {
-      nodeVersion = '20.x',
-      testCommand = 'npm test',
-      lintCommand = 'npm run lint',
-      coverageThreshold = 80,
-    } = options;
-
-    return {
-      name: 'CI',
-      trigger: ['push', 'pull_request'],
-      env: {
-        NODE_VERSION: nodeVersion,
-      },
-      jobs: [
-        {
-          name: 'lint',
-          runsOn: 'ubuntu-latest',
-          steps: [
-            {
-              name: 'Checkout code',
-              uses: 'actions/checkout@v4',
-            },
-            {
-              name: 'Setup Node.js',
-              uses: 'actions/setup-node@v4',
-              with: {
-                'node-version': nodeVersion,
-                'cache': 'npm',
-              },
-            },
-            {
-              name: 'Install dependencies',
-              run: 'npm ci',
-            },
-            {
-              name: 'Run linter',
-              run: lintCommand,
-            },
-          ],
-        },
-        {
-          name: 'test',
-          runsOn: 'ubuntu-latest',
-          steps: [
-            {
-              name: 'Checkout code',
-              uses: 'actions/checkout@v4',
-            },
-            {
-              name: 'Setup Node.js',
-              uses: 'actions/setup-node@v4',
-              with: {
-                'node-version': nodeVersion,
-                'cache': 'npm',
-              },
-            },
-            {
-              name: 'Install dependencies',
-              run: 'npm ci',
-            },
-            {
-              name: 'Run tests',
-              run: testCommand,
-            },
-            {
-              name: 'Upload coverage',
-              uses: 'actions/upload-artifact@v4',
-              if: "github.event_name == 'pull_request'",
-              with: {
-                'name': 'coverage',
-                'path': 'coverage',
-              },
-            },
-          ],
-        },
-        {
-          name: 'build',
-          runsOn: 'ubuntu-latest',
-          needs: ['test'],
-          steps: [
-            {
-              name: 'Build',
-              run: 'npm run build',
-            },
-            {
-              name: 'Upload artifact',
-              uses: 'actions/upload-artifact@v4',
-              with: {
-                'name': 'dist',
-                'path': 'dist',
-              },
-            },
-          ],
-        },
+/**
+ * Create default workflow rules for maintainers
+ */
+export function createDefaultWorkflows(): WorkflowRule[] {
+  return [
+    createWorkflowRule({
+      name: "Bug Triage",
+      description: "Auto-label and assign bug reports",
+      enabled: true,
+      trigger: "issue_opened",
+      conditions: [
+        { field: "title", operator: "contains", value: "bug" },
+        { field: "title", operator: "contains", value: "crash" },
+        { field: "title", operator: "contains", value: "broken" },
       ],
-    };
-  }
-
-  /**
-   * Generate release workflow
-   */
-  generateReleaseWorkflow(options: {
-    releaseBranches?: string[];
-    changelogPath?: string;
-  } = {}): WorkflowConfig {
-    const { releaseBranches = ['main'], changelogPath = 'CHANGELOG.md' } = options;
-
-    return {
-      name: 'Release',
-      trigger: ['push'],
-      jobs: [
-        {
-          name: 'release',
-          runsOn: 'ubuntu-latest',
-          if: `startsWith(github.ref, 'refs/tags/')`,
-          steps: [
-            {
-              name: 'Checkout code',
-              uses: 'actions/checkout@v4',
-            },
-            {
-              name: 'Setup Node.js',
-              uses: 'actions/setup-node@v4',
-              with: {
-                'node-version': '20.x',
-                'cache': 'npm',
-              },
-            },
-            {
-              name: 'Install dependencies',
-              run: 'npm ci',
-            },
-            {
-              name: 'Build',
-              run: 'npm run build',
-            },
-            {
-              name: 'Create GitHub Release',
-              uses: 'actions/create-release@v1',
-              env: {
-                GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
-              },
-              with: {
-                'tag_name': '${{ github.ref }}',
-                'release_name': 'Release ${{ github.ref }}',
-                'body_path': changelogPath,
-                'draft': 'false',
-                'prerelease': '${{ contains(github.ref, \'-\') }}',
-              },
-            },
-            {
-              name: 'Publish to npm',
-              run: 'npm publish',
-              env: {
-                NODE_AUTH_TOKEN: '${{ secrets.NPM_TOKEN }}',
-              },
-            },
-          ],
-        },
+      actions: [
+        { type: "add_labels", labels: ["bug", "triage-needed"] },
+        { type: "post_comment", body: "Thanks for reporting! We'll investigate this shortly." },
       ],
-    };
-  }
-
-  /**
-   * Generate security scanning workflow
-   */
-  generateSecurityWorkflow(): WorkflowConfig {
-    return {
-      name: 'Security',
-      trigger: ['push', 'pull_request'],
-      jobs: [
-        {
-          name: 'sast',
-          runsOn: 'ubuntu-latest',
-          steps: [
-            {
-              name: 'Checkout code',
-              uses: 'actions/checkout@v4',
-            },
-            {
-              name: 'Run CodeQL',
-              uses: 'github/codeql-action/init@v3',
-              with: {
-                'languages': 'javascript,typescript',
-              },
-            },
-            {
-              name: 'Perform analysis',
-              uses: 'github/codeql-action/analyze@v3',
-            },
-          ],
-        },
-        {
-          name: 'dependency-check',
-          runsOn: 'ubuntu-latest',
-          steps: [
-            {
-              name: 'Checkout code',
-              uses: 'actions/checkout@v4',
-            },
-            {
-              name: 'Setup Node.js',
-              uses: 'actions/setup-node@v4',
-              with: {
-                'node-version': '20.x',
-                'cache': 'npm',
-              },
-            },
-            {
-              name: 'Install dependencies',
-              run: 'npm ci',
-            },
-            {
-              name: 'Run npm audit',
-              run: 'npm audit --audit-level=high',
-            },
-            {
-              name: 'Check vulnerabilities',
-              uses: 'okinery/npm-vulnerability-check@v1',
-            },
-          ],
-        },
+      priority: 10,
+    }),
+    createWorkflowRule({
+      name: "First PR Welcome",
+      description: "Welcome new contributors with a heartfelt message",
+      enabled: true,
+      trigger: "pr_opened",
+      conditions: [
+        { field: "author.isFirstContribution", operator: "equals", value: true },
       ],
-    };
+      actions: [
+        { type: "add_labels", labels: ["first-time-contributor", "welcome"] },
+        { type: "post_comment", body: "🎉 Thank you for your first PR! We're excited to have you contribute." },
+      ],
+      priority: 20,
+    }),
+    createWorkflowRule({
+      name: "PR Size Labels",
+      description: "Add size labels based on PR changes",
+      enabled: true,
+      trigger: "pr_opened",
+      conditions: [],
+      actions: [],
+      priority: 5,
+    }),
+    createWorkflowRule({
+      name: "Good First Issue",
+      description: "Add good-first-issue label to beginner-friendly issues",
+      enabled: true,
+      trigger: "issue_opened",
+      conditions: [],
+      actions: [
+        { type: "add_labels", labels: ["good first issue", "help wanted"] },
+      ],
+      priority: 15,
+    }),
+    createWorkflowRule({
+      name: "Needs Review Escalation",
+      description: "Escalate PRs waiting too long for review",
+      enabled: true,
+      trigger: "pr_opened",
+      conditions: [
+        { field: "age.hours", operator: "greater_than", value: 48 },
+        { field: "reviewers.count", operator: "equals", value: 0 },
+      ],
+      actions: [
+        { type: "escalate", priority: "high" },
+        { type: "notify_channel", channel: "maintainers", message: "PR needs review!" },
+      ],
+      priority: 25,
+    }),
+  ];
+}
+
+/**
+ * Check if workflow conditions match
+ */
+export function evaluateConditions(
+  conditions: WorkflowCondition[],
+  context: Record<string, any>
+): boolean {
+  if (conditions.length === 0) return true;
+  
+  return conditions.some(condition => evaluateCondition(condition, context));
+}
+
+function evaluateCondition(condition: WorkflowCondition, context: Record<string, any>): boolean {
+  const fieldValue = getNestedValue(context, condition.field);
+  
+  switch (condition.operator) {
+    case "equals":
+      return fieldValue === condition.value;
+    case "contains":
+      return typeof fieldValue === "string" && fieldValue.includes(condition.value as string);
+    case "starts_with":
+      return typeof fieldValue === "string" && fieldValue.startsWith(condition.value as string);
+    case "ends_with":
+      return typeof fieldValue === "string" && fieldValue.endsWith(condition.value as string);
+    case "greater_than":
+      return typeof fieldValue === "number" && fieldValue > (condition.value as number);
+    case "less_than":
+      return typeof fieldValue === "number" && fieldValue < (condition.value as number);
+    case "in":
+      return Array.isArray(condition.value) && condition.value.includes(fieldValue);
+    case "not_in":
+      return Array.isArray(condition.value) && !condition.value.includes(fieldValue);
+    default:
+      return false;
+  }
+}
+
+function getNestedValue(obj: Record<string, any>, path: string): any {
+  return path.split(".").reduce((acc, part) => acc?.[part], obj);
+}
+
+/**
+ * Execute a workflow rule
+ */
+export function executeWorkflow(
+  workflow: WorkflowRule,
+  trigger: WorkflowTrigger,
+  targetId: string,
+  targetType: "pr" | "issue" | "release" | "contributor",
+  context: Record<string, any>
+): WorkflowExecution {
+  const execution: WorkflowExecution = {
+    id: `exec_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    workflowId: workflow.id,
+    trigger,
+    targetId,
+    targetType,
+    status: "pending",
+    actionsExecuted: [],
+    startedAt: Date.now(),
+  };
+
+  if (!workflow.enabled) {
+    execution.status = "failed";
+    execution.errors = ["Workflow is disabled"];
+    return execution;
   }
 
-  /**
-   * Simulate workflow run
-   */
-  simulateRun(workflowName: string): WorkflowRun {
-    const run: WorkflowRun = {
-      id: `run_${Date.now()}`,
-      name: workflowName,
-      status: 'in_progress',
-      headBranch: 'main',
-      runNumber: this.runHistory.length + 1,
-      event: 'push',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      htmlUrl: `https://github.com/actions/runs/${Date.now()}`,
-    };
-    this.runHistory.push(run);
+  execution.status = "running";
 
-    // Simulate completion
-    setTimeout(() => {
-      run.status = 'completed';
-      run.conclusion = Math.random() > 0.1 ? 'success' : 'failure';
-      run.updatedAt = new Date().toISOString();
-    }, 100);
-
-    return run;
-  }
-
-  /**
-   * Get workflow run history
-   */
-  getRunHistory(workflowName?: string): WorkflowRun[] {
-    if (workflowName) {
-      return this.runHistory.filter(r => r.name === workflowName);
-    }
-    return [...this.runHistory];
-  }
-
-  /**
-   * Calculate workflow metrics
-   */
-  calculateMetrics(workflowName?: string): WorkflowMetrics {
-    const runs = workflowName 
-      ? this.runHistory.filter(r => r.name === workflowName)
-      : this.runHistory;
-
-    const completed = runs.filter(r => r.status === 'completed');
-    const successful = completed.filter(r => r.conclusion === 'success');
+  // Special handling for size labels
+  if (workflow.name === "PR Size Labels" && targetType === "pr") {
+    const additions = context.additions || 0;
+    const deletions = context.deletions || 0;
+    const total = additions + deletions;
     
-    const successRate = completed.length > 0 
-      ? (successful.length / completed.length) * 100 
-      : 0;
-
-    return {
-      totalRuns: runs.length,
-      successRate,
-      averageDuration: completed.length > 0 ? 120 : 0, // Simplified
-      failedJobs: runs.filter(r => r.conclusion === 'failure').map(r => r.name),
-      bottlenecks: this.identifyBottlenecks(runs),
-    };
+    let sizeLabel = "size/xs";
+    if (total > 50) sizeLabel = "size/s";
+    if (total > 250) sizeLabel = "size/m";
+    if (total > 1000) sizeLabel = "size/l";
+    if (total > 5000) sizeLabel = "size/xl";
+    
+    execution.actionsExecuted.push({ type: "add_labels", labels: [sizeLabel] });
+  } else if (evaluateConditions(workflow.conditions || [], context)) {
+    execution.actionsExecuted = [...workflow.actions];
   }
 
-  /**
-   * Identify workflow bottlenecks
-   */
-  private identifyBottlenecks(runs: WorkflowRun[]): string[] {
-    const jobDurations = new Map<string, number>();
-    // Simplified bottleneck detection
-    if (runs.length > 5) {
-      jobDurations.set('test', 60);
-      jobDurations.set('build', 45);
-    }
-    return Array.from(jobDurations.entries())
-      .filter(([_, duration]) => duration > 30)
-      .map(([name]) => name);
-  }
-
-  /**
-   * Optimize workflow for speed
-   */
-  optimizeWorkflow(workflowName: string): WorkflowConfig | undefined {
-    const workflow = this.workflows.get(workflowName);
-    if (!workflow) return undefined;
-
-    // Add caching strategies
-    const optimized = { ...workflow };
-    optimized.jobs = workflow.jobs.map(job => ({
-      ...job,
-      steps: job.steps.map(step => {
-        if (step.uses?.includes('actions/checkout')) {
-          return { ...step };
-        }
-        if (step.uses?.includes('actions/setup-node')) {
-          return {
-            ...step,
-            with: { ...step.with, 'cache': 'npm' },
-          };
-        }
-        return step;
-      }),
-    }));
-
-    return optimized;
-  }
-
-  /**
-   * Export workflow as YAML
-   */
-  exportAsYaml(workflowName: string): string {
-    const workflow = this.workflows.get(workflowName);
-    if (!workflow) return '';
-
-    let yaml = `name: ${workflow.name}\n\n`;
-    yaml += `on: ${workflow.trigger.join(', ')}\n\n`;
-
-    if (workflow.env) {
-      yaml += `env:\n`;
-      for (const [key, value] of Object.entries(workflow.env)) {
-        yaml += `  ${key}: ${value}\n`;
-      }
-      yaml += '\n';
-    }
-
-    yaml += `jobs:\n`;
-    for (const job of workflow.jobs) {
-      yaml += `  ${job.name}:\n`;
-      yaml += `    runs-on: ${job.runsOn}\n`;
-      if (job.needs) {
-        yaml += `    needs: ${job.needs.join(', ')}\n`;
-      }
-      if (job.if) {
-        yaml += `    if: ${job.if}\n`;
-      }
-      yaml += `    steps:\n`;
-      for (const step of job.steps) {
-        yaml += `      - name: ${step.name}\n`;
-        if (step.uses) {
-          yaml += `        uses: ${step.uses}\n`;
-          if (step.with) {
-            for (const [key, value] of Object.entries(step.with)) {
-              yaml += `        with:\n`;
-              yaml += `          ${key}: ${value}\n`;
-            }
-          }
-        }
-        if (step.run) {
-          yaml += `        run: ${step.run}\n`;
-        }
-        if (step.env) {
-          yaml += `        env:\n`;
-          for (const [key, value] of Object.entries(step.env)) {
-            yaml += `          ${key}: ${value}\n`;
-          }
-        }
-        if (step.if) {
-          yaml += `        if: ${step.if}\n`;
-        }
-      }
-    }
-
-    return yaml;
-  }
+  execution.status = "completed";
+  execution.completedAt = Date.now();
+  return execution;
 }
 
-export const workflowAutomation = new WorkflowAutomation();
+/**
+ * Build automation dashboard data
+ */
+export function buildWorkflowDashboard(workflows: WorkflowRule[], executions: WorkflowExecution[]) {
+  const stats: WorkflowStats = {
+    totalExecutions: executions.length,
+    successRate: executions.length > 0 
+      ? (executions.filter(e => e.status === "completed").length / executions.length) * 100 
+      : 100,
+    averageDuration: 0,
+    executionsByWorkflow: {},
+    executionsByTrigger: {},
+  };
+
+  const completedExecutions = executions.filter(e => e.completedAt);
+  if (completedExecutions.length > 0) {
+    const totalDuration = completedExecutions.reduce(
+      (sum, e) => sum + ((e.completedAt || 0) - e.startedAt), 0
+    );
+    stats.averageDuration = totalDuration / completedExecutions.length;
+  }
+
+  for (const exec of executions) {
+    stats.executionsByWorkflow[exec.workflowId] = 
+      (stats.executionsByWorkflow[exec.workflowId] || 0) + 1;
+    stats.executionsByTrigger[exec.trigger] = 
+      (stats.executionsByTrigger[exec.trigger] || 0) + 1;
+  }
+
+  const activeWorkflows = workflows.filter(w => w.enabled);
+  const recentExecutions = executions.slice(-10);
+
+  return {
+    stats,
+    activeCount: activeWorkflows.length,
+    totalCount: workflows.length,
+    recentExecutions,
+    topWorkflows: activeWorkflows.slice(0, 5),
+  };
+}
+
+/**
+ * Generate workflow recommendations based on repository activity
+ */
+export function suggestWorkflows(repository: Repository) {
+  const suggestions: { workflow: Omit<WorkflowRule, "id" | "createdAt" | "updatedAt">; reason: string }[] = [];
+  
+  const openIssues = repository.issues.filter(i => i.state === "open").length;
+  const openPRs = repository.pullRequests.filter(p => p.state === "open").length;
+  
+  if (openIssues > 10) {
+    suggestions.push({
+      workflow: createWorkflowRule({
+        name: "Issue Stale Detection",
+        description: "Mark inactive issues as stale",
+        enabled: true,
+        trigger: "issue_opened",
+        conditions: [
+          { field: "age.days", operator: "greater_than", value: 30 },
+          { field: "comments", operator: "equals", value: 0 },
+        ],
+        actions: [
+          { type: "add_labels", labels: ["stale"] },
+          { type: "post_comment", body: "This issue has been inactive for 30 days. Will close in 7 days if no activity." },
+        ],
+        priority: 8,
+      }),
+      reason: "High volume of open issues detected",
+    });
+  }
+
+  if (openPRs > 5) {
+    suggestions.push({
+      workflow: createWorkflowRule({
+        name: "PR Auto-Assign Reviewers",
+        description: "Auto-assign reviewers based on expertise",
+        enabled: true,
+        trigger: "pr_opened",
+        conditions: [],
+        actions: [
+          { type: "assign_reviewer", reviewers: ["maintainer-team"] },
+        ],
+        priority: 12,
+      }),
+      reason: "Multiple open PRs need review distribution",
+    });
+  }
+
+  return suggestions;
+}
