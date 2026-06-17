@@ -1,88 +1,140 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SecurityScanner } from './security-scanner';
-import { GitHubClient } from './github-client';
+import { describe, it, expect } from "vitest";
+import {
+  scanDependencies,
+  scanForSecrets,
+  checkLicenses,
+  generateSecurityReport,
+  type SecurityFinding,
+} from "./security-scanner";
 
-describe('SecurityScanner', () => {
-  let scanner: SecurityScanner;
-  let mockGithub: GitHubClient;
+describe("SecurityScanner", () => {
+  describe("scanDependencies", () => {
+    it("should find vulnerabilities in dependencies", async () => {
+      const packages = [
+        { name: "lodash", version: "4.17.19" },
+        { name: "axios", version: "0.18.0" },
+        { name: "express", version: "4.18.0" },
+      ];
 
-  beforeEach(() => {
-    mockGithub = {
-      getFile: vi.fn().mockRejectedValue(new Error('Not found')),
-    } as unknown as GitHubClient;
-    scanner = new SecurityScanner(mockGithub);
-  });
-
-  describe('scan', () => {
-    it('should return security report', async () => {
-      const report = await scanner.scan();
-
-      expect(report).toHaveProperty('vulnerabilities');
-      expect(report).toHaveProperty('secrets');
-      expect(report).toHaveProperty('score');
-      expect(report).toHaveProperty('grade');
-      expect(report).toHaveProperty('recommendations');
-      expect(typeof report.score).toBe('number');
-      expect(['A', 'B', 'C', 'D', 'F']).toContain(report.grade);
+      const findings = await scanDependencies(packages);
+      expect(findings.length).toBeGreaterThan(0);
+      
+      const lodashVuln = findings.find(f => f.package === "lodash");
+      expect(lodashVuln).toBeDefined();
+      expect(lodashVuln?.severity).toBe("high");
+      expect(lodashVuln?.cveId).toBe("CVE-2021-23337");
     });
 
-    it('should calculate score based on issues', async () => {
-      const report = await scanner.scan();
-
-      expect(report.score).toBeGreaterThanOrEqual(0);
-      expect(report.score).toBeLessThanOrEqual(100);
-    });
-  });
-
-  describe('checkVulnerabilities', () => {
-    it('should return vulnerabilities array', async () => {
-      const vulnerabilities = await scanner.checkVulnerabilities();
-
-      expect(Array.isArray(vulnerabilities)).toBe(true);
+    it("should respect severity threshold", async () => {
+      const packages = [{ name: "axios", version: "0.18.0" }];
+      const findings = await scanDependencies(packages, { severityThreshold: "high" });
+      
+      const criticalHigh = findings.filter(f => f.severity === "critical" || f.severity === "high");
+      expect(criticalHigh.length).toBe(0);
     });
 
-    it('should detect lodash vulnerability', async () => {
-      vi.mocked(mockGithub.getFile).mockResolvedValue('{"dependencies": {"lodash": "^4.17.0"}}' as any);
+    it("should skip dev dependencies when configured", async () => {
+      const packages = [
+        { name: "lodash", version: "4.17.19", dev: false },
+        { name: "jest", version: "27.0.0", dev: true },
+      ];
 
-      const vulnerabilities = await scanner.checkVulnerabilities();
-
-      expect(vulnerabilities.some(v => v.title?.includes('Lodash'))).toBe(true);
+      const findings = await scanDependencies(packages, { includeDevDeps: false });
+      expect(findings.some(f => f.package === "jest")).toBe(false);
     });
   });
 
-  describe('checkSecrets', () => {
-    it('should return secrets array', async () => {
-      const secrets = await scanner.checkSecrets();
+  describe("scanForSecrets", () => {
+    it("should detect AWS access keys", () => {
+      const files = [{
+        path: "config.js",
+        content: "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\nGITHUB_TOKEN=ghp_1234567890abcdefghijklmnop",
+      }];
 
-      expect(Array.isArray(secrets)).toBe(true);
+      const findings = scanForSecrets(files);
+      expect(findings.length).toBeGreaterThanOrEqual(1);
+      expect(findings.some(f => f.type === "secret")).toBe(true);
+    });
+
+    it("should detect private keys", () => {
+      const files = [{
+        path: "keys.pem",
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAL...\n-----END RSA PRIVATE KEY-----",
+      }];
+
+      const findings = scanForSecrets(files);
+      expect(findings.some(f => f.title.includes("Private Key"))).toBe(true);
+    });
+
+    it("should return empty array for clean code", () => {
+      const files = [{
+        path: "index.js",
+        content: "const port = process.env.PORT || 3000;\nexport default app;",
+      }];
+
+      const findings = scanForSecrets(files);
+      expect(findings.length).toBe(0);
     });
   });
 
-  describe('generateBadge', () => {
-    it('should return badge URL', async () => {
-      const badge = await scanner.generateBadge();
+  describe("checkLicenses", () => {
+    it("should flag forbidden licenses", () => {
+      const dependencies = [
+        { name: "fancy-license-lib", version: "1.0.0", license: "GPL-3.0" },
+        { name: "mit-lib", version: "2.0.0", license: "MIT" },
+      ];
 
-      expect(typeof badge).toBe('string');
-      expect(badge).toContain('shields.io');
-      expect(badge).toContain('security');
+      const findings = checkLicenses(dependencies);
+      expect(findings.length).toBeGreaterThan(0);
+      expect(findings[0].severity).toBe("high");
+      expect(findings[0].title).toContain("Forbidden license");
+    });
+
+    it("should flag risky licenses with medium severity", () => {
+      const dependencies = [
+        { name: "mpl-lib", version: "1.0.0", license: "MPL-2.0" },
+      ];
+
+      const findings = checkLicenses(dependencies);
+      expect(findings[0].severity).toBe("medium");
+    });
+
+    it("should allow MIT licensed packages", () => {
+      const dependencies = [
+        { name: "express", version: "4.18.0", license: "MIT" },
+      ];
+
+      const findings = checkLicenses(dependencies);
+      expect(findings.length).toBe(0);
     });
   });
 
-  describe('checkDependencies', () => {
-    it('should return dependency list', async () => {
-      const deps = await scanner.checkDependencies();
+  describe("generateSecurityReport", () => {
+    it("should generate comprehensive report", async () => {
+      const packages = [
+        { name: "lodash", version: "4.17.19" },
+        { name: "express", version: "4.18.0" },
+      ];
 
-      expect(Array.isArray(deps)).toBe(true);
+      const report = await generateSecurityReport("owner/repo", packages);
+
+      expect(report.repository).toBe("owner/repo");
+      expect(report.timestamp).toBeDefined();
+      expect(report.scanDuration).toBeGreaterThanOrEqual(0);
+      expect(report.findings).toBeDefined();
+      expect(report.summary).toBeDefined();
+      expect(report.summary.total).toBe(report.findings.length);
+      expect(report.summary.critical).toBeDefined();
+      expect(report.summary.high).toBeDefined();
     });
-  });
 
-  describe('generateSecurityPolicy', () => {
-    it('should return security policy markdown', async () => {
-      const policy = await scanner.generateSecurityPolicy();
+    it("should pass when no critical/high vulnerabilities", async () => {
+      const packages = [
+        { name: "safe-lib", version: "1.0.0" },
+      ];
 
-      expect(typeof policy).toBe('string');
-      expect(policy).toContain('Security Policy');
-      expect(policy).toContain('Reporting a Vulnerability');
+      const report = await generateSecurityReport("owner/repo", packages);
+      expect(report.passed).toBe(true);
     });
   });
 });

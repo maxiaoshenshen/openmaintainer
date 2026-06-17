@@ -1,270 +1,243 @@
-import { GitHubClient } from './github-client';
+/**
+ * Community Health Monitor - Track and improve open source community health
+ */
+
+export interface HealthMetrics {
+  repository: string;
+  timestamp: number;
+  score: number;
+  responseTime: ResponseTimeMetrics;
+  activity: ActivityMetrics;
+  diversity: DiversityMetrics;
+  retention: RetentionMetrics;
+  healthTrend: 'improving' | 'stable' | 'declining';
+}
+
+export interface ResponseTimeMetrics {
+  issueResponseTime: number; // hours
+  prReviewTime: number; // hours
+  firstResponseTime: number; // hours
+  medianResponseTime: number;
+}
+
+export interface ActivityMetrics {
+  totalContributors: number;
+  activeContributors: number;
+  newContributors: number;
+  totalPRs: number;
+  totalIssues: number;
+  totalComments: number;
+  commitsThisMonth: number;
+}
+
+export interface DiversityMetrics {
+  firstTimeContributors: number;
+  returningContributors: number;
+  maintainerEngagement: number;
+  orgContributors: number;
+  externalContributors: number;
+}
+
+export interface RetentionMetrics {
+  returningContributorRate: number;
+  churnRate: number;
+  contributorGrowth: number;
+}
+
+export interface HealthRecommendation {
+  category: string;
+  priority: 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  action: string;
+}
 
 /**
- * Community health metrics and engagement tracking
+ * Calculate overall community health score (0-100)
  */
-export interface CommunityMetrics {
-  healthScore: number;
-  responseTime: number;
-  issueResolutionRate: number;
-  prMergeRate: number;
-  contributorCount: number;
-  activeContributors: number;
-  repeatContributors: number;
-  retentionRate: number;
+export function calculateHealthScore(metrics: Omit<HealthMetrics, 'score' | 'healthTrend'>): number {
+  let score = 100;
+
+  // Response time impact (40% weight)
+  if (metrics.responseTime.medianResponseTime > 48) score -= 30;
+  else if (metrics.responseTime.medianResponseTime > 24) score -= 20;
+  else if (metrics.responseTime.medianResponseTime > 12) score -= 10;
+  else if (metrics.responseTime.medianResponseTime > 6) score -= 5;
+
+  // Activity impact (30% weight)
+  const activeRatio = metrics.activity.activeContributors / Math.max(metrics.activity.totalContributors, 1);
+  if (activeRatio < 0.3) score -= 20;
+  else if (activeRatio < 0.5) score -= 10;
+  else if (activeRatio < 0.7) score -= 5;
+
+  // Diversity impact (20% weight)
+  const externalRatio = metrics.diversity.externalContributors / Math.max(metrics.activity.totalContributors, 1);
+  if (externalRatio < 0.2) score -= 15;
+  else if (externalRatio < 0.4) score -= 8;
+
+  // Retention impact (10% weight)
+  if (metrics.retention.returningContributorRate < 0.3) score -= 10;
+  else if (metrics.retention.returningContributorRate < 0.5) score -= 5;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
-export interface EngagementLevel {
-  level: 'inactive' | 'low' | 'medium' | 'high' | 'very-high';
-  score: number;
-  factors: string[];
+/**
+ * Determine health trend based on historical data
+ */
+export function calculateHealthTrend(
+  currentScore: number,
+  previousScores: number[]
+): 'improving' | 'stable' | 'declining' {
+  if (previousScores.length < 2) return 'stable';
+
+  const recentScores = previousScores.slice(-3);
+  const avgRecent = recentScores.reduce((a, b) => a + b, 0) / recentScores.length;
+  const olderScores = previousScores.slice(0, -3);
+  const avgOlder = olderScores.length > 0 
+    ? olderScores.reduce((a, b) => a + b, 0) / olderScores.length 
+    : avgRecent;
+
+  const change = avgRecent - avgOlder;
+  if (change > 5) return 'improving';
+  if (change < -5) return 'declining';
+  return 'stable';
 }
 
-export interface CommunityHealthReport {
-  metrics: CommunityMetrics;
-  engagement: EngagementLevel;
-  issues: IssueHealth;
-  pullRequests: PRHealth;
-  trends: TrendData[];
-  recommendations: string[];
-}
+/**
+ * Generate actionable recommendations based on health metrics
+ */
+export function generateRecommendations(metrics: HealthMetrics): HealthRecommendation[] {
+  const recommendations: HealthRecommendation[] = [];
 
-export interface IssueHealth {
-  openCount: number;
-  closedCount: number;
-  avgResponseTime: number;
-  avgResolutionTime: number;
-  staleIssues: number;
-}
-
-export interface PRHealth {
-  openCount: number;
-  mergedCount: number;
-  closedCount: number;
-  avgMergeTime: number;
-  avgReviewTime: number;
-}
-
-export interface TrendData {
-  date: string;
-  metric: string;
-  value: number;
-}
-
-export class CommunityHealth {
-  private github: GitHubClient;
-
-  constructor(github: GitHubClient) {
-    this.github = github;
-  }
-
-  /**
-   * Calculate overall community health score
-   */
-  async getHealthScore(): Promise<CommunityMetrics> {
-    const issues = await this.github.getIssues({ state: 'all', per_page: 100 });
-    const prs = await this.github.getPullRequests({ state: 'all', per_page: 100 });
-
-    const openIssues = issues.filter(i => !('pull_request' in i) || !i.pull_request);
-    const closedIssues = issues.filter(i => i.state === 'closed');
-    const openPRs = prs.filter(p => p.merged_at === null && p.state !== 'closed');
-    const mergedPRs = prs.filter(p => p.merged_at !== null);
-
-    const now = Date.now();
-    const responseTimes = issues.slice(0, 20).map(i => {
-      const created = new Date(i.created_at).getTime();
-      const updated = new Date(i.updated_at).getTime();
-      return updated - created;
-    }).filter(t => t > 0);
-
-    const avgResponseTime = responseTimes.length > 0 
-      ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length / (1000 * 60 * 60)
-      : 0;
-
-    const issueResolutionRate = issues.length > 0 
-      ? (closedIssues.length / issues.length) * 100 
-      : 0;
-
-    const prMergeRate = prs.length > 0 
-      ? (mergedPRs.length / prs.length) * 100 
-      : 0;
-
-    return {
-      healthScore: Math.round((issueResolutionRate + prMergeRate) / 2),
-      responseTime: Math.round(avgResponseTime * 10) / 10,
-      issueResolutionRate: Math.round(issueResolutionRate),
-      prMergeRate: Math.round(prMergeRate),
-      contributorCount: Math.floor(Math.random() * 50) + 10,
-      activeContributors: Math.floor(Math.random() * 10) + 2,
-      repeatContributors: Math.floor(Math.random() * 5) + 1,
-      retentionRate: Math.round(Math.random() * 30 + 70)
-    };
-  }
-
-  /**
-   * Analyze engagement level
-   */
-  async analyzeEngagement(): Promise<EngagementLevel> {
-    const metrics = await this.getHealthScore();
-    const factors: string[] = [];
-    let score = 50;
-
-    if (metrics.prMergeRate > 70) {
-      score += 15;
-      factors.push('High PR merge rate');
-    } else if (metrics.prMergeRate > 50) {
-      score += 8;
-    }
-
-    if (metrics.issueResolutionRate > 70) {
-      score += 15;
-      factors.push('Good issue resolution');
-    } else if (metrics.issueResolutionRate > 50) {
-      score += 8;
-    }
-
-    if (metrics.responseTime < 24) {
-      score += 10;
-      factors.push('Quick response time');
-    } else if (metrics.responseTime < 48) {
-      score += 5;
-    }
-
-    if (metrics.activeContributors > 5) {
-      score += 10;
-      factors.push('Active contributor community');
-    }
-
-    let level: EngagementLevel['level'] = 'low';
-    if (score >= 80) level = 'very-high';
-    else if (score >= 65) level = 'high';
-    else if (score >= 50) level = 'medium';
-    else if (score >= 35) level = 'low';
-    else level = 'inactive';
-
-    return { level, score, factors };
-  }
-
-  /**
-   * Get issue health metrics
-   */
-  async getIssueHealth(): Promise<IssueHealth> {
-    const issues = await this.github.getIssues({ state: 'all', per_page: 100 });
-    const openIssues = issues.filter(i => !('pull_request' in i) || !i.pull_request);
-    const closedIssues = issues.filter(i => i.state === 'closed');
-
-    const now = Date.now();
-    const resolutionTimes = closedIssues.slice(0, 10).map(i => {
-      const created = new Date(i.created_at).getTime();
-      const closed = new Date(i.closed_at || now).getTime();
-      return closed - created;
+  // Response time recommendations
+  if (metrics.responseTime.medianResponseTime > 48) {
+    recommendations.push({
+      category: 'Response Time',
+      priority: 'high',
+      title: 'Slow response times detected',
+      description: `Median response time is ${Math.round(metrics.responseTime.medianResponseTime)} hours.`,
+      action: 'Consider setting SLAs for responses, using issue templates, or adding more reviewers.',
     });
-
-    const staleIssues = openIssues.filter(i => {
-      const updated = new Date(i.updated_at).getTime();
-      return (now - updated) > 30 * 24 * 60 * 60 * 1000;
-    }).length;
-
-    return {
-      openCount: openIssues.length,
-      closedCount: closedIssues.length,
-      avgResponseTime: Math.round(Math.random() * 24),
-      avgResolutionTime: Math.round(resolutionTimes.reduce((a, b) => a + b, 0) / Math.max(resolutionTimes.length, 1) / (1000 * 60 * 60)),
-      staleIssues
-    };
   }
 
-  /**
-   * Get PR health metrics
-   */
-  async getPRHealth(): Promise<PRHealth> {
-    const prs = await this.github.getPullRequests({ state: 'all', per_page: 100 });
-
-    const openPRs = prs.filter(p => p.state === 'open');
-    const mergedPRs = prs.filter(p => p.merged_at !== null);
-    const closedPRs = prs.filter(p => p.state === 'closed' && p.merged_at === null);
-
-    const mergeTimes = mergedPRs.slice(0, 10).map(pr => {
-      const created = new Date(pr.created_at).getTime();
-      const merged = new Date(pr.merged_at!).getTime();
-      return merged - created;
+  // Diversity recommendations
+  if (metrics.diversity.externalContributors < metrics.activity.totalContributors * 0.3) {
+    recommendations.push({
+      category: 'Diversity',
+      priority: 'medium',
+      title: 'Low external contributor ratio',
+      description: 'Most contributions come from org members. This may limit community growth.',
+      action: 'Create "good first issue" labels, write beginner-friendly documentation, and participate in events.',
     });
-
-    return {
-      openCount: openPRs.length,
-      mergedCount: mergedPRs.length,
-      closedCount: closedPRs.length,
-      avgMergeTime: Math.round(mergeTimes.reduce((a, b) => a + b, 0) / Math.max(mergeTimes.length, 1) / (1000 * 60 * 60 * 24)),
-      avgReviewTime: Math.round(Math.random() * 48)
-    };
   }
 
-  /**
-   * Get community health report
-   */
-  async generateReport(): Promise<CommunityHealthReport> {
-    const metrics = await this.getHealthScore();
-    const engagement = await this.analyzeEngagement();
-    const issues = await this.getIssueHealth();
-    const pullRequests = await this.getPRHealth();
-    const recommendations = this.generateRecommendations(metrics, engagement);
-
-    return {
-      metrics,
-      engagement,
-      issues,
-      pullRequests,
-      trends: [],
-      recommendations
-    };
+  // New contributor onboarding
+  if (metrics.activity.newContributors < 2) {
+    recommendations.push({
+      category: 'Growth',
+      priority: 'medium',
+      title: 'Few new contributors',
+      description: 'New contributor growth is stagnant. Consider outreach efforts.',
+      action: 'Announce in relevant communities, improve documentation, and highlight contribution opportunities.',
+    });
   }
 
-  private generateRecommendations(metrics: CommunityMetrics, engagement: EngagementLevel): string[] {
-    const recommendations: string[] = [];
-
-    if (metrics.responseTime > 48) {
-      recommendations.push('Improve issue response time by setting up automated greetings');
-    }
-
-    if (metrics.staleIssues || engagement.level === 'low') {
-      recommendations.push('Address stale issues and PRs regularly');
-    }
-
-    if (metrics.activeContributors < 3) {
-      recommendations.push('Focus on building contributor community');
-      recommendations.push('Add contribution guidelines and good first issues');
-    }
-
-    if (metrics.prMergeRate < 50) {
-      recommendations.push('Review PR merge process - may be too restrictive');
-    }
-
-    recommendations.push('Respond to issues within 24-48 hours');
-    recommendations.push('Use issue templates to improve bug reports');
-    recommendations.push('Celebrate contributions publicly');
-
-    return [...new Set(recommendations)];
+  // Retention recommendations
+  if (metrics.retention.returningContributorRate < 0.5) {
+    recommendations.push({
+      category: 'Retention',
+      priority: 'high',
+      title: 'Low contributor retention',
+      description: `${Math.round((1 - metrics.retention.returningContributorRate) * 100)}% of contributors don\'t return.`,
+      action: 'Thank contributors publicly, offer mentorship, and make the contribution process smoother.',
+    });
   }
 
-  /**
-   * Get trend data for charts
-   */
-  async getTrends(days: number = 30): Promise<TrendData[]> {
-    const trends: TrendData[] = [];
-
-    for (let i = days; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-
-      trends.push(
-        { date: dateStr, metric: 'stars', value: Math.floor(Math.random() * 5) },
-        { date: dateStr, metric: 'forks', value: Math.floor(Math.random() * 2) },
-        { date: dateStr, metric: 'issues', value: Math.floor(Math.random() * 3) },
-        { date: dateStr, metric: 'prs', value: Math.floor(Math.random() * 2) }
-      );
-    }
-
-    return trends;
+  // Activity recommendations
+  if (metrics.activity.commitsThisMonth < 20) {
+    recommendations.push({
+      category: 'Activity',
+      priority: 'low',
+      title: 'Low recent activity',
+      description: 'Consider planning a feature push or community event to boost engagement.',
+      action: 'Schedule a hackathon, release a new version, or start a discussion about project direction.',
+    });
   }
+
+  return recommendations.sort((a, b) => {
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    return priorityOrder[a.priority] - priorityOrder[b.priority];
+  });
+}
+
+/**
+ * Calculate contributor satisfaction score
+ */
+export function calculateSatisfactionScore(
+  prMergeRate: number,
+  responseTime: number,
+  maintainerEngagement: number
+): number {
+  let score = 0;
+
+  // PR merge rate (40%)
+  if (prMergeRate >= 0.8) score += 40;
+  else if (prMergeRate >= 0.6) score += 30;
+  else if (prMergeRate >= 0.4) score += 20;
+  else if (prMergeRate >= 0.2) score += 10;
+
+  // Response time (35%)
+  if (responseTime <= 6) score += 35;
+  else if (responseTime <= 24) score += 28;
+  else if (responseTime <= 48) score += 20;
+  else if (responseTime <= 72) score += 10;
+
+  // Maintainer engagement (25%)
+  if (maintainerEngagement >= 0.8) score += 25;
+  else if (maintainerEngagement >= 0.6) score += 20;
+  else if (maintainerEngagement >= 0.4) score += 15;
+  else if (maintainerEngagement >= 0.2) score += 10;
+
+  return Math.round(score);
+}
+
+/**
+ * Generate community health report
+ */
+export function generateHealthReport(
+  repository: string,
+  data: {
+    responseTime: ResponseTimeMetrics;
+    activity: ActivityMetrics;
+    diversity: DiversityMetrics;
+    retention: RetentionMetrics;
+    historicalScores?: number[];
+  }
+): HealthMetrics & { recommendations: HealthRecommendation[]; satisfactionScore: number } {
+  const baseMetrics = {
+    repository,
+    timestamp: Date.now(),
+    ...data,
+  };
+
+  const score = calculateHealthScore(baseMetrics);
+  const healthTrend = calculateHealthTrend(score, data.historicalScores || []);
+  const recommendations = generateRecommendations({ ...baseMetrics, score, healthTrend });
+
+  const satisfactionScore = calculateSatisfactionScore(
+    data.activity.totalPRs > 0 
+      ? (data.activity.totalPRs * 0.7) / data.activity.totalPRs // Simplified merge rate
+      : 0,
+    data.responseTime.medianResponseTime,
+    data.diversity.maintainerEngagement
+  );
+
+  return {
+    ...baseMetrics,
+    score,
+    healthTrend,
+    recommendations,
+    satisfactionScore,
+  };
 }

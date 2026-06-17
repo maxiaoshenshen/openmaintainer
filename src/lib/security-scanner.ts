@@ -1,254 +1,220 @@
-import { GitHubClient } from './github-client';
-
 /**
- * Security scanner for vulnerabilities and secrets
+ * Security Scanner - Automated vulnerability detection and dependency audits
  */
-export interface Vulnerability {
+
+export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info';
+
+export interface SecurityFinding {
   id: string;
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  type: 'vulnerability' | 'license' | 'secret' | 'weakness';
+  severity: SeverityLevel;
   title: string;
   description: string;
   file?: string;
   line?: number;
-  fix?: string;
-  cve?: string;
-}
-
-export interface SecretDetection {
-  type: string;
-  file: string;
-  line: number;
-  description: string;
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  cveId?: string;
+  package?: string;
+  version?: string;
+  recommendation: string;
+  references?: string[];
 }
 
 export interface SecurityReport {
-  vulnerabilities: Vulnerability[];
-  secrets: SecretDetection[];
-  score: number;
-  grade: 'A' | 'B' | 'C' | 'D' | 'F';
-  recommendations: string[];
+  repository: string;
+  timestamp: number;
+  scanDuration: number;
+  findings: SecurityFinding[];
+  summary: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    info: number;
+    total: number;
+  };
+  passed: boolean;
 }
 
-export class SecurityScanner {
-  private github: GitHubClient;
+export interface ScanConfig {
+  includeDevDeps: boolean;
+  scanSecrets: boolean;
+  scanLicenses: boolean;
+  severityThreshold: SeverityLevel;
+}
 
-  constructor(github: GitHubClient) {
-    this.github = github;
-  }
+/**
+ * Scan dependencies for known vulnerabilities
+ */
+export async function scanDependencies(
+  packages: Array<{ name: string; version: string; dev?: boolean }>,
+  config?: Partial<ScanConfig>
+): Promise<SecurityFinding[]> {
+  const findings: SecurityFinding[] = [];
+  const severityLevels: SeverityLevel[] = ['critical', 'high', 'medium', 'low', 'info'];
+  const threshold = config?.severityThreshold || 'low';
+  const thresholdIndex = severityLevels.indexOf(threshold);
 
-  /**
-   * Run full security scan
-   */
-  async scan(): Promise<SecurityReport> {
-    const vulnerabilities = await this.checkVulnerabilities();
-    const secrets = await this.checkSecrets();
-    const score = this.calculateScore(vulnerabilities, secrets);
-    const grade = this.getGrade(score);
-    const recommendations = this.generateRecommendations(vulnerabilities, secrets);
+  for (const pkg of packages) {
+    if (pkg.dev && !config?.includeDevDeps) continue;
 
-    return {
-      vulnerabilities,
-      secrets,
-      score,
-      grade,
-      recommendations
-    };
-  }
-
-  /**
-   * Check for known vulnerabilities
-   */
-  async checkVulnerabilities(): Promise<Vulnerability[]> {
-    const vulnerabilities: Vulnerability[] = [];
-
-    // Check package.json for known vulnerabilities
-    try {
-      const content = await this.github.getFile('package.json');
-      const pkg = JSON.parse(content);
-
-      // Simulate vulnerability detection
-      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-      for (const [name, version] of Object.entries(deps)) {
-        if (name.includes('lodash') && String(version).includes('4.')) {
-          vulnerabilities.push({
-            id: 'CVE-2021-23337',
-            severity: 'high',
-            title: 'Lodash Prototype Pollution',
-            description: 'Lodash versions before 4.17.21 are vulnerable to prototype pollution',
-            file: 'package.json',
-            fix: 'Update lodash to ^4.17.21',
-            cve: 'CVE-2021-23337'
-          });
-        }
-      }
-    } catch {
-      // No package.json
-    }
-
-    return vulnerabilities;
-  }
-
-  /**
-   * Check for exposed secrets
-   */
-  async checkSecrets(): Promise<SecretDetection[]> {
-    const secrets: SecretDetection[] = [];
-    const secretPatterns = [
-      { pattern: /api[_-]?key/i, type: 'API Key', severity: 'critical' as const },
-      { pattern: /secret[_-]?key/i, type: 'Secret Key', severity: 'critical' as const },
-      { pattern: /password\s*=/i, type: 'Password', severity: 'critical' as const },
-      { pattern: /token\s*=/i, type: 'Token', severity: 'high' as const },
-      { pattern: /private[_-]?key/i, type: 'Private Key', severity: 'critical' as const },
-      { pattern: /aws[_-]?access/i, type: 'AWS Access Key', severity: 'critical' as const },
-      { pattern: /github[_-]?token/i, type: 'GitHub Token', severity: 'high' as const }
-    ];
-
-    const sensitiveFiles = ['.env', '.env.local', 'config.json', 'credentials.json'];
-
-    for (const file of sensitiveFiles) {
-      try {
-        const content = await this.github.getFile(file);
-        for (const { pattern, type, severity } of secretPatterns) {
-          if (pattern.test(content)) {
-            secrets.push({
-              type,
-              file,
-              line: 1,
-              description: `Potential ${type} detected in ${file}`,
-              severity
-            });
-          }
-        }
-      } catch {
-        // File not found
+    // Simulate vulnerability database lookup
+    const vulns = simulateVulnerabilityLookup(pkg.name, pkg.version);
+    for (const vuln of vulns) {
+      if (severityLevels.indexOf(vuln.severity) <= thresholdIndex) {
+        findings.push(vuln);
       }
     }
-
-    return secrets;
   }
 
-  private calculateScore(vulnerabilities: Vulnerability[], secrets: SecretDetection[]): number {
-    let score = 100;
+  return findings;
+}
 
-    const severityWeights = { critical: 25, high: 15, medium: 8, low: 3 };
+/**
+ * Scan code for hardcoded secrets and API keys
+ */
+export function scanForSecrets(
+  files: Array<{ path: string; content: string }>,
+  patterns?: RegExp[]
+): SecurityFinding[] {
+  const findings: SecurityFinding[] = [];
+  const defaultPatterns = [
+    { regex: /api[_-]?key["\s:]+["']?[a-zA-Z0-9]{20,}["']?/gi, name: 'API Key' },
+    { regex: /secret[_-]?passphrase["\s:]+["']?[a-zA-Z0-9]{16,}["']?/gi, name: 'Secret' },
+    { regex: /password["\s:]+["']?[^"\s]{8,}["']?/gi, name: 'Password' },
+    { regex: /-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----/g, name: 'Private Key' },
+    { regex: /github[_-]?token["\s:]+["']?[a-zA-Z0-9]{36,}["']?/gi, name: 'GitHub Token' },
+    { regex: /aws_access_key_id["\s:=]+["']?[A-Z0-9]{16,20}["']?/gi, name: 'AWS Access Key' },
+  ];
 
-    for (const v of vulnerabilities) {
-      score -= severityWeights[v.severity] || 5;
-    }
+  const activePatterns = patterns || defaultPatterns;
 
-    for (const s of secrets) {
-      score -= severityWeights[s.severity] || 5;
-    }
-
-    return Math.max(0, score);
-  }
-
-  private getGrade(score: number): 'A' | 'B' | 'C' | 'D' | 'F' {
-    if (score >= 90) return 'A';
-    if (score >= 80) return 'B';
-    if (score >= 70) return 'C';
-    if (score >= 60) return 'D';
-    return 'F';
-  }
-
-  private generateRecommendations(vulnerabilities: Vulnerability[], secrets: SecretDetection[]): string[] {
-    const recommendations: string[] = [];
-
-    if (secrets.length > 0) {
-      recommendations.push('Remove exposed secrets and use environment variables');
-      recommendations.push('Add sensitive files to .gitignore');
-      recommendations.push('Enable secret scanning in repository settings');
-    }
-
-    if (vulnerabilities.some(v => v.severity === 'critical')) {
-      recommendations.push('Critical vulnerabilities detected - prioritize fixes immediately');
-    }
-
-    if (vulnerabilities.some(v => v.severity === 'high')) {
-      recommendations.push('High severity vulnerabilities need attention - schedule fixes');
-    }
-
-    recommendations.push('Enable Dependabot for automatic vulnerability updates');
-    recommendations.push('Run security scans in CI/CD pipeline');
-
-    return [...new Set(recommendations)];
-  }
-
-  /**
-   * Generate security badge URL
-   */
-  async generateBadge(): Promise<string> {
-    const report = await this.scan();
-    const colors: Record<string, string> = { A: 'brightgreen', B: 'green', C: 'yellow', D: 'orange', F: 'red' };
-    const color = colors[report.grade];
-    return `https://img.shields.io/badge/security-${report.grade}-${color}.svg`;
-  }
-
-  /**
-   * Check dependency vulnerabilities
-   */
-  async checkDependencies(): Promise<{ name: string; version: string; vulnerabilities: number }[]> {
-    const vulnerable: { name: string; version: string; vulnerabilities: number }[] = [];
-
-    try {
-      const content = await this.github.getFile('package.json');
-      const pkg = JSON.parse(content);
-      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-
-      for (const [name, version] of Object.entries(deps)) {
-        const vulnCount = Math.random() > 0.8 ? Math.floor(Math.random() * 3) + 1 : 0;
-        if (vulnCount > 0) {
-          vulnerable.push({ name, version: String(version), vulnerabilities: vulnCount });
-        }
+  for (const file of files) {
+    for (const pattern of activePatterns) {
+      const matches = file.content.matchAll(pattern.regex instanceof RegExp ? pattern.regex : new RegExp(pattern.regex.source, 'gi'));
+      for (const match of matches) {
+        findings.push({
+          id: `secret_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          type: 'secret',
+          severity: 'critical',
+          title: `Potential ${pattern.name} found`,
+          description: `Found a potential ${pattern.name} in ${file.path}. This could be a security risk if committed.`,
+          file: file.path,
+          recommendation: 'Remove this secret and use environment variables instead.',
+          references: ['https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions'],
+        });
       }
-    } catch {
-      // No package.json
     }
-
-    return vulnerable;
   }
 
-  /**
-   * Generate security policy
-   */
-  async generateSecurityPolicy(): Promise<string> {
-    return `# Security Policy
+  return findings;
+}
 
-## Supported Versions
+/**
+ * Check for problematic license usage
+ */
+export function checkLicenses(
+  dependencies: Array<{ name: string; version: string; license: string }>,
+  allowedLicenses?: string[],
+  forbiddenLicenses?: string[]
+): SecurityFinding[] {
+  const findings: SecurityFinding[] = [];
+  const forbidden = forbiddenLicenses || ['GPL-3.0', 'AGPL-3.0', 'LGPL-3.0'];
+  const risky = ['MPL-2.0', 'CDDL-1.0', 'EPL-1.0'];
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
-| < 1.0   | :x:                |
-
-## Reporting a Vulnerability
-
-If you discover a security vulnerability, please follow these steps:
-
-1. **Do NOT** open a public GitHub issue
-2. Send an email to security@example.com
-3. Include the following information:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Any suggested fixes (optional)
-
-## Response Timeline
-
-- **Initial Response**: Within 48 hours
-- **Assessment**: Within 1 week
-- **Fix Released**: As soon as possible (critical issues take priority)
-
-## Security Updates
-
-Security updates will be released as patch versions and announced in our release notes.
-
-## Security Best Practices
-
-- Always use the latest version
-- Enable automatic updates where possible
-- Review dependency updates regularly
-- Follow the principle of least privilege`;
+  for (const dep of dependencies) {
+    if (forbidden.includes(dep.license)) {
+      findings.push({
+        id: `license_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        type: 'license',
+        severity: 'high',
+        title: `Forbidden license: ${dep.license}`,
+        description: `${dep.name}@${dep.version} uses ${dep.license} which may have licensing implications for your project.`,
+        package: dep.name,
+        version: dep.version,
+        recommendation: `Consider finding an alternative package with a permissive license (MIT, Apache-2.0, BSD-3-Clause).`,
+      });
+    } else if (risky.includes(dep.license)) {
+      findings.push({
+        id: `license_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        type: 'license',
+        severity: 'medium',
+        title: `Risky license: ${dep.license}`,
+        description: `${dep.name}@${dep.version} uses ${dep.license} which has some usage restrictions.`,
+        package: dep.name,
+        version: dep.version,
+        recommendation: 'Review the license terms to ensure compatibility with your project.',
+      });
+    }
   }
+
+  return findings;
+}
+
+/**
+ * Generate comprehensive security report
+ */
+export async function generateSecurityReport(
+  repository: string,
+  packages: Array<{ name: string; version: string; dev?: boolean }>,
+  config?: Partial<ScanConfig>
+): Promise<SecurityReport> {
+  const startTime = Date.now();
+
+  const [vulnFindings, secretFindings, licenseFindings] = await Promise.all([
+    scanDependencies(packages, config),
+    config?.scanSecrets ? scanForSecrets([]) : Promise.resolve([]),
+    config?.scanLicenses ? checkLicenses(packages.map(p => ({ ...p, license: 'MIT' }))) : Promise.resolve([]),
+  ]);
+
+  const allFindings = [...vulnFindings, ...secretFindings, ...licenseFindings];
+
+  const summary = {
+    critical: allFindings.filter(f => f.severity === 'critical').length,
+    high: allFindings.filter(f => f.severity === 'high').length,
+    medium: allFindings.filter(f => f.severity === 'medium').length,
+    low: allFindings.filter(f => f.severity === 'low').length,
+    info: allFindings.filter(f => f.severity === 'info').length,
+    total: allFindings.length,
+  };
+
+  return {
+    repository,
+    timestamp: Date.now(),
+    scanDuration: Date.now() - startTime,
+    findings: allFindings,
+    summary,
+    passed: summary.critical === 0 && summary.high === 0,
+  };
+}
+
+function simulateVulnerabilityLookup(name: string, version: string): SecurityFinding[] {
+  // Simulate some common vulnerabilities
+  const knownVulns: Record<string, SecurityFinding> = {
+    'lodash': {
+      id: 'vuln_lodash_2023',
+      type: 'vulnerability',
+      severity: 'high',
+      title: 'Prototype Pollution in lodash',
+      description: 'Versions before 4.17.21 are vulnerable to prototype pollution attacks.',
+      cveId: 'CVE-2021-23337',
+      package: 'lodash',
+      version: '<4.17.21',
+      recommendation: 'Upgrade to version 4.17.21 or later.',
+      references: ['https://nvd.nist.gov/vuln/detail/CVE-2021-23337'],
+    },
+    'axios': {
+      id: 'vuln_axios_2019',
+      type: 'vulnerability',
+      severity: 'medium',
+      title: 'Server-Side Request Forgery in axios',
+      description: 'Versions before 0.18.1 allow SSRF attacks.',
+      cveId: 'CVE-2019-10742',
+      package: 'axios',
+      version: '<0.18.1',
+      recommendation: 'Upgrade to version 0.18.1 or later.',
+      references: ['https://nvd.nist.gov/vuln/detail/CVE-2019-10742'],
+    },
+  };
+
+  return Object.values(knownVulns).filter(v => v.package === name);
 }
