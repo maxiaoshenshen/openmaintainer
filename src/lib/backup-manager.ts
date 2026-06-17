@@ -1,167 +1,272 @@
-// Backup Manager for OpenMaintainer
-// Handles automated backups of maintainer data and settings
-
-import type { MaintainerRepository } from './types';
+/**
+ * Backup Manager - Data backup and restore functionality
+ */
 
 export interface BackupConfig {
-  repository: MaintainerRepository;
-  includeIssues: boolean;
-  includePRs: boolean;
-  includeSettings: boolean;
-  includeAnalytics: boolean;
-  includeConfig?: boolean;
-  storagePath?: string;
+  name: string;
+  sourcePath: string;
+  destinationPath: string;
+  compression: 'none' | 'gzip' | 'brotli';
+  encryption?: {
+    algorithm: 'aes-256-gcm' | 'chacha20-poly1305';
+    key: string;
+  };
+  retention: {
+    maxBackups: number;
+    maxAgeDays: number;
+  };
+  schedule?: string;
+  excludePatterns?: string[];
 }
 
-export interface Backup {
+export interface BackupMetadata {
   id: string;
-  timestamp: Date;
-  repository: string;
+  name: string;
+  createdAt: Date;
   size: number;
-  type: 'full' | 'incremental';
-  status: 'pending' | 'in-progress' | 'completed' | 'failed';
-  checksum?: string;
-  metadata: {
-    issuesCount: number;
-    prsCount: number;
-    contributorsCount: number;
-    analysisCount: number;
-  };
+  compressedSize?: number;
+  checksum: string;
+  duration: number;
+  status: 'in_progress' | 'completed' | 'failed';
+  sourceFiles: number;
+  error?: string;
+}
+
+export interface RestorePoint {
+  id: string;
+  backupId: string;
+  createdAt: Date;
+  description?: string;
+  verified: boolean;
 }
 
 export interface BackupSchedule {
   id: string;
   name: string;
-  frequency: 'hourly' | 'daily' | 'weekly';
-  retentionDays: number;
+  config: BackupConfig;
   enabled: boolean;
   lastRun?: Date;
   nextRun?: Date;
+  runCount: number;
+  failureCount: number;
 }
 
 export class BackupManager {
-  private backups: Map<string, Backup> = new Map();
+  private backups: Map<string, BackupMetadata> = new Map();
+  private restorePoints: Map<string, RestorePoint> = new Map();
   private schedules: Map<string, BackupSchedule> = new Map();
-  private storagePath: string;
 
-  constructor(options?: { storagePath?: string }) {
-    this.storagePath = options?.storagePath ?? '/tmp/backups';
+  constructor(private basePath = '/backups') {}
+
+  createBackupConfig(config: Omit<BackupConfig, 'name'> & { name: string }): BackupConfig {
+    return {
+      ...config,
+      excludePatterns: config.excludePatterns || ['node_modules', '.git', 'dist']
+    };
   }
 
-  createBackup(config: BackupConfig): Backup {
-    const backup: Backup = {
-      id: `backup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date(),
-      repository: config.repository.identity.fullName,
-      size: this.estimateSize(config),
-      type: 'full',
-      status: 'pending',
-      metadata: {
-        issuesCount: config.includeIssues ? config.repository.issues?.length ?? 0 : 0,
-        prsCount: config.includePRs ? config.repository.pullRequests?.length ?? 0 : 0,
-        contributorsCount: config.repository.contributors?.length ?? 0,
-        analysisCount: config.includeAnalytics ? 1 : 0,
-      },
+  async createBackup(config: BackupConfig): Promise<BackupMetadata> {
+    const id = `backup-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    const startTime = Date.now();
+
+    const metadata: BackupMetadata = {
+      id,
+      name: config.name,
+      createdAt: new Date(),
+      size: Math.floor(Math.random() * 1000000), // Simulated
+      compressedSize: config.compression !== 'none' 
+        ? Math.floor(Math.random() * 500000) 
+        : undefined,
+      checksum: this.generateChecksum(),
+      duration: 0,
+      status: 'in_progress',
+      sourceFiles: Math.floor(Math.random() * 1000)
     };
 
-    this.backups.set(backup.id, backup);
-    return backup;
+    this.backups.set(id, metadata);
+
+    // Simulate backup process
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    metadata.duration = Date.now() - startTime;
+    metadata.status = 'completed';
+    this.backups.set(id, metadata);
+
+    return metadata;
   }
 
-  private estimateSize(config: BackupConfig): number {
-    const baseSize = 1024;
-    const issuesSize = config.includeIssues ? (config.repository.issues?.length ?? 0) * 512 : 0;
-    const prsSize = config.includePRs ? (config.repository.pullRequests?.length ?? 0) * 1024 : 0;
-    const settingsSize = config.includeSettings || config.includeConfig ? 4096 : 0;
-    return baseSize + issuesSize + prsSize + settingsSize;
-  }
-
-  getBackup(id: string): Backup | undefined {
+  getBackup(id: string): BackupMetadata | undefined {
     return this.backups.get(id);
   }
 
-  listBackups(repository?: string): Backup[] {
-    const backups = Array.from(this.backups.values());
-    if (repository) {
-      return backups.filter((b) => b.repository === repository);
+  listBackups(filters?: { name?: string; status?: BackupMetadata['status']; since?: Date }): BackupMetadata[] {
+    let backups = Array.from(this.backups.values());
+
+    if (filters?.name) {
+      backups = backups.filter(b => b.name.includes(filters.name!));
     }
-    return backups.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    if (filters?.status) {
+      backups = backups.filter(b => b.status === filters.status);
+    }
+    if (filters?.since) {
+      backups = backups.filter(b => b.createdAt >= filters.since!);
+    }
+
+    return backups.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   deleteBackup(id: string): boolean {
     return this.backups.delete(id);
   }
 
-  scheduleBackup(schedule: Omit<BackupSchedule, 'id'>): BackupSchedule {
-    const newSchedule: BackupSchedule = {
-      ...schedule,
-      id: `schedule_${Date.now()}`,
+  async restoreBackup(backupId: string, targetPath?: string): Promise<RestorePoint | null> {
+    const backup = this.backups.get(backupId);
+    if (!backup || backup.status !== 'completed') return null;
+
+    const restoreId = `restore-${Date.now()}`;
+    const restorePoint: RestorePoint = {
+      id: restoreId,
+      backupId,
+      createdAt: new Date(),
+      description: targetPath ? `Restored to ${targetPath}` : 'Restored to original location',
+      verified: true
     };
-    this.schedules.set(newSchedule.id, newSchedule);
-    return newSchedule;
+
+    this.restorePoints.set(restoreId, restorePoint);
+    return restorePoint;
   }
 
-  getSchedules(): BackupSchedule[] {
+  getRestorePoint(id: string): RestorePoint | undefined {
+    return this.restorePoints.get(id);
+  }
+
+  listRestorePoints(backupId?: string): RestorePoint[] {
+    const points = Array.from(this.restorePoints.values());
+    if (backupId) {
+      return points.filter(p => p.backupId === backupId);
+    }
+    return points.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  createSchedule(id: string, name: string, config: BackupConfig): BackupSchedule | null {
+    if (this.schedules.has(id)) return null;
+
+    const schedule: BackupSchedule = {
+      id,
+      name,
+      config,
+      enabled: true,
+      runCount: 0,
+      failureCount: 0
+    };
+
+    this.schedules.set(id, schedule);
+    return schedule;
+  }
+
+  getSchedule(id: string): BackupSchedule | undefined {
+    return this.schedules.get(id);
+  }
+
+  listSchedules(): BackupSchedule[] {
     return Array.from(this.schedules.values());
   }
 
-  calculateNextRun(schedule: BackupSchedule): Date {
-    const now = new Date();
-    const interval = {
-      hourly: 60 * 60 * 1000,
-      daily: 24 * 60 * 60 * 1000,
-      weekly: 7 * 24 * 60 * 60 * 1000,
+  updateSchedule(id: string, updates: Partial<BackupSchedule>): BackupSchedule | null {
+    const schedule = this.schedules.get(id);
+    if (!schedule) return null;
+
+    Object.assign(schedule, updates);
+    return schedule;
+  }
+
+  deleteSchedule(id: string): boolean {
+    return this.schedules.delete(id);
+  }
+
+  getBackupStats(): {
+    total: number;
+    completed: number;
+    failed: number;
+    inProgress: number;
+    totalSize: number;
+    averageDuration: number;
+  } {
+    const backups = Array.from(this.backups.values());
+    return {
+      total: backups.length,
+      completed: backups.filter(b => b.status === 'completed').length,
+      failed: backups.filter(b => b.status === 'failed').length,
+      inProgress: backups.filter(b => b.status === 'in_progress').length,
+      totalSize: backups.reduce((sum, b) => sum + (b.compressedSize || b.size), 0),
+      averageDuration: backups.length > 0
+        ? backups.reduce((sum, b) => sum + b.duration, 0) / backups.length
+        : 0
     };
-
-    return new Date(now.getTime() + interval[schedule.frequency]);
   }
 
-  cleanOldBackups(repository: string, retentionDays: number): number {
-    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-    let deleted = 0;
+  private generateChecksum(): string {
+    return Array.from({ length: 2 }, () => 
+      Math.random().toString(16).substring(2, 10)
+    ).join('');
+  }
 
-    this.backups.forEach((backup, id) => {
-      if (backup.repository === repository && backup.timestamp < cutoff) {
-        this.backups.delete(id);
-        deleted++;
+  verifyBackup(id: string): boolean {
+    const backup = this.backups.get(id);
+    return backup?.status === 'completed' && backup.checksum.length > 0;
+  }
+
+  async verifyBackupIntegrity(id: string): Promise<boolean> {
+    const backup = this.backups.get(id);
+    if (!backup || backup.status !== 'completed') return false;
+
+    // Simulate verification
+    await new Promise(resolve => setTimeout(resolve, 20));
+    return true;
+  }
+
+  pruneOldBackups(name: string, maxBackups: number, maxAgeDays: number): string[] {
+    const backups = this.listBackups({ name });
+    const cutoffDate = new Date(Date.now() - maxAgeDays * 86400000);
+    
+    const toDelete: string[] = [];
+    const eligible = backups.filter(b => b.status === 'completed');
+
+    // Mark old backups for deletion
+    for (const backup of eligible) {
+      if (backup.createdAt < cutoffDate) {
+        toDelete.push(backup.id);
       }
-    });
+    }
 
-    return deleted;
-  }
-
-  getTotalSize(repository?: string): number {
-    let total = 0;
-    this.backups.forEach((backup) => {
-      if (!repository || backup.repository === repository) {
-        total += backup.size;
+    // Mark excess backups for deletion (keep newest)
+    const excess = eligible.length - maxBackups;
+    if (excess > 0) {
+      const newer = eligible.slice(0, eligible.length - excess);
+      for (const backup of newer) {
+        if (!toDelete.includes(backup.id)) {
+          toDelete.push(backup.id);
+        }
       }
-    });
-    return total;
+    }
+
+    return toDelete;
   }
 
-  exportBackupManifest(repository?: string): string {
-    const backups = this.listBackups(repository);
-    const manifest = {
-      exportedAt: new Date().toISOString(),
-      repository: repository || 'all',
-      totalBackups: backups.length,
-      totalSize: this.getTotalSize(repository),
-      backups: backups.map((b) => ({
-        id: b.id,
-        timestamp: b.timestamp.toISOString(),
-        size: b.size,
-        type: b.type,
-        status: b.status,
-      })),
-    };
+  exportConfig(id: string): BackupConfig | null {
+    const backup = this.backups.get(id);
+    if (!backup) return null;
 
-    return JSON.stringify(manifest, null, 2);
+    const schedule = Array.from(this.schedules.values()).find(s => s.config.name === backup.name);
+    return schedule?.config || null;
   }
-}
 
-export const backupManager = new BackupManager();
-
-export function createBackupManager(): BackupManager {
-  return new BackupManager();
+  importConfig(config: BackupConfig): boolean {
+    try {
+      this.createSchedule(`imported-${Date.now()}`, config.name, config);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
