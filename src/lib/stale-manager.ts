@@ -1,287 +1,193 @@
 /**
- * Stale Issue/PR Manager
- * Identifies and manages stale issues and pull requests
+ * Stale Issue Manager
+ * Automatically detect and manage stale issues and PRs
  */
 
-export interface StaleItem {
-  number: number;
-  type: 'issue' | 'pull_request';
-  title: string;
-  author: string;
-  createdAt: string;
-  lastActivityAt: string;
-  daysSinceActivity: number;
-  labels: string[];
-  reason: string;
-  shouldClose: boolean;
-  shouldPing: boolean;
-}
+import type { Issue, PullRequest } from './types';
 
 export interface StaleConfig {
-  issueDaysUntilStale: number;
-  issueDaysUntilClose: number;
-  prDaysUntilStale: number;
-  prDaysUntilClose: number;
+  daysUntilStale: number;
+  daysUntilClose: number;
+  staleLabel: string;
+  closeMessage: string;
   exemptLabels: string[];
-  exemptAuthors: string[];
 }
 
-export interface StaleReport {
+export interface StaleItem {
+  type: 'issue' | 'pull_request';
+  number: number;
+  title: string;
+  author: string;
+  createdAt: Date;
+  lastActivityAt: Date;
+  daysInactive: number;
+  labels: string[];
+  url: string;
+}
+
+export interface StaleAnalysis {
   staleIssues: StaleItem[];
   stalePRs: StaleItem[];
-  needsClosing: StaleItem[];
-  needsPing: StaleItem[];
+  nearStaleIssues: StaleItem[];
+  nearStalePRs: StaleItem[];
   stats: {
-    totalStaleIssues: number;
-    totalStalePRs: number;
-    avgDaysSinceActivity: number;
-    closeableCount: number;
+    totalIssues: number;
+    totalPRs: number;
+    stalePercentage: number;
+    avgDaysUntilStale: number;
   };
+  recommendations: string[];
 }
 
-const DEFAULT_CONFIG: StaleConfig = {
-  issueDaysUntilStale: 60,
-  issueDaysUntilClose: 90,
-  prDaysUntilStale: 14,
-  prDaysUntilClose: 21,
-  exemptLabels: ['pinned', 'security', 'keep-open'],
-  exemptAuthors: ['dependabot', 'renovate'],
+export const DEFAULT_CONFIG: StaleConfig = {
+  daysUntilStale: 60,
+  daysUntilClose: 7,
+  staleLabel: 'stale',
+  closeMessage: 'This issue has been automatically marked as stale because it has not had recent activity. It will be closed if no further action occurs.',
+  exemptLabels: ['pinned', 'security', 'bug', 'enhancement', 'priority:high'],
 };
 
-const STALE_REASONS = {
-  noActivity: (days: number) => `No activity for ${days} days`,
-  waitingOnAuthor: (days: number) => `Waiting on author response for ${days} days`,
-  needsReview: (days: number) => `Needs review for ${days} days`,
-  pendingFeedback: (days: number) => `Pending feedback for ${days} days`,
-};
+export function calculateDaysInactive(lastActivity: Date, now: Date = new Date()): number {
+  const diff = now.getTime() - lastActivity.getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
 
-/**
- * Analyze items for staleness
- */
-export function analyzeStaleItems(params: {
-  issues: Array<{
-    number: number;
-    title: string;
-    author: string;
-    createdAt: string;
-    updatedAt: string;
-    labels?: string[];
-    state?: string;
-  }>;
-  pullRequests: Array<{
-    number: number;
-    title: string;
-    author: string;
-    createdAt: string;
-    updatedAt: string;
-    labels?: string[];
-    state?: string;
-    draft?: boolean;
-  }>;
-  config?: Partial<StaleConfig>;
-}): StaleReport {
-  const config = { ...DEFAULT_CONFIG, ...params.config };
-  const now = new Date();
+export function isExempt(labels: string[], exemptLabels: string[]): boolean {
+  return labels.some(label => exemptLabels.includes(label.toLowerCase()));
+}
 
+export function categorizeIssue(
+  issue: Issue,
+  config: StaleConfig = DEFAULT_CONFIG
+): 'stale' | 'nearStale' | 'active' {
+  if (isExempt(issue.labels || [], config.exemptLabels)) return 'active';
+  
+  const lastActivity = issue.updatedAt ? new Date(issue.updatedAt) : new Date(issue.createdAt);
+  const daysInactive = calculateDaysInactive(lastActivity);
+  
+  if (daysInactive >= config.daysUntilStale + config.daysUntilClose) return 'stale';
+  if (daysInactive >= config.daysUntilStale) return 'nearStale';
+  return 'active';
+}
+
+export function categorizePR(
+  pr: PullRequest,
+  config: StaleConfig = DEFAULT_CONFIG
+): 'stale' | 'nearStale' | 'active' {
+  if (isExempt(pr.labels || [], config.exemptLabels)) return 'active';
+  
+  const lastActivity = pr.updatedAt ? new Date(pr.updatedAt) : new Date(pr.createdAt);
+  const daysInactive = calculateDaysInactive(lastActivity);
+  
+  if (daysInactive >= config.daysUntilStale + config.daysUntilClose) return 'stale';
+  if (daysInactive >= config.daysUntilStale) return 'nearStale';
+  return 'active';
+}
+
+export function analyzeStaleness(
+  issues: Issue[],
+  pullRequests: PullRequest[],
+  config: StaleConfig = DEFAULT_CONFIG
+): StaleAnalysis {
   const staleIssues: StaleItem[] = [];
   const stalePRs: StaleItem[] = [];
-  const needsClosing: StaleItem[] = [];
-  const needsPing: StaleItem[] = [];
-
-  // Process issues
-  for (const issue of params.issues) {
+  const nearStaleIssues: StaleItem[] = [];
+  const nearStalePRs: StaleItem[] = [];
+  
+  for (const issue of issues) {
     if (issue.state === 'closed') continue;
-    if (isExempt(issue.labels || [], issue.author, config)) continue;
-
-    const daysSinceActivity = getDaysDifference(new Date(issue.updatedAt), now);
-    const daysSinceCreation = getDaysDifference(new Date(issue.createdAt), now);
-
-    if (daysSinceActivity >= config.issueDaysUntilStale) {
-      const shouldClose = daysSinceActivity >= config.issueDaysUntilClose;
-      const reason = getStaleReason(daysSinceActivity, 'issue');
-
-      const item: StaleItem = {
-        number: issue.number,
-        type: 'issue',
-        title: issue.title,
-        author: issue.author,
-        createdAt: issue.createdAt,
-        lastActivityAt: issue.updatedAt,
-        daysSinceActivity,
-        labels: issue.labels || [],
-        reason,
-        shouldClose,
-        shouldPing: !shouldClose,
-      };
-
-      staleIssues.push(item);
-      
-      if (shouldClose) {
-        needsClosing.push(item);
-      } else if (daysSinceActivity >= config.issueDaysUntilStale) {
-        needsPing.push(item);
-      }
-    }
+    
+    const category = categorizeIssue(issue, config);
+    const lastActivity = issue.updatedAt ? new Date(issue.updatedAt) : new Date(issue.createdAt);
+    const daysInactive = calculateDaysInactive(lastActivity);
+    
+    const item: StaleItem = {
+      type: 'issue',
+      number: issue.number,
+      title: issue.title,
+      author: issue.author,
+      createdAt: new Date(issue.createdAt),
+      lastActivityAt: lastActivity,
+      daysInactive,
+      labels: issue.labels || [],
+      url: issue.identity.url || `https://github.com/${issue.identity.owner}/${issue.identity.name}/issues/${issue.number}`,
+    };
+    
+    if (category === 'stale') staleIssues.push(item);
+    else if (category === 'nearStale') nearStaleIssues.push(item);
   }
-
-  // Process PRs
-  for (const pr of params.pullRequests) {
-    if (pr.state === 'closed' || pr.state === 'merged') continue;
-    if (pr.draft) continue;
-    if (isExempt(pr.labels || [], pr.author, config)) continue;
-
-    const daysSinceActivity = getDaysDifference(new Date(pr.updatedAt), now);
-    const daysSinceCreation = getDaysDifference(new Date(pr.createdAt), now);
-
-    if (daysSinceActivity >= config.prDaysUntilStale) {
-      const shouldClose = daysSinceActivity >= config.prDaysUntilClose;
-      const reason = getStaleReason(daysSinceActivity, 'pr');
-
-      const item: StaleItem = {
-        number: pr.number,
-        type: 'pull_request',
-        title: pr.title,
-        author: pr.author,
-        createdAt: pr.createdAt,
-        lastActivityAt: pr.updatedAt,
-        daysSinceActivity,
-        labels: pr.labels || [],
-        reason,
-        shouldClose,
-        shouldPing: !shouldClose,
-      };
-
-      stalePRs.push(item);
-      
-      if (shouldClose) {
-        needsClosing.push(item);
-      } else {
-        needsPing.push(item);
-      }
-    }
+  
+  for (const pr of pullRequests) {
+    if (pr.state === 'merged' || pr.state === 'closed') continue;
+    
+    const category = categorizePR(pr, config);
+    const lastActivity = pr.updatedAt ? new Date(pr.updatedAt) : new Date(pr.createdAt);
+    const daysInactive = calculateDaysInactive(lastActivity);
+    
+    const item: StaleItem = {
+      type: 'pull_request',
+      number: pr.number,
+      title: pr.title,
+      author: pr.author,
+      createdAt: new Date(pr.createdAt),
+      lastActivityAt: lastActivity,
+      daysInactive,
+      labels: pr.labels || [],
+      url: pr.identity.url || `https://github.com/${pr.identity.owner}/${pr.identity.name}/pull/${pr.number}`,
+    };
+    
+    if (category === 'stale') stalePRs.push(item);
+    else if (category === 'nearStale') nearStalePRs.push(item);
   }
-
-  const allStale = [...staleIssues, ...stalePRs];
-  const avgDays = allStale.length > 0
-    ? Math.round(allStale.reduce((sum, item) => sum + item.daysSinceActivity, 0) / allStale.length)
+  
+  const totalIssues = issues.filter(i => i.state !== 'closed').length;
+  const totalPRs = pullRequests.filter(p => p.state !== 'merged' && p.state !== 'closed').length;
+  const stalePercentage = totalIssues + totalPRs > 0
+    ? Math.round(((staleIssues.length + stalePRs.length) / (totalIssues + totalPRs)) * 100)
     : 0;
-
+  
+  const recommendations: string[] = [];
+  if (staleIssues.length > 10) recommendations.push('Consider running a stale issue cleanup campaign');
+  if (stalePRs.length > 5) recommendations.push('Review stale PRs - some may need to be closed');
+  if (stalePercentage > 30) recommendations.push('High stale percentage - review repository health');
+  if (nearStaleIssues.length > 0) recommendations.push(`${nearStaleIssues.length} issues will become stale soon - consider activity`);
+  
   return {
     staleIssues,
     stalePRs,
-    needsClosing,
-    needsPing,
+    nearStaleIssues,
+    nearStalePRs,
     stats: {
-      totalStaleIssues: staleIssues.length,
-      totalStalePRs: stalePRs.length,
-      avgDaysSinceActivity: avgDays,
-      closeableCount: needsClosing.length,
+      totalIssues,
+      totalPRs,
+      stalePercentage,
+      avgDaysUntilStale: config.daysUntilStale,
     },
+    recommendations,
   };
 }
 
-function isExempt(labels: string[], author: string, config: StaleConfig): boolean {
-  // Check exempt labels
-  for (const label of labels) {
-    if (config.exemptLabels.some(el => label.toLowerCase().includes(el.toLowerCase()))) {
-      return true;
-    }
-  }
-
-  // Check exempt authors
-  if (config.exemptAuthors.some(ea => author.toLowerCase().includes(ea))) {
-    return true;
-  }
-
-  return false;
+export function generateStaleMessage(item: StaleItem, config: StaleConfig = DEFAULT_CONFIG): string {
+  return `This ${item.type} has been inactive for ${item.daysInactive} days.\n\n${config.closeMessage}`;
 }
 
-function getDaysDifference(date1: Date, date2: Date): number {
-  const diffTime = Math.abs(date2.getTime() - date1.getTime());
-  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
-}
-
-function getStaleReason(days: number, type: 'issue' | 'pr'): string {
-  if (type === 'pr') {
-    return STALE_REASONS.needsReview(days);
-  }
-  
-  if (days > 60) {
-    return STALE_REASONS.waitingOnAuthor(days);
-  }
-  if (days > 30) {
-    return STALE_REASONS.pendingFeedback(days);
-  }
-  return STALE_REASONS.noActivity(days);
-}
-
-/**
- * Generate close message for stale items
- */
-export function generateCloseMessage(item: StaleItem): string {
-  const type = item.type === 'pull_request' ? 'PR' : 'Issue';
-  
-  return `## ${type} #${item.number} marked as stale
-
-This ${item.type} has been inactive for ${item.daysSinceActivity} days.
-
-**Title:** ${item.title}
-
-${item.reason}
-
-I'm closing this for housekeeping. If you're still interested in this ${item.type === 'pull_request' ? 'PR' : 'issue'}, please feel free to reopen it or create a new one with updated information.`;
-}
-
-/**
- * Generate ping message for stale items
- */
-export function generatePingMessage(item: StaleItem): string {
-  return `Hey @${item.author}! Just checking in on this ${item.type === 'pull_request' ? 'PR' : 'issue'}.
-
-**${item.title}** (#${item.number})
-
-${item.reason}
-
-Is this still something you're working on? Let us know if you need any help or have any questions!`;
-}
-
-/**
- * Generate stale report summary
- */
-export function generateStaleSummary(report: StaleReport): string {
-  const lines: string[] = [];
-  
-  lines.push('# Stale Items Report\n');
-  
-  if (report.staleIssues.length > 0) {
-    lines.push(`## Stale Issues (${report.staleIssues.length})`);
-    lines.push('');
-    for (const issue of report.staleIssues.slice(0, 5)) {
-      lines.push(`- #${issue.number}: ${issue.title} (${issue.daysSinceActivity}d stale)`);
+export function suggestAction(item: StaleItem): string {
+  if (item.type === 'issue') {
+    if (item.labels.some(l => l.includes('question'))) {
+      return 'Convert to discussion or close if answered';
     }
-    if (report.staleIssues.length > 5) {
-      lines.push(`- ... and ${report.staleIssues.length - 5} more`);
+    if (item.labels.some(l => l.includes('help wanted'))) {
+      return 'Consider if the help is still needed';
     }
-    lines.push('');
+    return 'Close or add more context';
   }
   
-  if (report.stalePRs.length > 0) {
-    lines.push(`## Stale PRs (${report.stalePRs.length})`);
-    lines.push('');
-    for (const pr of report.stalePRs.slice(0, 5)) {
-      lines.push(`- #${pr.number}: ${pr.title} (${pr.daysSinceActivity}d stale)`);
+  if (item.type === 'pull_request') {
+    if (item.labels.some(l => l.includes('draft'))) {
+      return 'Ping author or close draft PRs';
     }
-    if (report.stalePRs.length > 5) {
-      lines.push(`- ... and ${report.stalePRs.length - 5} more`);
-    }
-    lines.push('');
+    return 'Request updates from author or close';
   }
   
-  lines.push('## Summary');
-  lines.push(`- Total stale issues: ${report.stats.totalStaleIssues}`);
-  lines.push(`- Total stale PRs: ${report.stats.totalStalePRs}`);
-  lines.push(`- Items to close: ${report.stats.closeableCount}`);
-  lines.push(`- Average days stale: ${report.stats.avgDaysSinceActivity}`);
-  
-  return lines.join('\n');
+  return 'Review and close if no longer relevant';
 }

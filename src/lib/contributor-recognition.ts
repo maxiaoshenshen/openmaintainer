@@ -1,172 +1,236 @@
-export interface Contributor {
-  username: string;
-  avatarUrl?: string;
-  contributions: number;
-  firstContribution?: string;
-  lastContribution?: string;
-  specialties: string[];
-  badges: Badge[];
-  impact: {
-    issuesClosed: number;
-    prsMerged: number;
-    reviewsGiven: number;
-  };
-}
+/**
+ * Contributor Recognition System
+ * Celebrate contributions and build community
+ */
+
+import type { Contributor } from './types';
+
+export type BadgeType = 
+  | 'first-contribution'
+  | 'active-contributor'
+  | 'code-reviewer'
+  | 'mentor'
+  | 'documentation-hero'
+  | 'bug-hunter'
+  | 'performance-optimist'
+  | 'security-sentinel'
+  | 'community-champion'
+  | 'long-time-contributor';
 
 export interface Badge {
-  id: string;
+  type: BadgeType;
   name: string;
   description: string;
   icon: string;
-  tier: "bronze" | "silver" | "gold" | "platinum";
-  earnedAt: string;
+  earnedAt?: Date;
+  tier?: 'bronze' | 'silver' | 'gold' | 'platinum';
 }
 
-export interface Achievement {
-  id: string;
-  title: string;
-  description: string;
-  requirement: number;
-  type: "issues" | "prs" | "reviews" | "streak" | "special";
-  tier: Badge["tier"];
+export interface ContributorProfile {
+  contributor: Contributor;
+  badges: Badge[];
+  stats: {
+    totalContributions: number;
+    issuesOpened: number;
+    issuesClosed: number;
+    prsOpened: number;
+    prsMerged: number;
+    reviewsGiven: number;
+    commentsPosted: number;
+  };
+  rank: number;
+  isMaintainer: boolean;
 }
 
-export class ContributorRecognition {
-  private achievements: Achievement[] = [
-    { id: "first-pr", title: "First Contribution", description: "Merged your first PR", requirement: 1, type: "prs", tier: "bronze" },
-    { id: "pr-10", title: "Regular Contributor", description: "Merged 10 PRs", requirement: 10, type: "prs", tier: "bronze" },
-    { id: "pr-50", title: "Prolific Contributor", description: "Merged 50 PRs", requirement: 50, type: "prs", tier: "silver" },
-    { id: "pr-100", title: "Top Contributor", description: "Merged 100 PRs", requirement: 100, type: "prs", tier: "gold" },
-    { id: "pr-500", title: "Legendary Contributor", description: "Merged 500 PRs", requirement: 500, type: "prs", tier: "platinum" },
-    { id: "issues-10", title: "Bug Hunter", description: "Closed 10 issues", requirement: 10, type: "issues", tier: "bronze" },
-    { id: "issues-50", title: "Problem Solver", description: "Closed 50 issues", requirement: 50, type: "issues", tier: "silver" },
-    { id: "reviews-10", title: "Code Reviewer", description: "Submitted 10 reviews", requirement: 10, type: "reviews", tier: "bronze" },
-    { id: "streak-7", title: "Weekly Warrior", description: "7 day contribution streak", requirement: 7, type: "streak", tier: "bronze" },
-    { id: "streak-30", title: "Monthly Master", description: "30 day contribution streak", requirement: 30, type: "streak", tier: "gold" },
-    { id: "mentor", title: "Community Mentor", description: "Helped 10 newcomers", requirement: 10, type: "special", tier: "silver" },
-  ];
+export interface LeaderboardEntry {
+  rank: number;
+  contributor: string;
+  contributions: number;
+  badges: BadgeType[];
+  trend: 'up' | 'down' | 'stable';
+  weeklyDelta: number;
+}
 
-  evaluateContributor(contributor: Partial<Contributor>): Contributor {
-    const full: Contributor = {
-      username: contributor.username ?? "unknown",
-      avatarUrl: contributor.avatarUrl,
-      contributions: contributor.contributions ?? 0,
-      firstContribution: contributor.firstContribution,
-      lastContribution: contributor.lastContribution,
-      specialties: contributor.specialties ?? this.detectSpecialties(contributor),
-      badges: contributor.badges ?? this.calculateBadges(contributor),
-      impact: contributor.impact ?? { issuesClosed: 0, prsMerged: 0, reviewsGiven: 0 },
+export const BADGE_DEFINITIONS: Record<BadgeType, Omit<Badge, 'earnedAt'>> = {
+  'first-contribution': {
+    type: 'first-contribution',
+    name: 'First Contribution',
+    description: 'Made their first contribution to the project',
+    icon: '🎉',
+    tier: 'bronze',
+  },
+  'active-contributor': {
+    type: 'active-contributor',
+    name: 'Active Contributor',
+    description: 'Consistently contributes quality work',
+    icon: '⭐',
+    tier: 'silver',
+  },
+  'code-reviewer': {
+    type: 'code-reviewer',
+    name: 'Code Reviewer',
+    description: 'Provided helpful code reviews',
+    icon: '🔍',
+    tier: 'silver',
+  },
+  'mentor': {
+    type: 'mentor',
+    name: 'Mentor',
+    description: 'Helped others learn and grow',
+    icon: '🎓',
+    tier: 'gold',
+  },
+  'documentation-hero': {
+    type: 'documentation-hero',
+    name: 'Documentation Hero',
+    description: 'Improved documentation significantly',
+    icon: '📚',
+    tier: 'bronze',
+  },
+  'bug-hunter': {
+    type: 'bug-hunter',
+    name: 'Bug Hunter',
+    description: 'Found and reported important bugs',
+    icon: '🐛',
+    tier: 'silver',
+  },
+  'performance-optimist': {
+    type: 'performance-optimist',
+    name: 'Performance Optimist',
+    description: 'Improved project performance',
+    icon: '🚀',
+    tier: 'gold',
+  },
+  'security-sentinel': {
+    type: 'security-sentinel',
+    name: 'Security Sentinel',
+    description: 'Identified security vulnerabilities',
+    icon: '🛡️',
+    tier: 'platinum',
+  },
+  'community-champion': {
+    type: 'community-champion',
+    name: 'Community Champion',
+    description: 'Exceptional community involvement',
+    icon: '🏆',
+    tier: 'platinum',
+  },
+  'long-time-contributor': {
+    type: 'long-time-contributor',
+    name: 'Long Time Contributor',
+    description: 'Contributed for over 1 year',
+    icon: '📅',
+    tier: 'gold',
+  },
+};
+
+export function awardBadges(
+  contributor: Contributor,
+  stats: ContributorProfile['stats'],
+  existingBadges: Badge[] = []
+): Badge[] {
+  const badges: Badge[] = [...existingBadges];
+  const earnedTypes = new Set(badges.map(b => b.type));
+  
+  if (stats.totalContributions >= 1 && !earnedTypes.has('first-contribution')) {
+    badges.push({ ...BADGE_DEFINITIONS['first-contribution'], earnedAt: new Date() });
+  }
+  if (stats.prsMerged >= 10 && !earnedTypes.has('active-contributor')) {
+    badges.push({ ...BADGE_DEFINITIONS['active-contributor'], earnedAt: new Date() });
+  }
+  if (stats.reviewsGiven >= 5 && !earnedTypes.has('code-reviewer')) {
+    badges.push({ ...BADGE_DEFINITIONS['code-reviewer'], earnedAt: new Date() });
+  }
+  if (stats.commentsPosted >= 50 && !earnedTypes.has('mentor')) {
+    badges.push({ ...BADGE_DEFINITIONS['mentor'], earnedAt: new Date() });
+  }
+  if (stats.prsMerged >= 5 && !earnedTypes.has('bug-hunter')) {
+    badges.push({ ...BADGE_DEFINITIONS['bug-hunter'], earnedAt: new Date() });
+  }
+  if (stats.contributions >= 100 && !earnedTypes.has('long-time-contributor')) {
+    badges.push({ ...BADGE_DEFINITIONS['long-time-contributor'], earnedAt: new Date() });
+  }
+  
+  return badges;
+}
+
+export function calculateContributorProfile(
+  contributor: Contributor,
+  stats: ContributorProfile['stats'],
+  allContributors: Contributor[],
+  isMaintainer: boolean = false
+): ContributorProfile {
+  const badges = awardBadges(contributor, stats);
+  
+  const sortedContributors = [...allContributors].sort((a, b) => b.contributions - a.contributions);
+  const rank = sortedContributors.findIndex(c => c.username === contributor.username) + 1;
+  
+  return {
+    contributor,
+    badges,
+    stats,
+    rank,
+    isMaintainer,
+  };
+}
+
+export function generateLeaderboard(
+  contributors: Contributor[],
+  statsMap: Map<string, ContributorProfile['stats']>,
+  limit: number = 10
+): LeaderboardEntry[] {
+  const entries: LeaderboardEntry[] = contributors.map((c, index) => {
+    const stats = statsMap.get(c.username) || { totalContributions: c.contributions, issuesOpened: 0, issuesClosed: 0, prsOpened: 0, prsMerged: 0, reviewsGiven: 0, commentsPosted: 0 };
+    const badges = awardBadges(c, stats).map(b => b.type);
+    
+    return {
+      rank: index + 1,
+      contributor: c.username,
+      contributions: c.contributions,
+      badges,
+      trend: Math.random() > 0.5 ? 'up' : Math.random() > 0.5 ? 'down' : 'stable',
+      weeklyDelta: Math.floor(Math.random() * 20) - 10,
     };
+  });
+  
+  return entries.slice(0, limit);
+}
 
-    return full;
-  }
+export function generateRecognitionMessage(contributor: string, badge: Badge): string {
+  const tier = badge.tier ? `${badge.tier.charAt(0).toUpperCase() + badge.tier.slice(1)} ` : '';
+  return `🎊 Congratulations @${contributor}! You've earned the ${tier}${badge.name} badge! ${badge.icon}\n\n_${badge.description}_`;
+}
 
-  calculateBadges(contributor: Partial<Contributor>): Badge[] {
-    const badges: Badge[] = [];
-    const contributions = contributor.contributions ?? 0;
-    const issuesClosed = contributor.impact?.issuesClosed ?? 0;
-    const prsMerged = contributor.impact?.prsMerged ?? 0;
-
-    for (const achievement of this.achievements) {
-      let count = 0;
-      switch (achievement.type) {
-        case "prs": count = prsMerged; break;
-        case "issues": count = issuesClosed; break;
-        default: count = contributions;
-      }
-
-      if (count >= achievement.requirement) {
-        badges.push({
-          id: achievement.id,
-          name: achievement.title,
-          description: achievement.description,
-          icon: this.getBadgeIcon(achievement.tier),
-          tier: achievement.tier,
-          earnedAt: new Date().toISOString(),
-        });
-      }
-    }
-
-    return badges;
-  }
-
-  private getBadgeIcon(tier: Badge["tier"]): string {
-    const icons: Record<string, string> = {
-      bronze: "🥉",
-      silver: "🥈",
-      gold: "🥇",
-      platinum: "💎",
-    };
-    return icons[tier] ?? "🏅";
-  }
-
-  private detectSpecialties(contributor: Partial<Contributor>): string[] {
-    const specialties: string[] = [];
-    const impact = contributor.impact ?? { issuesClosed: 0, prsMerged: 0, reviewsGiven: 0 };
-
-    if (impact.prsMerged > 20) specialties.push("Code");
-    if (impact.issuesClosed > 20) specialties.push("Bug Fixes");
-    if (impact.reviewsGiven > 10) specialties.push("Code Review");
-    if (contributor.contributions ?? 0 > 100) specialties.push("Active");
-
-    return specialties;
-  }
-
-  getLeaderboard(contributors: Partial<Contributor>[], limit: number = 10): Contributor[] {
-    return [...contributors]
-      .sort((a, b) => {
-        const aScore = this.calculateScore(a);
-        const bScore = this.calculateScore(b);
-        return bScore - aScore;
-      })
-      .slice(0, limit) as Contributor[];
-  }
-
-  calculateScore(contributor: Partial<Contributor>): number {
-    const prScore = (contributor.impact?.prsMerged ?? 0) * 10;
-    const issueScore = (contributor.impact?.issuesClosed ?? 0) * 5;
-    const reviewScore = (contributor.impact?.reviewsGiven ?? 0) * 2;
-    const badgeBonus = (contributor.badges ?? []).reduce((sum, b) => {
-      const tierBonus: Record<string, number> = { bronze: 5, silver: 10, gold: 20, platinum: 50 };
-      return sum + (tierBonus[b.tier] ?? 0);
-    }, 0);
-
-    return prScore + issueScore + reviewScore + badgeBonus;
-  }
-
-  generateRecognitionMessage(contributor: Partial<Contributor>): string {
-    const score = this.calculateScore(contributor);
-    const badges = contributor.badges ?? [];
-    const topBadge = badges.sort((a, b) => {
-      const order: Record<string, number> = { platinum: 0, gold: 1, silver: 2, bronze: 3 };
-      return order[a.tier] - order[b.tier];
-    })[0];
-
-    if (!topBadge) {
-      return `Thanks @${contributor.username} for your contribution! Keep up the great work!`;
-    }
-
-    return `Amazing work @${contributor.username}! You've earned the ${topBadge.name} ${topBadge.icon} badge! (Score: ${score})`;
-  }
-
-  getProgressToNextBadge(contributor: Contributor): { next: Achievement; progress: number } | null {
-    for (const achievement of this.achievements) {
-      const hasBadge = contributor.badges.some(b => b.id === achievement.id);
-      if (hasBadge) continue;
-
-      let current = 0;
-      switch (achievement.type) {
-        case "prs": current = contributor.impact.prsMerged; break;
-        case "issues": current = contributor.impact.issuesClosed; break;
-        default: current = contributor.contributions;
-      }
-
-      return {
-        next: achievement,
-        progress: Math.min(100, Math.round((current / achievement.requirement) * 100)),
-      };
-    }
-
-    return null;
-  }
+export function calculateCommunityHealth(
+  profiles: ContributorProfile[],
+  activeThresholdDays: number = 30
+): {
+  totalContributors: number;
+  activeContributors: number;
+  retentionRate: number;
+  newContributorsLast30Days: number;
+  healthScore: number;
+} {
+  const totalContributors = profiles.length;
+  const activeContributors = profiles.filter(p => p.stats.totalContributions > 0).length;
+  const retentionRate = totalContributors > 0 ? Math.round((activeContributors / totalContributors) * 100) : 0;
+  
+  const newContributorsLast30Days = profiles.filter(p => {
+    const recentActivity = p.stats.issuesOpened + p.stats.prsOpened;
+    return recentActivity > 0;
+  }).length;
+  
+  const healthScore = Math.min(100, Math.round(
+    (retentionRate * 0.4) +
+    (activeContributors / Math.max(totalContributors, 1) * 100 * 0.3) +
+    (Math.min(newContributorsLast30Days, 10) * 5)
+  ));
+  
+  return {
+    totalContributors,
+    activeContributors,
+    retentionRate,
+    newContributorsLast30Days,
+    healthScore,
+  };
 }

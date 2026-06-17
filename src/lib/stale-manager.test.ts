@@ -1,218 +1,130 @@
 import { describe, it, expect } from 'vitest';
 import {
-  analyzeStaleItems,
-  generateCloseMessage,
-  generatePingMessage,
-  generateStaleSummary,
+  calculateDaysInactive,
+  isExempt,
+  categorizeIssue,
+  categorizePR,
+  analyzeStaleness,
+  generateStaleMessage,
+  suggestAction,
+  DEFAULT_CONFIG,
 } from './stale-manager';
+import type { Issue, PullRequest } from './types';
 
-describe('Stale Manager', () => {
-  describe('analyzeStaleItems', () => {
-    it('should identify stale issues', () => {
+describe('stale-manager', () => {
+  describe('calculateDaysInactive', () => {
+    it('should calculate days correctly', () => {
       const now = new Date();
-      const twoMonthsAgo = new Date(now.getTime() - 65 * 24 * 60 * 60 * 1000);
-      
-      const result = analyzeStaleItems({
-        issues: [
-          {
-            number: 1,
-            title: 'Old issue',
-            author: 'user1',
-            createdAt: twoMonthsAgo.toISOString(),
-            updatedAt: twoMonthsAgo.toISOString(),
-          },
-        ],
-        pullRequests: [],
-        config: {
-          issueDaysUntilStale: 60,
-          issueDaysUntilClose: 90,
-        },
-      });
-
-      expect(result.staleIssues).toHaveLength(1);
-      expect(result.staleIssues[0].number).toBe(1);
-      expect(result.staleIssues[0].daysSinceActivity).toBeGreaterThanOrEqual(64);
-    });
-
-    it('should identify stale PRs', () => {
-      const now = new Date();
-      const threeWeeksAgo = new Date(now.getTime() - 22 * 24 * 60 * 60 * 1000);
-      
-      const result = analyzeStaleItems({
-        issues: [],
-        pullRequests: [
-          {
-            number: 1,
-            title: 'Old PR',
-            author: 'user1',
-            createdAt: threeWeeksAgo.toISOString(),
-            updatedAt: threeWeeksAgo.toISOString(),
-          },
-        ],
-        config: {
-          prDaysUntilStale: 14,
-          prDaysUntilClose: 21,
-        },
-      });
-
-      expect(result.stalePRs).toHaveLength(1);
-      expect(result.stalePRs[0].type).toBe('pull_request');
-    });
-
-    it('should exempt items with exempt labels', () => {
-      const now = new Date();
-      const twoMonthsAgo = new Date(now.getTime() - 65 * 24 * 60 * 60 * 1000);
-      
-      const result = analyzeStaleItems({
-        issues: [
-          {
-            number: 1,
-            title: 'Pinned issue',
-            author: 'user1',
-            createdAt: twoMonthsAgo.toISOString(),
-            updatedAt: twoMonthsAgo.toISOString(),
-            labels: ['pinned'],
-          },
-        ],
-        pullRequests: [],
-      });
-
-      expect(result.staleIssues).toHaveLength(0);
-    });
-
-    it('should mark items for closing after threshold', () => {
-      const now = new Date();
-      const threeMonthsAgo = new Date(now.getTime() - 95 * 24 * 60 * 60 * 1000);
-      
-      const result = analyzeStaleItems({
-        issues: [
-          {
-            number: 1,
-            title: 'Very old issue',
-            author: 'user1',
-            createdAt: threeMonthsAgo.toISOString(),
-            updatedAt: threeMonthsAgo.toISOString(),
-          },
-        ],
-        pullRequests: [],
-        config: {
-          issueDaysUntilStale: 60,
-          issueDaysUntilClose: 90,
-        },
-      });
-
-      expect(result.needsClosing).toHaveLength(1);
-      expect(result.staleIssues[0].shouldClose).toBe(true);
-    });
-
-    it('should skip draft PRs', () => {
-      const now = new Date();
-      const threeWeeksAgo = new Date(now.getTime() - 22 * 24 * 60 * 60 * 1000);
-      
-      const result = analyzeStaleItems({
-        issues: [],
-        pullRequests: [
-          {
-            number: 1,
-            title: 'Draft PR',
-            author: 'user1',
-            createdAt: threeWeeksAgo.toISOString(),
-            updatedAt: threeWeeksAgo.toISOString(),
-            draft: true,
-          },
-        ],
-      });
-
-      expect(result.stalePRs).toHaveLength(0);
+      const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+      expect(calculateDaysInactive(tenDaysAgo, now)).toBe(10);
     });
   });
 
-  describe('generateCloseMessage', () => {
-    it('should generate close message for issue', () => {
-      const message = generateCloseMessage({
-        number: 123,
-        type: 'issue',
-        title: 'Test issue',
-        author: 'testuser',
-        createdAt: '2024-01-01',
-        updatedAt: '2024-01-01',
-        daysSinceActivity: 90,
-        labels: [],
-        reason: 'No activity for 90 days',
-        shouldClose: true,
-        shouldPing: false,
-      });
+  describe('isExempt', () => {
+    it('should check exempt labels', () => {
+      expect(isExempt(['bug', 'stale'], ['bug'])).toBe(true);
+      expect(isExempt(['feature'], ['bug'])).toBe(false);
+    });
+  });
 
-      expect(message).toContain('#123');
-      expect(message).toContain('Test issue');
-      expect(message).toContain('90 days');
+  describe('categorizeIssue', () => {
+    it('should categorize by activity', () => {
+      const issue: Issue = {
+        identity: { owner: 'org', name: 'repo', fullName: 'org/repo', url: '' },
+        number: 1,
+        title: 'Test',
+        author: 'user',
+        labels: [],
+        createdAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      expect(categorizeIssue(issue)).toBe('stale');
     });
 
-    it('should generate close message for PR', () => {
-      const message = generateCloseMessage({
-        number: 456,
-        type: 'pull_request',
+    it('should exempt priority labels', () => {
+      const issue: Issue = {
+        identity: { owner: 'org', name: 'repo', fullName: 'org/repo', url: '' },
+        number: 1,
+        title: 'Test',
+        author: 'user',
+        labels: ['priority:high'],
+        createdAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      expect(categorizeIssue(issue)).toBe('active');
+    });
+  });
+
+  describe('categorizePR', () => {
+    it('should categorize PRs', () => {
+      const pr: PullRequest = {
+        identity: { owner: 'org', name: 'repo', fullName: 'org/repo', url: '' },
+        number: 1,
         title: 'Test PR',
-        author: 'testuser',
-        createdAt: '2024-01-01',
-        updatedAt: '2024-01-01',
-        daysSinceActivity: 30,
+        author: 'user',
         labels: [],
-        reason: 'Needs review for 30 days',
-        shouldClose: true,
-        shouldPing: false,
-      });
-
-      expect(message).toContain('PR #456');
+        state: 'open',
+        createdAt: new Date(Date.now() - 70 * 24 * 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 70 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      expect(categorizePR(pr)).not.toBe('active');
     });
   });
 
-  describe('generatePingMessage', () => {
-    it('should mention the author', () => {
-      const message = generatePingMessage({
-        number: 123,
-        type: 'issue',
-        title: 'Test issue',
-        author: 'testuser',
-        createdAt: '2024-01-01',
-        updatedAt: '2024-01-01',
-        daysSinceActivity: 60,
-        labels: [],
-        reason: 'Waiting on author',
-        shouldClose: false,
-        shouldPing: true,
-      });
-
-      expect(message).toContain('@testuser');
+  describe('analyzeStaleness', () => {
+    it('should analyze all items', () => {
+      const issues: Issue[] = [
+        {
+          identity: { owner: 'org', name: 'repo', fullName: 'org/repo', url: '' },
+          number: 1,
+          title: 'Stale Issue',
+          author: 'user',
+          labels: [],
+          state: 'open',
+          createdAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(),
+          updatedAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+      ];
+      
+      const result = analyzeStaleness(issues, []);
+      expect(result.staleIssues.length).toBe(1);
+      expect(result.stats.totalIssues).toBe(1);
     });
   });
 
-  describe('generateStaleSummary', () => {
-    it('should generate summary report', () => {
-      const report = analyzeStaleItems({
-        issues: [
-          {
-            number: 1,
-            title: 'Issue 1',
-            author: 'user1',
-            createdAt: new Date(Date.now() - 70 * 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date(Date.now() - 70 * 24 * 60 * 60 * 1000).toISOString(),
-          },
-          {
-            number: 2,
-            title: 'Issue 2',
-            author: 'user2',
-            createdAt: new Date(Date.now() - 95 * 24 * 60 * 60 * 1000).toISOString(),
-            updatedAt: new Date(Date.now() - 95 * 24 * 60 * 60 * 1000).toISOString(),
-          },
-        ],
-        pullRequests: [],
-      });
+  describe('generateStaleMessage', () => {
+    it('should generate close message', () => {
+      const item = {
+        type: 'issue' as const,
+        number: 1,
+        title: 'Test',
+        author: 'user',
+        createdAt: new Date(),
+        lastActivityAt: new Date(),
+        daysInactive: 100,
+        labels: [],
+        url: '',
+      };
+      const message = generateStaleMessage(item);
+      expect(message).toContain('100 days');
+      expect(message).toContain('stale');
+    });
+  });
 
-      const summary = generateStaleSummary(report);
-
-      expect(summary).toContain('Stale Issues (2)');
-      expect(summary).toContain('Items to close');
+  describe('suggestAction', () => {
+    it('should suggest actions based on type and labels', () => {
+      const questionItem = {
+        type: 'issue' as const,
+        number: 1,
+        title: 'Question',
+        author: 'user',
+        createdAt: new Date(),
+        lastActivityAt: new Date(),
+        daysInactive: 100,
+        labels: ['question'],
+        url: '',
+      };
+      expect(suggestAction(questionItem)).toContain('discussion');
     });
   });
 });
