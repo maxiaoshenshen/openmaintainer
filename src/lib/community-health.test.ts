@@ -1,104 +1,92 @@
-import { describe, it, expect } from 'vitest';
-import { CommunityHealth, CommunityMetrics, HealthScore } from './community-health';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { CommunityHealth } from './community-health';
+import { GitHubClient } from './github-client';
 
 describe('CommunityHealth', () => {
-  const health = new CommunityHealth();
+  let health: CommunityHealth;
+  let mockGithub: GitHubClient;
 
-  const mockMetrics: CommunityMetrics = {
-    activeContributors: 10,
-    totalContributors: 50,
-    openIssues: 25,
-    closedIssues: 100,
-    openPRs: 5,
-    mergedPRs: 30,
-    responseTimeAvg: 24,
-    issueResolutionTimeAvg: 72,
-    communityEngagement: 75,
-  };
-
-  it('should assess community health', async () => {
-    const report = await health.assessHealth('repo-1', mockMetrics);
-    expect(report.score).toBeDefined();
-    expect(report.recommendations).toBeDefined();
-    expect(report.trends).toBeDefined();
+  beforeEach(() => {
+    mockGithub = {
+      getIssues: vi.fn().mockResolvedValue([
+        { id: 1, state: 'open', created_at: '2024-01-01', updated_at: '2024-01-02' },
+        { id: 2, state: 'closed', created_at: '2024-01-01', updated_at: '2024-01-03', closed_at: '2024-01-03' }
+      ]),
+      getPullRequests: vi.fn().mockResolvedValue([
+        { id: 1, state: 'open', created_at: '2024-01-01', merged_at: null },
+        { id: 2, state: 'closed', created_at: '2024-01-01', merged_at: '2024-01-03' }
+      ]),
+    } as unknown as GitHubClient;
+    health = new CommunityHealth(mockGithub);
   });
 
-  it('should generate recommendations based on metrics', async () => {
-    const lowContributorMetrics: CommunityMetrics = {
-      ...mockMetrics,
-      activeContributors: 1,
-    };
-    const report = await health.assessHealth('repo-2', lowContributorMetrics);
-    expect(report.recommendations.some(r => r.includes('contributor'))).toBe(true);
+  describe('getHealthScore', () => {
+    it('should return health metrics', async () => {
+      const metrics = await health.getHealthScore();
+
+      expect(metrics).toHaveProperty('healthScore');
+      expect(metrics).toHaveProperty('responseTime');
+      expect(metrics).toHaveProperty('issueResolutionRate');
+      expect(metrics).toHaveProperty('prMergeRate');
+      expect(metrics).toHaveProperty('contributorCount');
+    });
   });
 
-  it('should calculate correct score for excellent health', async () => {
-    const excellentMetrics: CommunityMetrics = {
-      activeContributors: 20,
-      totalContributors: 50,
-      openIssues: 5,
-      closedIssues: 100,
-      openPRs: 2,
-      mergedPRs: 50,
-      responseTimeAvg: 4,
-      issueResolutionTimeAvg: 24,
-      communityEngagement: 90,
-    };
-    const report = await health.assessHealth('repo-3', excellentMetrics);
-    expect(['excellent', 'good']).toContain(report.score);
+  describe('analyzeEngagement', () => {
+    it('should return engagement level', async () => {
+      const engagement = await health.analyzeEngagement();
+
+      expect(engagement).toHaveProperty('level');
+      expect(engagement).toHaveProperty('score');
+      expect(engagement).toHaveProperty('factors');
+      expect(['inactive', 'low', 'medium', 'high', 'very-high']).toContain(engagement.level);
+    });
   });
 
-  it('should calculate correct score for critical health', async () => {
-    const criticalMetrics: CommunityMetrics = {
-      activeContributors: 1,
-      totalContributors: 5,
-      openIssues: 100,
-      closedIssues: 10,
-      openPRs: 20,
-      mergedPRs: 2,
-      responseTimeAvg: 168,
-      issueResolutionTimeAvg: 720,
-      communityEngagement: 10,
-    };
-    const report = await health.assessHealth('repo-4', criticalMetrics);
-    expect(['poor', 'critical']).toContain(report.score);
+  describe('getIssueHealth', () => {
+    it('should return issue health metrics', async () => {
+      const issueHealth = await health.getIssueHealth();
+
+      expect(issueHealth).toHaveProperty('openCount');
+      expect(issueHealth).toHaveProperty('closedCount');
+      expect(issueHealth).toHaveProperty('avgResponseTime');
+      expect(issueHealth).toHaveProperty('avgResolutionTime');
+      expect(issueHealth).toHaveProperty('staleIssues');
+    });
   });
 
-  it('should get health report', async () => {
-    await health.assessHealth('repo-5', mockMetrics);
-    const report = await health.getHealthReport('repo-5');
-    expect(report).not.toBeNull();
+  describe('getPRHealth', () => {
+    it('should return PR health metrics', async () => {
+      const prHealth = await health.getPRHealth();
+
+      expect(prHealth).toHaveProperty('openCount');
+      expect(prHealth).toHaveProperty('mergedCount');
+      expect(prHealth).toHaveProperty('closedCount');
+      expect(prHealth).toHaveProperty('avgMergeTime');
+    });
   });
 
-  it('should return null for non-existent report', async () => {
-    const report = await health.getHealthReport('nonexistent');
-    expect(report).toBeNull();
+  describe('generateReport', () => {
+    it('should return full community health report', async () => {
+      const report = await health.generateReport();
+
+      expect(report).toHaveProperty('metrics');
+      expect(report).toHaveProperty('engagement');
+      expect(report).toHaveProperty('issues');
+      expect(report).toHaveProperty('pullRequests');
+      expect(report).toHaveProperty('recommendations');
+    });
   });
 
-  it('should get health score color', async () => {
-    const color = await health.getHealthScoreColor('excellent');
-    expect(color).toBe('#22c55e');
-  });
+  describe('getTrends', () => {
+    it('should return trend data', async () => {
+      const trends = await health.getTrends(7);
 
-  it('should compare two communities', async () => {
-    await health.assessHealth('repo-6', mockMetrics);
-    await health.assessHealth('repo-7', { ...mockMetrics, communityEngagement: 50 });
-    const comparison = await health.compareCommunities('repo-6', 'repo-7');
-    expect(comparison).not.toBeNull();
-    expect(comparison!.winner).toBeDefined();
-    expect(comparison!.differences).toBeDefined();
-  });
-
-  it('should handle comparison with missing report', async () => {
-    const comparison = await health.compareCommunities('repo-1', 'nonexistent');
-    expect(comparison).toBeNull();
-  });
-
-  it('should track trends correctly', async () => {
-    const report = await health.assessHealth('repo-8', mockMetrics);
-    expect(report.trends).toHaveProperty('contributors');
-    expect(report.trends).toHaveProperty('issues');
-    expect(report.trends).toHaveProperty('prs');
-    expect(report.trends).toHaveProperty('engagement');
+      expect(Array.isArray(trends)).toBe(true);
+      expect(trends.length).toBeGreaterThan(0);
+      expect(trends[0]).toHaveProperty('date');
+      expect(trends[0]).toHaveProperty('metric');
+      expect(trends[0]).toHaveProperty('value');
+    });
   });
 });
