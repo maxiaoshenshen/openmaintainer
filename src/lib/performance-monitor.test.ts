@@ -1,119 +1,135 @@
 import { describe, it, expect } from 'vitest';
-import { 
-  aggregateMetrics,
-  detectAnomalies,
-  createAlert,
-  analyzeTrend,
-  generateDashboardConfig,
-  calculateSLOCompliance,
-  comparePerformance
+import {
+  PerformanceMonitor,
+  calculatePercentile,
+  calculateStatistics,
+  generatePerformanceReport,
 } from './performance-monitor';
 
-describe('Performance Monitor', () => {
-  const mockMetrics: any[] = [
-    { name: 'response_time', value: 100, unit: 'ms', timestamp: new Date() },
-    { name: 'response_time', value: 150, unit: 'ms', timestamp: new Date() },
-    { name: 'response_time', value: 200, unit: 'ms', timestamp: new Date() },
-    { name: 'response_time', value: 120, unit: 'ms', timestamp: new Date() },
-    { name: 'response_time', value: 180, unit: 'ms', timestamp: new Date() }
-  ];
+describe('performance-monitor', () => {
+  describe('PerformanceMonitor', () => {
+    it('should record metrics', () => {
+      const monitor = new PerformanceMonitor();
+      monitor.recordMetric({ name: 'test.metric', value: 42, unit: 'count' });
+      
+      const metrics = monitor.getMetrics('test.metric');
+      expect(metrics).toHaveLength(1);
+      expect(metrics[0].value).toBe(42);
+    });
 
-  describe('aggregateMetrics', () => {
+    it('should record build metrics', () => {
+      const monitor = new PerformanceMonitor();
+      monitor.recordBuild({
+        duration: 120000,
+        success: true,
+        cacheHitRate: 75,
+        artifactSize: 5000000,
+        warnings: 5,
+        errors: 0,
+      });
+      
+      const duration = monitor.getLatestValue('build.duration');
+      expect(duration).toBe(120000);
+    });
+
+    it('should record test metrics', () => {
+      const monitor = new PerformanceMonitor();
+      monitor.recordTests({
+        total: 100,
+        passed: 95,
+        failed: 3,
+        skipped: 2,
+        duration: 30000,
+        coverage: 85,
+      });
+      
+      const passed = monitor.getLatestValue('test.passed');
+      expect(passed).toBe(95);
+    });
+
+    it('should analyze trends', () => {
+      const monitor = new PerformanceMonitor();
+      for (let i = 0; i < 5; i++) {
+        monitor.recordMetric({ name: 'response.time', value: 100 + i * 10, unit: 'ms' });
+      }
+      
+      const trend = monitor.analyzeTrend('response.time', 5);
+      expect(trend).not.toBeNull();
+      expect(trend!.trend).toBe('up');
+      expect(trend!.change).toBe(40);
+    });
+
+    it('should get summary', () => {
+      const monitor = new PerformanceMonitor();
+      monitor.recordMetric({ name: 'metric1', value: 10, unit: 'count' });
+      monitor.recordMetric({ name: 'metric2', value: 20, unit: 'count' });
+      
+      const summary = monitor.getSummary();
+      expect(summary.totalMetrics).toBe(2);
+      expect(summary.uniqueMetrics).toBe(2);
+      expect(summary.dateRange).not.toBeNull();
+    });
+  });
+
+  describe('calculatePercentile', () => {
     it('should calculate percentiles correctly', () => {
-      const snapshot = aggregateMetrics(mockMetrics);
-      
-      expect(snapshot.summary).toBeDefined();
-      expect(snapshot.summary.p50).toBeGreaterThan(0);
-      expect(snapshot.summary.p95).toBeGreaterThanOrEqual(snapshot.summary.p50);
+      const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+      expect(calculatePercentile(values, 50)).toBe(5);
+      expect(calculatePercentile(values, 90)).toBe(9);
+      expect(calculatePercentile(values, 99)).toBe(10);
     });
 
-    it('should handle empty metrics', () => {
-      const snapshot = aggregateMetrics([]);
-      
-      expect(snapshot.summary.p50).toBe(0);
-      expect(snapshot.summary.avg).toBe(0);
+    it('should handle empty array', () => {
+      expect(calculatePercentile([], 50)).toBe(0);
     });
   });
 
-  describe('detectAnomalies', () => {
-    it('should detect outliers in metrics', () => {
+  describe('calculateStatistics', () => {
+    it('should calculate statistics', () => {
+      const values = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+      const stats = calculateStatistics(values);
+      
+      expect(stats.mean).toBe(5.5);
+      expect(stats.min).toBe(1);
+      expect(stats.max).toBe(10);
+      expect(stats.p50).toBe(5);
+    });
+
+    it('should handle empty array', () => {
+      const stats = calculateStatistics([]);
+      expect(stats.mean).toBe(0);
+    });
+  });
+
+  describe('generatePerformanceReport', () => {
+    it('should report healthy status', () => {
       const metrics = [
-        { name: 'test', value: 100, timestamp: new Date() },
-        { name: 'test', value: 110, timestamp: new Date() },
-        { name: 'test', value: 105, timestamp: new Date() },
-        { name: 'test', value: 500, timestamp: new Date() }
+        { name: 'build.duration', value: 60000, unit: 'ms', timestamp: new Date() },
+        { name: 'test.coverage', value: 85, unit: 'percent', timestamp: new Date() },
       ];
       
-      const anomalies = detectAnomalies(metrics as any);
-      
-      expect(anomalies.length).toBeGreaterThanOrEqual(0);
+      const report = generatePerformanceReport(metrics);
+      expect(report.buildHealth).toBe('healthy');
+      expect(report.testHealth).toBe('healthy');
     });
 
-    it('should return empty for insufficient data', () => {
-      const anomalies = detectAnomalies(mockMetrics.slice(0, 3) as any);
-      expect(anomalies).toEqual([]);
-    });
-  });
-
-  describe('createAlert', () => {
-    it('should create alert when threshold exceeded', () => {
-      const metric = { name: 'response_time', value: 300, timestamp: new Date() };
-      const alert = createAlert(metric as any, 'above', 200, 'critical');
-      
-      expect(alert.severity).toBe('critical');
-      expect(alert.current).toBe(300);
-      expect(alert.threshold).toBe(200);
-    });
-  });
-
-  describe('analyzeTrend', () => {
-    it('should analyze metric trends', () => {
-      const historical = Array.from({ length: 14 }, (_, i) => ({
-        name: 'response_time',
-        value: 100 + Math.random() * 50,
-        timestamp: new Date(Date.now() - i * 3600000)
-      }));
-      
-      const trends = analyzeTrend(historical as any);
-      
-      expect(Array.isArray(trends)).toBe(true);
-    });
-  });
-
-  describe('generateDashboardConfig', () => {
-    it('should generate dashboard configuration', () => {
-      const config = generateDashboardConfig(['response_time', 'error_rate']);
-      
-      expect(config.metrics).toContain('response_time');
-      expect(config.refreshInterval).toBeGreaterThan(0);
-    });
-  });
-
-  describe('calculateSLOCompliance', () => {
-    it('should calculate compliance percentage', () => {
+    it('should detect slow builds', () => {
       const metrics = [
-        { name: 'response_time', value: 100, timestamp: new Date() },
-        { name: 'response_time', value: 200, timestamp: new Date() },
-        { name: 'response_time', value: 150, timestamp: new Date() }
+        { name: 'build.duration', value: 700000, unit: 'ms', timestamp: new Date() },
       ];
       
-      const slo = calculateSLOCompliance(metrics as any, 200, 'daily');
-      
-      expect(slo.compliance).toBeGreaterThan(0);
-      expect(slo.total).toBe(3);
+      const report = generatePerformanceReport(metrics);
+      expect(report.buildHealth).toBe('critical');
+      expect(report.alerts.length).toBeGreaterThan(0);
     });
-  });
 
-  describe('comparePerformance', () => {
-    it('should compare baseline and current performance', () => {
-      const baseline = aggregateMetrics(mockMetrics.slice(0, 3) as any);
-      const current = aggregateMetrics(mockMetrics.slice(2) as any);
+    it('should detect low coverage', () => {
+      const metrics = [
+        { name: 'test.coverage', value: 40, unit: 'percent', timestamp: new Date() },
+      ];
       
-      const comparison = comparePerformance(baseline, current);
-      
-      expect(comparison).toHaveProperty('improved');
-      expect(comparison).toHaveProperty('degraded');
-      expect(comparison).toHaveProperty('unchanged');
+      const report = generatePerformanceReport(metrics);
+      expect(report.testHealth).toBe('critical');
     });
   });
 });

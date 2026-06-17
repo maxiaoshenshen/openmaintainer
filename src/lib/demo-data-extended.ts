@@ -1,7 +1,7 @@
 import type { Repository, Contributor, Issue, PullRequest, MaintainerRepository } from "./types";
 import { calculateHealthScore } from "./community-health";
 import { createSprintPlan } from "./sprint-planning";
-import { analyzePerformance, generateAlerts } from "./performance-monitor";
+import { PerformanceMonitor, generatePerformanceReport } from "./performance-monitor";
 import { performCodeReview } from "./code-review-assistant";
 import { generateOnboardingPath } from "./contributor-onboarding";
 import { analyzeIncidents } from "./incident-response";
@@ -128,8 +128,13 @@ export function generateExtendedDemoData(repoName?: string) {
   });
 
   const sprintPlan = createSprintPlan(demoRepository, demoIssues, demoPullRequests, demoContributors);
-  const performance = analyzePerformance(demoRepository, demoIssues, demoPullRequests);
-  const performanceAlerts = generateAlerts(performance);
+  const monitor = new PerformanceMonitor();
+  // Record demo metrics
+  demoPullRequests.forEach(pr => {
+    monitor.recordPR({ openTime: pr.createdAt ? 2 : 1, reviewTime: 1, mergeTime: 3, commentCount: 5, reviewCount: 2, approvers: 1 });
+  });
+  const performanceReport = generatePerformanceReport(monitor.getMetrics());
+  const performanceAlerts = performanceReport.alerts;
   const codeReview = performCodeReview({ pr: demoPullRequests[0], repo: demoRepository, reviewer: demoContributors[0] });
   const onboarding = generateOnboardingPath(demoRepository, demoIssues, demoContributors);
   const incidents = analyzeIncidents(demoRepository, demoIssues, demoPullRequests);
