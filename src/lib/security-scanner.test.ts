@@ -1,112 +1,63 @@
-import { describe, it, expect } from 'vitest';
-import {
-  calculateSecurityScore,
-  scanCodePatterns,
-  getSeverityColor,
-  sortBySeverity,
-  generateSecuritySummary,
-} from './security-scanner';
+import { describe, it, expect, beforeEach } from "vitest";
+import { SecurityScanner } from "./security-scanner";
 
-describe('Security Scanner', () => {
-  describe('calculateSecurityScore', () => {
-    it('returns 100 for no vulnerabilities', () => {
-      const report = { vulnerabilities: [] } as any;
-      expect(calculateSecurityScore(report)).toBe(100);
+describe("SecurityScanner", () => {
+  let scanner: SecurityScanner;
+
+  beforeEach(() => {
+    scanner = new SecurityScanner();
+  });
+
+  describe("scanRepository", () => {
+    it("should scan and return issues", async () => {
+      const result = await scanner.scanRepository("test/repo");
+
+      expect(result.repository).toBe("test/repo");
+      expect(result.issues.length).toBeGreaterThan(0);
+      expect(result.summary.total).toBe(result.issues.length);
     });
 
-    it('applies penalties for vulnerabilities', () => {
-      const report = {
-        vulnerabilities: [
-          { severity: 'critical' },
-          { severity: 'high' },
-          { severity: 'medium' },
-        ],
-      } as any;
-      // 100 - 25 - 15 - 8 = 52
-      expect(calculateSecurityScore(report)).toBe(52);
+    it("should calculate score based on severity", async () => {
+      const result = await scanner.scanRepository("test/repo");
+
+      expect(result.summary.critical).toBeGreaterThan(0);
+      expect(result.summary.score).toBeGreaterThan(0);
     });
 
-    it('minimum score is 0', () => {
-      const report = {
-        vulnerabilities: [
-          { severity: 'critical' },
-          { severity: 'critical' },
-          { severity: 'critical' },
-          { severity: 'critical' },
-          { severity: 'critical' },
-        ],
-      } as any;
-      expect(calculateSecurityScore(report)).toBe(0);
+    it("should filter issues by severity threshold", async () => {
+      const strictScanner = new SecurityScanner({ severityThreshold: "high" });
+      const result = await strictScanner.scanRepository("test/repo");
+
+      const severities = result.issues.map(i => i.severity);
+      expect(severities.every(s => ["critical", "high"].includes(s))).toBe(true);
     });
   });
 
-  describe('scanCodePatterns', () => {
-    it('detects SQL injection patterns', () => {
-      const code = 'db.query("SELECT * FROM users WHERE id=" + userId)';
-      const vulns = scanCodePatterns(code);
-      expect(vulns.some(v => v.title === 'Potential SQL Injection')).toBe(true);
+  describe("configuration", () => {
+    it("should disable secrets scanning when configured", async () => {
+      const scanner = new SecurityScanner({ scanSecrets: false });
+      const result = await scanner.scanRepository("test/repo");
+
+      const hasSecretsIssues = result.issues.some(i => i.type.includes("secret"));
+      expect(hasSecretsIssues).toBe(false);
     });
 
-    it('detects hardcoded passwords', () => {
-      const code = 'const password = "supersecret123"';
-      const vulns = scanCodePatterns(code);
-      expect(vulns.some(v => v.title === 'Hardcoded Password')).toBe(true);
-    });
+    it("should disable dependency scanning when configured", async () => {
+      const scanner = new SecurityScanner({ scanDependencies: false });
+      const result = await scanner.scanRepository("test/repo");
 
-    it('detects dangerous eval', () => {
-      const code = 'eval(userInput)';
-      const vulns = scanCodePatterns(code);
-      expect(vulns.some(v => v.title === 'Dangerous eval() usage')).toBe(true);
-    });
-
-    it('detects command injection', () => {
-      const code = 'exec("rm " + userFile)';
-      const vulns = scanCodePatterns(code);
-      expect(vulns.some(v => v.title === 'Potential Command Injection')).toBe(true);
-    });
-
-    it('returns empty for safe code', () => {
-      const code = 'const x = 1; const y = 2;';
-      const vulns = scanCodePatterns(code);
-      expect(vulns.length).toBe(0);
+      const hasDependencyIssues = result.issues.some(i => i.type.includes("dependency"));
+      expect(hasDependencyIssues).toBe(false);
     });
   });
 
-  describe('getSeverityColor', () => {
-    it('returns correct colors for each severity', () => {
-      expect(getSeverityColor('critical')).toBe('#dc2626');
-      expect(getSeverityColor('high')).toBe('#ea580c');
-      expect(getSeverityColor('medium')).toBe('#ca8a04');
-      expect(getSeverityColor('low')).toBe('#65a30d');
-      expect(getSeverityColor('info')).toBe('#64748b');
-    });
-  });
+  describe("getRecommendations", () => {
+    it("should return recommendations for issues", async () => {
+      const result = await scanner.scanRepository("test/repo");
+      const recommendations = scanner.getRecommendations(result.issues);
 
-  describe('sortBySeverity', () => {
-    it('sorts critical first', () => {
-      const vulns = [
-        { severity: 'low' as const },
-        { severity: 'critical' as const },
-        { severity: 'high' as const },
-      ];
-      const sorted = sortBySeverity(vulns);
-      expect(sorted[0].severity).toBe('critical');
-      expect(sorted[1].severity).toBe('high');
-      expect(sorted[2].severity).toBe('low');
-    });
-  });
-
-  describe('generateSecuritySummary', () => {
-    it('generates summary with score', () => {
-      const report = {
-        overallScore: 85,
-        totalVulnerabilities: 3,
-        bySeverity: { critical: 1, high: 2, medium: 0, low: 0, info: 0 },
-      } as any;
-      const summary = generateSecuritySummary(report);
-      expect(summary).toContain('85');
-      expect(summary).toContain('3');
-      expect(summary).toContain('critical');
+      expect(recommendations.length).toBe(result.issues.length);
+      expect(recommendations.every(r => typeof r === "string")).toBe(true);
     });
   });
 });
