@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createDependencyTracker } from '@/lib/dependency-tracker';
+import { createContributorManager } from '@/lib/contributor-manager';
 
 export async function GET() {
-  const tracker = createDependencyTracker();
-  const report = tracker.generateReport({
+  const manager = createContributorManager();
+  const report = manager.generateReport({
     id: '1',
     name: 'sample-repo',
     fullName: 'owner/sample-repo',

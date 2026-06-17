@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createDependencyTracker } from '@/lib/dependency-tracker';
+import { createSecurityScanner } from '@/lib/security-scanner';
 
 export async function GET() {
-  const tracker = createDependencyTracker();
-  const report = tracker.generateReport({
+  const scanner = createSecurityScanner();
+  const result = scanner.scanRepository({
     id: '1',
     name: 'sample-repo',
     fullName: 'owner/sample-repo',
@@ -16,5 +16,5 @@ export async function GET() {
     language: 'TypeScript'
   });
 
-  return NextResponse.json(report);
+  return NextResponse.json(result);
 }

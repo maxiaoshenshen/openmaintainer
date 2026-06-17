@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createDependencyTracker } from '@/lib/dependency-tracker';
+import { createReleaseManager } from '@/lib/release-manager';
 
 export async function GET() {
-  const tracker = createDependencyTracker();
-  const report = tracker.generateReport({
+  const manager = createReleaseManager();
+  const plan = manager.generateReleasePlan({
     id: '1',
     name: 'sample-repo',
     fullName: 'owner/sample-repo',
@@ -16,5 +16,5 @@ export async function GET() {
     language: 'TypeScript'
   });
 
-  return NextResponse.json(report);
+  return NextResponse.json(plan);
 }

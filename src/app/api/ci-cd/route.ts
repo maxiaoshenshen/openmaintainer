@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createDependencyTracker } from '@/lib/dependency-tracker';
+import { createCICDMonitor } from '@/lib/ci-cd-monitor';
 
 export async function GET() {
-  const tracker = createDependencyTracker();
-  const report = tracker.generateReport({
+  const monitor = createCICDMonitor();
+  const report = monitor.generateReport({
     id: '1',
     name: 'sample-repo',
     fullName: 'owner/sample-repo',
