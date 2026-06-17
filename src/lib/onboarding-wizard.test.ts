@@ -1,93 +1,84 @@
-import { describe, it, expect } from "vitest";
-import {
-  createOnboardingWizard,
-  onboardingWizard,
-} from "./onboarding-wizard";
+import { describe, it, expect } from 'vitest';
+import { getOnboardingSteps, calculateProgress, generateRecommendations, generateWelcomeMessage, estimateTimeToProductivity } from './onboarding-wizard';
 
-describe("Onboarding Wizard", () => {
-  describe("getDefaultSteps", () => {
-    it("should return 7 default steps", () => {
-      const wizard = createOnboardingWizard();
-      const steps = wizard.getDefaultSteps();
-      expect(steps.length).toBe(7);
-    });
-
-    it("should have required and optional steps", () => {
-      const wizard = createOnboardingWizard();
-      const steps = wizard.getDefaultSteps();
-      const requiredSteps = steps.filter(s => !s.optional);
-      expect(requiredSteps.length).toBeGreaterThan(0);
+describe('Onboarding Wizard', () => {
+  describe('getOnboardingSteps', () => {
+    it('should return required steps', () => {
+      const steps = getOnboardingSteps();
+      expect(steps.length).toBeGreaterThan(0);
+      expect(steps.some(s => s.id === 'profile')).toBe(true);
+      expect(steps.some(s => s.required === true)).toBe(true);
     });
   });
 
-  describe("createProfile", () => {
-    it("creates user profile with correct data", () => {
-      const wizard = createOnboardingWizard();
-      const profile = wizard.createProfile({ username: 'testuser', role: 'solo' });
-      expect(profile.username).toBe('testuser');
-      expect(profile.role).toBe('solo');
-      expect(profile.githubConnected).toBe(false);
+  describe('calculateProgress', () => {
+    it('should calculate progress correctly', () => {
+      const steps = [
+        { id: 'step1', title: 'Step 1', description: '', completed: true, required: true, estimatedTime: '5 min' },
+        { id: 'step2', title: 'Step 2', description: '', completed: false, required: true, estimatedTime: '10 min' },
+      ];
+      const progress = calculateProgress(steps);
+      expect(progress.totalSteps).toBe(2);
+      expect(progress.completedSteps).toContain('step1');
     });
 
-    it("sets default values when not provided", () => {
-      const wizard = createOnboardingWizard();
-      const profile = wizard.createProfile({});
-      expect(profile.username).toBe('New User');
-      expect(profile.role).toBe('solo');
-      expect(profile.preferences.language).toBe('en');
-    });
-  });
-
-  describe("completeStep", () => {
-    it("marks step as completed", () => {
-      const wizard = createOnboardingWizard();
-      const steps = wizard.getDefaultSteps();
-      const updatedSteps = wizard.completeStep('welcome', steps);
-      const welcomeStep = updatedSteps.find(s => s.id === 'welcome');
-      expect(welcomeStep?.completed).toBe(true);
+    it('should estimate completion time', () => {
+      const steps = [
+        { id: 'step1', title: 'Step 1', description: '', completed: true, required: true, estimatedTime: '5 min' },
+        { id: 'step2', title: 'Step 2', description: '', completed: false, required: true, estimatedTime: '10 min' },
+      ];
+      const progress = calculateProgress(steps);
+      expect(progress.estimatedCompletion).toBeDefined();
     });
   });
 
-  describe("calculateProgress", () => {
-    it("calculates progress correctly", () => {
-      const wizard = createOnboardingWizard();
-      const steps = wizard.getDefaultSteps();
-      const progress = wizard.calculateProgress(steps);
-      expect(progress.percentage).toBe(0);
-      expect(progress.totalSteps).toBe(7);
+  describe('generateRecommendations', () => {
+    it('should recommend security for non-security experts', () => {
+      const profile = {
+        name: 'Test',
+        email: 'test@test.com',
+        githubUsername: 'test',
+        timezone: 'UTC',
+        expertise: ['frontend', 'backend'],
+        repositoryCount: 5,
+        experience: 'new' as const,
+      };
+      const recs = generateRecommendations(profile);
+      expect(recs.some(r => r.category === 'Security')).toBe(true);
     });
   });
 
-  describe("generateWelcomeMessage", () => {
-    it("generates personalized welcome message", () => {
-      const wizard = createOnboardingWizard();
-      const profile = wizard.createProfile({ username: 'Test User', role: 'solo' });
-      const message = wizard.generateWelcomeMessage(profile);
-      expect(message).toContain('Test User');
-      expect(message).toContain('OpenMaintainer');
+  describe('generateWelcomeMessage', () => {
+    it('should generate welcome message', () => {
+      const profile = {
+        name: 'Alice',
+        email: 'alice@test.com',
+        githubUsername: 'alice',
+        timezone: 'UTC',
+        expertise: [],
+        repositoryCount: 3,
+        experience: 'intermediate' as const,
+      };
+      const msg = generateWelcomeMessage(profile);
+      expect(msg).toContain('Alice');
+      expect(msg).toContain('Welcome');
     });
   });
 
-  describe("getPersonalizedTips", () => {
-    it("returns tips for solo maintainers", () => {
-      const wizard = createOnboardingWizard();
-      const profile = wizard.createProfile({ role: 'solo' });
-      const tips = wizard.getPersonalizedTips(profile);
-      expect(tips.some(t => t.includes('Focus Plan'))).toBe(true);
-    });
-
-    it("returns tips for team maintainers", () => {
-      const wizard = createOnboardingWizard();
-      const profile = wizard.createProfile({ role: 'small-team' });
-      const tips = wizard.getPersonalizedTips(profile);
-      expect(tips.some(t => t.includes('Evidence Pack'))).toBe(true);
-    });
-  });
-
-  describe("onboardingWizard singleton", () => {
-    it("should export working singleton instance", () => {
-      expect(onboardingWizard).toBeDefined();
-      expect(onboardingWizard.getDefaultSteps().length).toBe(7);
+  describe('estimateTimeToProductivity', () => {
+    it('should estimate time based on profile', () => {
+      const profile = {
+        name: 'Test',
+        email: 'test@test.com',
+        githubUsername: 'test',
+        timezone: 'UTC',
+        expertise: [],
+        repositoryCount: 10,
+        experience: 'new' as const,
+      };
+      const time = estimateTimeToProductivity(profile);
+      expect(time).toBeDefined();
+      expect(time).toMatch(/\d+/);
     });
   });
 });

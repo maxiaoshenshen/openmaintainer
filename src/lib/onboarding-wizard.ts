@@ -1,225 +1,233 @@
-// Onboarding Wizard for OpenMaintainer
-// Guides new users through initial setup
-
-import type { Repository } from './types';
+/**
+ * Onboarding Wizard - Guide new maintainers through setup
+ */
 
 export interface OnboardingStep {
   id: string;
   title: string;
   description: string;
-  icon: string;
-  action: string;
-  optional: boolean;
   completed: boolean;
+  required: boolean;
+  estimatedTime: string;
+  resources?: string[];
 }
 
-export interface OnboardingProfile {
-  userId: string;
-  username: string;
-  email?: string;
-  githubConnected: boolean;
-  preferences: {
-    language: string;
-    theme: 'light' | 'dark' | 'system';
-    notifications: boolean;
-  };
-  repositories: string[];
-  role: 'solo' | 'small-team' | 'large-project';
+export interface MaintainerProfile {
+  name: string;
+  email: string;
+  githubUsername: string;
+  timezone: string;
+  expertise: string[];
+  repositoryCount: number;
+  experience: 'new' | 'intermediate' | 'experienced';
 }
 
 export interface OnboardingProgress {
+  currentStep: number;
   totalSteps: number;
-  completedSteps: number;
-  percentage: number;
-  currentStep: string;
-  estimatedTimeMinutes: number;
+  completedSteps: string[];
+  skippedSteps: string[];
+  startedAt: string;
+  estimatedCompletion: string;
 }
 
-class OnboardingWizard {
-  private profile: OnboardingProfile | null = null;
+export interface SetupRecommendation {
+  priority: 'critical' | 'high' | 'medium';
+  category: string;
+  title: string;
+  description: string;
+  actionUrl?: string;
+  autoApply?: boolean;
+}
 
-  getDefaultSteps(): OnboardingStep[] {
-    return [
-      {
-        id: 'welcome',
-        title: 'Welcome to OpenMaintainer',
-        description: 'Your AI-powered OSS maintenance workbench',
-        icon: '🎉',
-        action: 'Get Started',
-        optional: false,
-        completed: false,
-      },
-      {
-        id: 'github-connect',
-        title: 'Connect GitHub',
-        description: 'Link your GitHub account to analyze your repositories',
-        icon: '🔗',
-        action: 'Connect GitHub',
-        optional: false,
-        completed: false,
-      },
-      {
-        id: 'add-repo',
-        title: 'Add Your Repository',
-        description: 'Select a repository to analyze and manage',
-        icon: '📦',
-        action: 'Add Repository',
-        optional: false,
-        completed: false,
-      },
-      {
-        id: 'configure-alerts',
-        title: 'Configure Alerts',
-        description: 'Set up notifications for critical events',
-        icon: '🔔',
-        action: 'Configure Alerts',
-        optional: true,
-        completed: false,
-      },
-      {
-        id: 'invite-team',
-        title: 'Invite Your Team',
-        description: 'Collaborate with other maintainers and contributors',
-        icon: '👥',
-        action: 'Invite Team',
-        optional: true,
-        completed: false,
-      },
-      {
-        id: 'customize',
-        title: 'Customize Dashboard',
-        description: 'Set your preferences and theme',
-        icon: '⚙️',
-        action: 'Customize',
-        optional: true,
-        completed: false,
-      },
-      {
-        id: 'complete',
-        title: 'You\'re All Set!',
-        description: 'Start using OpenMaintainer',
-        icon: '🚀',
-        action: 'Launch Dashboard',
-        optional: false,
-        completed: false,
-      },
-    ];
-  }
+const REQUIRED_STEPS: OnboardingStep[] = [
+  {
+    id: 'profile',
+    title: 'Set up your profile',
+    description: 'Configure your maintainer identity and contact information',
+    completed: false,
+    required: true,
+    estimatedTime: '2 min',
+    resources: ['/docs/profile-setup'],
+  },
+  {
+    id: 'repo-connect',
+    title: 'Connect repositories',
+    description: 'Link your GitHub repositories for management',
+    completed: false,
+    required: true,
+    estimatedTime: '5 min',
+    resources: ['/docs/github-integration'],
+  },
+  {
+    id: 'notifications',
+    title: 'Configure notifications',
+    description: 'Set up alerts for issues, PRs, and activity',
+    completed: false,
+    required: true,
+    estimatedTime: '3 min',
+  },
+  {
+    id: 'security',
+    title: 'Security setup',
+    description: 'Enable 2FA and configure security alerts',
+    completed: false,
+    required: true,
+    estimatedTime: '5 min',
+    resources: ['/docs/security-best-practices'],
+  },
+  {
+    id: 'bot-welcome',
+    title: 'Deploy welcome bot',
+    description: 'Set up automated greeting for contributors',
+    completed: false,
+    required: false,
+    estimatedTime: '2 min',
+  },
+  {
+    id: 'templates',
+    title: 'Create issue templates',
+    description: 'Add standardized issue and PR templates',
+    completed: false,
+    required: false,
+    estimatedTime: '10 min',
+    resources: ['/docs/templates'],
+  },
+  {
+    id: 'docs',
+    title: 'Set up documentation',
+    description: 'Create or improve your project README and docs',
+    completed: false,
+    required: false,
+    estimatedTime: '30 min',
+  },
+  {
+    id: 'community',
+    title: 'Define community guidelines',
+    description: 'Establish contribution guidelines and code of conduct',
+    completed: false,
+    required: false,
+    estimatedTime: '20 min',
+  },
+];
 
-  createProfile(data: Partial<OnboardingProfile>): OnboardingProfile {
-    this.profile = {
-      userId: data.authorId || `user_${Date.now()}`,
-      username: data.username || 'New User',
-      email: data.email,
-      githubConnected: data.githubConnected || false,
-      preferences: {
-        language: data.preferences?.language || 'en',
-        theme: data.preferences?.theme || 'system',
-        notifications: data.preferences?.notifications ?? true,
-      },
-      repositories: data.repositories || [],
-      role: data.role || 'solo',
-    };
-    return this.profile;
-  }
-
-  updateProfile(updates: Partial<OnboardingProfile>): OnboardingProfile | null {
-    if (!this.profile) return null;
-    this.profile = { ...this.profile, ...updates };
-    return this.profile;
-  }
-
-  completeStep(stepId: string, steps: OnboardingStep[]): OnboardingStep[] {
-    return steps.map(step =>
-      step.id === stepId ? { ...step, completed: true } : step
-    );
-  }
-
-  calculateProgress(steps: OnboardingStep[]): OnboardingProgress {
-    const requiredSteps = steps.filter(s => !s.optional);
-    const completedRequired = requiredSteps.filter(s => s.completed).length;
-    const completedAll = steps.filter(s => s.completed).length;
-
-    const totalSteps = steps.length;
-    const completedSteps = completedAll;
-    const percentage = Math.round((completedSteps / totalSteps) * 100);
-
-    const currentStep = steps.find(s => !s.completed);
-    const estimatedTimeMinutes = Math.ceil(
-      steps.filter(s => !s.completed).reduce((sum, s) => {
-        if (s.id === 'welcome') return sum + 1;
-        if (s.id === 'github-connect') return sum + 3;
-        if (s.id === 'add-repo') return sum + 2;
-        if (s.id === 'configure-alerts') return sum + 5;
-        if (s.id === 'invite-team') return sum + 3;
-        if (s.id === 'customize') return sum + 2;
-        if (s.id === 'complete') return sum + 1;
-        return sum + 2;
-      }, 0)
-    );
-
-    return {
-      totalSteps,
-      completedSteps,
-      percentage,
-      currentStep: currentStep?.id || 'complete',
-      estimatedTimeMinutes,
-    };
-  }
-
-  getPersonalizedTips(profile: OnboardingProfile): string[] {
-    const tips: string[] = [];
-
-    if (profile.role === 'solo') {
-      tips.push('Use the Focus Plan to prioritize your daily tasks');
-      tips.push('Enable Vacation Mode before taking time off');
-      tips.push('Use templates to save time on routine responses');
+export function getOnboardingSteps(profile?: Partial<MaintainerProfile>): OnboardingStep[] {
+  return REQUIRED_STEPS.map(step => {
+    if (profile?.expertise?.length && step.id === 'templates') {
+      return { ...step, required: true }; // Make templates required for experienced maintainers
     }
+    return step;
+  });
+}
 
-    if (profile.role === 'small-team') {
-      tips.push('Share the Evidence Pack with your team weekly');
-      tips.push('Use the Contributor Recognition system to celebrate contributors');
-      tips.push('Set up review rotations with the PR Handoff Kit');
-    }
+export function calculateProgress(steps: OnboardingStep[]): OnboardingProgress {
+  const completed = steps.filter(s => s.completed);
+  const skipped = steps.filter(s => !s.required && !s.completed);
+  const requiredRemaining = steps.filter(s => s.required && !s.completed);
 
-    if (profile.role === 'large-project') {
-      tips.push('Set up automated triage with the Maintainer Inbox');
-      tips.push('Use the Crisis Alert System for critical issues');
-      tips.push('Export analytics for stakeholder reports');
-    }
+  const estimatedMinutes = requiredRemaining.reduce((sum, s) => {
+    const match = s.estimatedTime.match(/(\d+)/);
+    return sum + (match ? parseInt(match[1]) : 5);
+  }, 0);
 
-    if (profile.preferences.notifications) {
-      tips.push('Configure Slack/Discord notifications for urgent items');
-    }
+  const completionDate = new Date();
+  completionDate.setMinutes(completionDate.getMinutes() + estimatedMinutes);
 
-    tips.push('Review the Repository Health Score weekly');
-    tips.push('Check the Contributor Impact Queue daily');
+  return {
+    currentStep: completed.length + 1,
+    totalSteps: steps.length,
+    completedSteps: completed.map(s => s.id),
+    skippedSteps: skipped.map(s => s.id),
+    startedAt: new Date().toISOString(),
+    estimatedCompletion: completionDate.toISOString(),
+  };
+}
 
-    return tips;
+export function generateRecommendations(profile: MaintainerProfile): SetupRecommendation[] {
+  const recommendations: SetupRecommendation[] = [];
+
+  if (profile.repositoryCount > 5) {
+    recommendations.push({
+      priority: 'high',
+      category: 'Automation',
+      title: 'Enable batch operations',
+      description: 'Manage multiple repositories efficiently with bulk actions',
+      autoApply: true,
+    });
   }
 
-  generateWelcomeMessage(profile: OnboardingProfile): string {
-    const hour = new Date().getHours();
-    const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  if (profile.experience === 'new') {
+    recommendations.push({
+      priority: 'critical',
+      category: 'Getting Started',
+      title: 'Watch our maintainer guide',
+      description: 'Learn best practices from experienced maintainers',
+      actionUrl: '/guides/maintainer-handbook',
+    });
+  }
 
-    return `${greeting}, ${profile.username}!
+  if (!profile.expertise.includes('security')) {
+    recommendations.push({
+      priority: 'high',
+      category: 'Security',
+      title: 'Enable dependency scanning',
+      description: 'Automatically detect vulnerabilities in dependencies',
+      autoApply: true,
+    });
+  }
 
-Welcome to OpenMaintainer, your AI-powered OSS maintenance workbench.
+  recommendations.push({
+    priority: 'medium',
+    category: 'Engagement',
+    title: 'Set up contributor recognition',
+    description: 'Automatically thank and recognize contributors',
+  });
 
-${profile.role === 'solo' 
-  ? 'As a solo maintainer, we\'ll help you stay organized and avoid burnout.'
-  : profile.role === 'small-team'
-  ? 'With your small team, we\'ll help you coordinate and celebrate contributions.'
-  : 'For your large project, we\'ll help you scale maintainer operations.'}
+  return recommendations.sort((a, b) => {
+    const order = { critical: 0, high: 1, medium: 2 };
+    return order[a.priority] - order[b.priority];
+  });
+}
 
-Let\'s get you set up and start making your OSS journey more sustainable.`;
+export function generateWelcomeMessage(profile: MaintainerProfile): string {
+  const timeGreeting = getTimeBasedGreeting(profile.timezone);
+  
+  let message = `${timeGreeting}, ${profile.name}!\n\n`;
+  message += `Welcome to OpenMaintainer. We're here to help you manage and grow your open source projects.\n\n`;
+  
+  const nextSteps = REQUIRED_STEPS.filter(s => !s.completed && s.required).slice(0, 2);
+  if (nextSteps.length > 0) {
+    message += `**Next steps:**\n`;
+    nextSteps.forEach(step => {
+      message += `- ${step.title}: ${step.description}\n`;
+    });
+  }
+
+  return message;
+}
+
+function getTimeBasedGreeting(timezone: string): string {
+  try {
+    const now = new Date().toLocaleString('en-US', { timeZone: timezone, hour: 'numeric' });
+    const hour = parseInt(now);
+    
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  } catch {
+    return 'Hello';
   }
 }
 
-export const onboardingWizard = new OnboardingWizard();
-
-export function createOnboardingWizard(): OnboardingWizard {
-  return new OnboardingWizard();
+export function estimateTimeToProductivity(profile: MaintainerProfile): string {
+  const baseMinutes = 15;
+  const perRepo = 2;
+  const experience = { new: 20, intermediate: 10, experienced: 5 };
+  
+  const total = baseMinutes + (profile.repositoryCount * perRepo) + experience[profile.experience];
+  
+  if (total < 30) return `${total} minutes`;
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours} hour${hours > 1 ? 's' : ''}`;
 }
-
-export { OnboardingWizard };

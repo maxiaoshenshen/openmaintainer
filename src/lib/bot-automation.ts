@@ -1,291 +1,193 @@
-export type BotAction = 
-  | 'welcome_contributor'
-  | 'thank_contributor'
-  | 'request_review'
-  | 'assign_maintainer'
-  | 'add_labels'
-  | 'close_inactive'
-  | 'reply_template'
-  | 'auto_merge'
-  | 'check_ci';
+/**
+ * Bot Automation - GitHub bot management and automation
+ */
 
-export type TriggerType = 'event' | 'schedule' | 'manual';
-
-export type EventTrigger = 'pr_opened' | 'pr_merged' | 'pr_closed' | 'issue_opened' | 'issue_closed' | 'comment_added' | 'fork' | 'star' | 'release';
-
-export interface BotRule {
-  id: string;
+export interface BotConfig {
   name: string;
-  description: string;
-  action: BotAction;
-  trigger: {
-    type: TriggerType;
-    event?: EventTrigger;
-    schedule?: string; // cron expression
-  };
-  conditions?: Record<string, unknown>;
   enabled: boolean;
-  createdAt: Date;
-  lastTriggeredAt?: Date;
-  triggerCount: number;
+  triggerOn?: ('pull_request' | 'issues' | 'push' | 'release' | 'comment')[];
+  actions?: BotAction[];
 }
 
-export interface AutomationLog {
-  id: string;
-  ruleId: string;
-  triggeredBy: string;
-  input: Record<string, unknown>;
-  output?: Record<string, unknown>;
-  success: boolean;
-  error?: string;
-  executedAt: Date;
+export interface BotAction {
+  name: string;
+  when: string;  // Expression or condition
+  then: ActionStep[];
 }
 
-export interface AutomationMetrics {
-  totalRules: number;
-  activeRules: number;
-  totalExecutions: number;
-  successfulExecutions: number;
-  failedExecutions: number;
-  executionRate: number;
+export interface ActionStep {
+  type: 'comment' | 'label' | 'assign' | 'close' | 'notify' | 'webhook';
+  config: Record<string, string>;
 }
 
-export class BotAutomationManager {
-  private rules: Map<string, BotRule> = new Map();
-  private logs: AutomationLog[] = [];
-  private readonly maxLogs = 1000;
+export interface PRContext {
+  number: number;
+  title: string;
+  author: string;
+  files: string[];
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  labels: string[];
+  draft: boolean;
+  baseBranch: string;
+  headBranch: string;
+}
 
-  async createRule(data: {
-    name: string;
-    description: string;
-    action: BotAction;
-    trigger: {
-      type: TriggerType;
-      event?: EventTrigger;
-      schedule?: string;
-    };
-    conditions?: Record<string, unknown>;
-  }): Promise<BotRule> {
-    const rule: BotRule = {
-      id: `BOT-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
-      ...data,
-      enabled: true,
-      createdAt: new Date(),
-      triggerCount: 0,
-    };
+export interface IssueContext {
+  number: number;
+  title: string;
+  author: string;
+  body: string;
+  labels: string[];
+  assignees: string[];
+  state: 'open' | 'closed';
+}
 
-    this.rules.set(rule.id, rule);
-    return rule;
-  }
+export interface AutomationResult {
+  triggered: boolean;
+  actionTaken?: string;
+  message?: string;
+}
 
-  async updateRule(id: string, updates: Partial<BotRule>): Promise<BotRule | null> {
-    const rule = this.rules.get(id);
-    if (!rule) return null;
+export function shouldTriggerBot(config: BotConfig, event: string, context: PRContext | IssueContext): boolean {
+  if (!config.enabled) return false;
+  if (!config.triggerOn?.includes(event as any)) return false;
+  return true;
+}
 
-    Object.assign(rule, updates);
-    return rule;
-  }
+export function evaluateCondition(condition: string, context: PRContext | IssueContext): boolean {
+  const ctx = context as any;
+  
+  // Handle simple property checks
+  const checks: Record<string, () => boolean> = {
+    'draft': () => ctx.draft === true,
+    'not draft': () => ctx.draft !== true,
+    'small pr': () => ctx.changedFiles <= 10,
+    'large pr': () => ctx.changedFiles > 50,
+    'security related': () => ctx.labels?.some((l: string) => l.toLowerCase().includes('security')),
+    'breaking change': () => ctx.labels?.some((l: string) => l.toLowerCase().includes('breaking')) || 
+                          ctx.title?.toLowerCase().includes('breaking'),
+  };
 
-  async deleteRule(id: string): Promise<boolean> {
-    return this.rules.delete(id);
-  }
+  return checks[condition]?.() || false;
+}
 
-  async getRule(id: string): Promise<BotRule | null> {
-    return this.rules.get(id) || null;
-  }
+export function executeAction(step: ActionStep, context: PRContext | IssueContext): AutomationResult {
+  switch (step.type) {
+    case 'comment':
+      return {
+        triggered: true,
+        actionTaken: 'comment',
+        message: `Bot would comment: "${step.config.message}"`,
+      };
 
-  async getAllRules(): Promise<BotRule[]> {
-    return Array.from(this.rules.values());
-  }
+    case 'label':
+      return {
+        triggered: true,
+        actionTaken: 'add_label',
+        message: `Would add label: ${step.config.name}`,
+      };
 
-  async getActiveRules(): Promise<BotRule[]> {
-    return Array.from(this.rules.values()).filter(r => r.enabled);
-  }
+    case 'assign':
+      return {
+        triggered: true,
+        actionTaken: 'assign',
+        message: `Would assign to: ${step.config.users}`,
+      };
 
-  async triggerEvent(event: EventTrigger, payload: Record<string, unknown>): Promise<AutomationLog[]> {
-    const matchingRules = Array.from(this.rules.values()).filter(
-      r => r.enabled && r.trigger.type === 'event' && r.trigger.event === event
-    );
+    case 'close':
+      return {
+        triggered: true,
+        actionTaken: 'close',
+        message: 'Would close the ' + ('files' in context ? 'PR' : 'issue'),
+      };
 
-    const logs: AutomationLog[] = [];
+    case 'notify':
+      return {
+        triggered: true,
+        actionTaken: 'notify',
+        message: `Would notify: ${step.config.channel} with message: ${step.config.message}`,
+      };
 
-    for (const rule of matchingRules) {
-      const log = await this.executeRule(rule, event, payload);
-      logs.push(log);
-      
-      rule.lastTriggeredAt = new Date();
-      rule.triggerCount += 1;
-    }
-
-    return logs;
-  }
-
-  async executeScheduledRules(): Promise<AutomationLog[]> {
-    const scheduledRules = Array.from(this.rules.values()).filter(
-      r => r.enabled && r.trigger.type === 'schedule'
-    );
-
-    const logs: AutomationLog[] = [];
-
-    for (const rule of scheduledRules) {
-      const log = await this.executeRule(rule, 'schedule', {});
-      logs.push(log);
-      
-      rule.lastTriggeredAt = new Date();
-      rule.triggerCount += 1;
-    }
-
-    return logs;
-  }
-
-  async executeRuleManually(ruleId: string, payload: Record<string, unknown>): Promise<AutomationLog | null> {
-    const rule = this.rules.get(ruleId);
-    if (!rule) return null;
-
-    const log = await this.executeRule(rule, 'manual', payload);
-    rule.lastTriggeredAt = new Date();
-    rule.triggerCount += 1;
-
-    return log;
-  }
-
-  private async executeRule(
-    rule: BotRule,
-    triggerType: string,
-    input: Record<string, unknown>
-  ): Promise<AutomationLog> {
-    const log: AutomationLog = {
-      id: `LOG-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
-      ruleId: rule.id,
-      triggeredBy: triggerType,
-      input,
-      success: false,
-      executedAt: new Date(),
-    };
-
-    try {
-      const output = await this.performAction(rule.action, input, rule.conditions);
-      log.output = output;
-      log.success = true;
-    } catch (error) {
-      log.error = error instanceof Error ? error.message : 'Unknown error';
-    }
-
-    this.addLog(log);
-    return log;
-  }
-
-  private async performAction(
-    action: BotAction,
-    input: Record<string, unknown>,
-    conditions?: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
-    // Simulate action execution
-    const actionResults: Record<BotAction, Record<string, unknown>> = {
-      welcome_contributor: {
-        message: `Welcome to the project! 🎉`,
-        action: 'comment',
-        template: 'welcome',
-      },
-      thank_contributor: {
-        message: `Thank you for your contribution! 🙏`,
-        action: 'comment',
-        template: 'thanks',
-      },
-      request_review: {
-        message: `Would you mind reviewing this PR?`,
-        action: 'request_reviewers',
-        reviewers: conditions?.reviewers || ['maintainer'],
-      },
-      assign_maintainer: {
-        action: 'assign',
-        assignee: conditions?.maintainer || 'maintainer',
-      },
-      add_labels: {
-        action: 'add_labels',
-        labels: (conditions?.labels as string[]) || ['needs-review'],
-      },
-      close_inactive: {
-        action: 'close',
-        reason: 'not_planned',
-        message: 'This issue has been inactive for a while. Closing for now.',
-      },
-      reply_template: {
-        action: 'comment',
-        template: conditions?.template || 'default',
-        message: this.getTemplateMessage(conditions?.template as string),
-      },
-      auto_merge: {
-        action: 'merge',
-        method: 'squash',
-        delete_branch: true,
-      },
-      check_ci: {
-        action: 'check_status',
-        checks: ['ci', 'lint', 'test'],
-        status: 'pending',
-      },
-    };
-
-    return actionResults[action];
-  }
-
-  private getTemplateMessage(template?: string): string {
-    const templates: Record<string, string> = {
-      welcome: 'Welcome to our project! Feel free to ask questions.',
-      thanks: 'Thank you for your contribution! We appreciate your help.',
-      help: 'Thanks for reaching out! Here\'s how you can get help...',
-      duplicate: 'Thanks for reporting! This appears to be a duplicate of another issue.',
-      default: 'Thank you for your input. We will review and respond shortly.',
-    };
-    return templates[template || 'default'] || templates.default;
-  }
-
-  private addLog(log: AutomationLog): void {
-    this.logs.unshift(log);
-    if (this.logs.length > this.maxLogs) {
-      this.logs = this.logs.slice(0, this.maxLogs);
-    }
-  }
-
-  async getLogs(ruleId?: string, limit = 100): Promise<AutomationLog[]> {
-    let logs = this.logs;
-    if (ruleId) {
-      logs = logs.filter(l => l.ruleId === ruleId);
-    }
-    return logs.slice(0, limit);
-  }
-
-  async clearLogs(ruleId?: string): Promise<void> {
-    if (ruleId) {
-      this.logs = this.logs.filter(l => l.ruleId !== ruleId);
-    } else {
-      this.logs = [];
-    }
-  }
-
-  async getMetrics(): Promise<AutomationMetrics> {
-    const rules = Array.from(this.rules.values());
-    const activeRules = rules.filter(r => r.enabled);
-    const totalExecutions = rules.reduce((sum, r) => sum + r.triggerCount, 0);
-    const successfulLogs = this.logs.filter(l => l.success).length;
-    const failedLogs = this.logs.filter(l => !l.success).length;
-
-    return {
-      totalRules: rules.length,
-      activeRules: activeRules.length,
-      totalExecutions,
-      successfulExecutions: successfulLogs,
-      failedExecutions: failedLogs,
-      executionRate: totalExecutions > 0 ? successfulLogs / totalExecutions : 0,
-    };
-  }
-
-  async enableRule(id: string): Promise<BotRule | null> {
-    return this.updateRule(id, { enabled: true });
-  }
-
-  async disableRule(id: string): Promise<BotRule | null> {
-    return this.updateRule(id, { enabled: false });
+    default:
+      return { triggered: false };
   }
 }
+
+export function runBot(config: BotConfig, event: string, context: PRContext | IssueContext): AutomationResult[] {
+  if (!shouldTriggerBot(config, event, context)) {
+    return [{ triggered: false }];
+  }
+
+  const results: AutomationResult[] = [];
+
+  config.actions?.forEach(action => {
+    if (evaluateCondition(action.when, context)) {
+      action.then.forEach(step => {
+        results.push(executeAction(step, context));
+      });
+    }
+  });
+
+  return results;
+}
+
+// Predefined bot templates
+export const GREETING_BOT: BotConfig = {
+  name: 'Greeting Bot',
+  enabled: true,
+  triggerOn: ['pull_request', 'issues'],
+  actions: [
+    {
+      name: 'welcome_new_contributors',
+      when: 'not draft',
+      then: [
+        {
+          type: 'comment',
+          config: { message: 'Thank you for your contribution! 🎉' },
+        },
+      ],
+    },
+  ],
+};
+
+export const SECURITY_BOT: BotConfig = {
+  name: 'Security Bot',
+  enabled: true,
+  triggerOn: ['pull_request'],
+  actions: [
+    {
+      name: 'check_security',
+      when: 'security related',
+      then: [
+        {
+          type: 'label',
+          config: { name: 'security-review' },
+        },
+        {
+          type: 'assign',
+          config: { users: '@security-team' },
+        },
+      ],
+    },
+  ],
+};
+
+export const SIZE_LABELING_BOT: BotConfig = {
+  name: 'Size Labeling Bot',
+  enabled: true,
+  triggerOn: ['pull_request'],
+  actions: [
+    {
+      name: 'label_by_size',
+      when: 'small pr',
+      then: [{ type: 'label', config: { name: 'size/small' } }],
+    },
+    {
+      name: 'label_by_size',
+      when: 'large pr',
+      then: [{ type: 'label', config: { name: 'size/large' } }],
+    },
+  ],
+};

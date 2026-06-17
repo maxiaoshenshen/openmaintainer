@@ -1,174 +1,128 @@
-export type ChangeType = 'feature' | 'fix' | 'breaking' | 'docs' | 'refactor' | 'test' | 'chore' | 'security';
+/**
+ * Changelog Generator - Auto-generate changelogs from commits
+ */
+
+export interface ChangelogConfig {
+  types?: {
+    label: string;
+    section: string;
+    semver?: 'major' | 'minor' | 'patch';
+  }[];
+  includeCommit?: (commit: { type: string; message: string }) => boolean;
+}
 
 export interface ChangelogEntry {
   version: string;
-  date: Date;
-  changes: ChangeEntry[];
-  breakingChanges: ChangeEntry[];
+  date: string;
+  sections: Record<string, string[]>;
+  breaking?: string[];
 }
 
-export interface ChangeEntry {
-  type: ChangeType;
-  scope?: string;
-  description: string;
-  author?: string;
-  prNumber?: number;
+export interface ReleaseInfo {
+  version: string;
+  tag: string;
+  date: string;
+  commits: Array<{
+    sha: string;
+    message: string;
+    author: string;
+  }>;
 }
 
-export interface ChangelogConfig {
-  repoId: string;
-  includeAuthors: boolean;
-  includePRs: boolean;
-  categories: ChangeType[];
+const DEFAULT_TYPES = [
+  { label: 'Features', section: 'Added', semver: 'minor' },
+  { label: 'Bug Fixes', section: 'Fixed', semver: 'patch' },
+  { label: 'Performance', section: 'Improved', semver: 'patch' },
+  { label: 'Refactoring', section: 'Changed', semver: 'patch' },
+  { label: 'Documentation', section: 'Changed', semver: 'patch' },
+  { label: 'Tests', section: 'Changed', semver: 'patch' },
+  { label: 'Maintenance', section: 'Changed', semver: 'patch' },
+  { label: 'Breaking Changes', section: 'Breaking', semver: 'major' },
+];
+
+export function parseCommitForChangelog(message: string, type: string): { shortDesc: string; breaking: boolean } {
+  const breaking = message.includes('!:'); // Conventional commit breaking indicator
+  
+  // Extract description after the type prefix
+  const match = message.match(/^(\w+)(?:\([^)]+\))?[!]?:\s*(.+)/);
+  const shortDesc = match ? match[2] : message;
+  
+  return { shortDesc, breaking };
 }
 
-export class ChangelogGenerator {
-  private changelogs: Map<string, ChangelogEntry[]> = new Map();
+export function generateChangelog(releases: ReleaseInfo[], config?: ChangelogConfig): string {
+  const types = config?.types || DEFAULT_TYPES;
+  let changelog = '# Changelog\n\n';
 
-  async generateChangelog(
-    repoId: string,
-    entries: ChangeEntry[],
-    version: string,
-    config?: Partial<ChangelogConfig>
-  ): Promise<ChangelogEntry> {
-    const entry: ChangelogEntry = {
-      version,
-      date: new Date(),
-      changes: entries.filter(e => e.type !== 'breaking'),
-      breakingChanges: entries.filter(e => e.type === 'breaking'),
-    };
+  releases.forEach((release, releaseIndex) => {
+    changelog += `## ${release.version} (${release.date})\n\n`;
 
-    const existing = this.changelogs.get(repoId) || [];
-    existing.unshift(entry);
-    this.changelogs.set(repoId, existing);
+    const sections: Record<string, string[]> = {};
+    const breaking: string[] = [];
 
-    return entry;
-  }
-
-  async getChangelog(repoId: string, version?: string): Promise<ChangelogEntry | ChangelogEntry[] | null> {
-    const changelog = this.changelogs.get(repoId);
-    if (!changelog) return null;
-
-    if (version) {
-      return changelog.find(c => c.version === version) || null;
-    }
-    return changelog;
-  }
-
-  async formatChangelogMarkdown(repoId: string): Promise<string> {
-    const changelog = this.changelogs.get(repoId);
-    if (!changelog || changelog.length === 0) {
-      return '# Changelog\n\nNo releases yet.\n';
-    }
-
-    let md = '# Changelog\n\n';
-
-    for (const entry of changelog) {
-      md += `## ${entry.version} (${entry.date.toISOString().split('T')[0]})\n\n`;
-
-      if (entry.breakingChanges.length > 0) {
-        md += '### ⚠️ Breaking Changes\n\n';
-        for (const change of entry.breakingChanges) {
-          md += `- **${change.scope || 'general'}**: ${change.description}`;
-          if (change.prNumber) md += ` (#${change.prNumber})`;
-          md += '\n';
-        }
-        md += '\n';
-      }
-
-      const grouped = this.groupByType(entry.changes);
+    release.commits.forEach(commit => {
+      const { shortDesc, breaking: isBreaking } = parseCommitForChangelog(commit.message, '');
       
-      for (const [type, changes] of Object.entries(grouped)) {
-        if (changes.length === 0) continue;
-        md += `### ${this.getTypeEmoji(type as ChangeType)} ${this.capitalize(type)}\n\n`;
-        for (const change of changes) {
-          md += `- ${change.scope ? `**${change.scope}:** ` : ''}${change.description}`;
-          if (change.author) md += ` (by @${change.author})`;
-          if (change.prNumber) md += ` in #${change.prNumber}`;
-          md += '\n';
-        }
-        md += '\n';
+      if (isBreaking) {
+        breaking.push(`- ${shortDesc} (${commit.sha.slice(0, 7)})`);
+        return;
       }
-    }
 
-    return md;
-  }
+      const typeInfo = types.find(t => commit.message.startsWith(t.label.slice(0, -1))) || types[5]; // Default to 'Changed'
+      const section = typeInfo.section;
+      
+      if (!sections[section]) sections[section] = [];
+      sections[section].push(`- ${shortDesc} (${commit.sha.slice(0, 7)})`);
+    });
 
-  private groupByType(changes: ChangeEntry[]): Record<ChangeType, ChangeEntry[]> {
-    const grouped: Record<ChangeType, ChangeEntry[]> = {
-      feature: [],
-      fix: [],
-      breaking: [],
-      docs: [],
-      refactor: [],
-      test: [],
-      chore: [],
-      security: [],
-    };
-
-    for (const change of changes) {
-      grouped[change.type].push(change);
-    }
-
-    return grouped;
-  }
-
-  private getTypeEmoji(type: ChangeType): string {
-    const emojis: Record<ChangeType, string> = {
-      feature: '✨',
-      fix: '🐛',
-      breaking: '💥',
-      docs: '📝',
-      refactor: '♻️',
-      test: '🧪',
-      chore: '🔧',
-      security: '🔒',
-    };
-    return emojis[type];
-  }
-
-  private capitalize(str: string): string {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  }
-
-  async generateReleaseNotes(repoId: string, version: string): Promise<string> {
-    const entry = await this.getChangelog(repoId, version) as ChangelogEntry | null;
-    if (!entry) return 'No release notes available.';
-
-    const lines: string[] = [];
-    lines.push(`# Release ${version}`);
-    lines.push(`Released on ${entry.date.toISOString().split('T')[0]}`);
-    lines.push('');
-
-    if (entry.breakingChanges.length > 0) {
-      lines.push('## ⚠️ Breaking Changes');
-      lines.push('');
-      for (const change of entry.breakingChanges) {
-        lines.push(`- ${change.description}`);
+    // Output sections in order
+    types.forEach(type => {
+      if (sections[type.section]?.length) {
+        changelog += `### ${type.section}\n${sections[type.section].join('\n')}\n\n`;
       }
-      lines.push('');
-    }
+    });
 
-    const features = entry.changes.filter(c => c.type === 'feature');
-    if (features.length > 0) {
-      lines.push('## New Features');
-      lines.push('');
-      for (const change of features) {
-        lines.push(`- ${change.scope ? `**${change.scope}:** ` : ''}${change.description}`);
-      }
-      lines.push('');
+    if (breaking.length) {
+      changelog += `### Breaking Changes\n${breaking.join('\n')}\n\n`;
     }
+  });
 
-    const fixes = entry.changes.filter(c => c.type === 'fix');
-    if (fixes.length > 0) {
-      lines.push('## Bug Fixes');
-      lines.push('');
-      for (const change of fixes) {
-        lines.push(`- ${change.scope ? `**${change.scope}:** ` : ''}${change.description}`);
-      }
-      lines.push('');
-    }
+  return changelog;
+}
 
-    return lines.join('\n');
-  }
+export function generateReleaseNotes(release: ReleaseInfo): string {
+  let notes = `# Release ${release.version}\n\n`;
+  notes += `**Released on:** ${release.date}\n\n`;
+  
+  const grouped: Record<string, string[]> = {};
+  
+  release.commits.forEach(commit => {
+    const { shortDesc } = parseCommitForChangelog(commit.message, '');
+    const type = commit.message.split(':')[0].replace(/[(!)]/g, '') || 'Other';
+    
+    if (!grouped[type]) grouped[type] = [];
+    grouped[type].push(`- ${shortDesc}`);
+  });
+
+  Object.entries(grouped).forEach(([type, items]) => {
+    notes += `## ${type.charAt(0).toUpperCase() + type.slice(1)}\n${items.join('\n')}\n\n`;
+  });
+
+  return notes;
+}
+
+export function determineVersion(currentVersion: string, commits: string[]): string {
+  const [major, minor, patch] = currentVersion.split('.').map(Number);
+  
+  let hasMajor = false;
+  let hasMinor = false;
+  
+  commits.forEach(msg => {
+    if (msg.includes('!') || msg.includes('BREAKING')) hasMajor = true;
+    if (msg.startsWith('feat')) hasMinor = true;
+  });
+
+  if (hasMajor) return `${major + 1}.0.0`;
+  if (hasMinor) return `${major}.${minor + 1}.0`;
+  return `${major}.${minor}.${patch + 1}`;
 }

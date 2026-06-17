@@ -1,240 +1,212 @@
-import type { MaintainerIssue, MaintainerPullRequest } from "./types";
+/**
+ * Metrics Dashboard - Track and visualize maintainer metrics
+ */
 
-export interface MetricDataPoint {
+export interface MaintainerMetrics {
+  repositoryStars: number;
+  weeklyDownloads: number;
+  activeContributors: number;
+  openIssues: number;
+  openPRs: number;
+  averageResponseTime: number; // hours
+  issueResolutionTime: number; // days
+  prMergeRate: number; // percentage
+  communitySatisfaction: number; // 0-100
+}
+
+export interface TimeSeriesData {
   date: string;
   value: number;
-  label?: string;
 }
 
-export interface DashboardMetrics {
-  overview: {
-    totalStars: number;
-    totalForks: number;
-    totalIssues: number;
-    openIssues: number;
-    closedIssues: number;
-    totalPRs: number;
-    openPRs: number;
-    mergedPRs: number;
-  };
-  trends: {
-    issuesOverTime: MetricDataPoint[];
-    prsOverTime: MetricDataPoint[];
-    responseTime: MetricDataPoint[];
-    communityActivity: MetricDataPoint[];
-  };
-  health: {
-    issueCloseRate: number;
-    prMergeRate: number;
-    averageResponseTime: number;
-    activeContributors: number;
-    communityGrowth: number;
-  };
-  predictions: {
-    projectedStars30d: number;
-    projectedForks30d: number;
-    burnoutRisk: "low" | "medium" | "high";
-  };
+export interface DashboardConfig {
+  metrics: Array<keyof MaintainerMetrics>;
+  timeRange: '7d' | '30d' | '90d' | '1y';
+  groupBy?: 'day' | 'week' | 'month';
 }
 
-export class MetricsDashboard {
-  generateDashboard(
-    issues: MaintainerIssue[],
-    pullRequests: MaintainerPullRequest[],
-    stats?: { stars?: number; forks?: number }
-  ): DashboardMetrics {
-    return {
-      overview: this.generateOverview(issues, pullRequests, stats),
-      trends: this.generateTrends(issues, pullRequests),
-      health: this.calculateHealth(issues, pullRequests),
-      predictions: this.generatePredictions(issues, pullRequests, stats),
-    };
+export interface HealthScore {
+  overall: number;
+  categories: {
+    activity: number;
+    responsiveness: number;
+    quality: number;
+    growth: number;
+  };
+  trend: 'improving' | 'stable' | 'declining';
+  insights: string[];
+}
+
+export interface MetricAlert {
+  metric: string;
+  current: number;
+  threshold: number;
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+}
+
+export function calculateHealthScore(metrics: MaintainerMetrics): HealthScore {
+  const categories = {
+    activity: calculateActivityScore(metrics),
+    responsiveness: calculateResponsivenessScore(metrics),
+    quality: calculateQualityScore(metrics),
+    growth: calculateGrowthScore(metrics),
+  };
+
+  const overall = Math.round(
+    categories.activity * 0.25 +
+    categories.responsiveness * 0.3 +
+    categories.quality * 0.25 +
+    categories.growth * 0.2
+  );
+
+  const trend = determineTrend(metrics);
+
+  const insights = generateInsights(categories, metrics);
+
+  return { overall, categories, trend, insights };
+}
+
+function calculateActivityScore(m: MaintainerMetrics): number {
+  const starsScore = Math.min(m.repositoryStars / 1000, 1) * 30;
+  const contributorsScore = Math.min(m.activeContributors / 50, 1) * 30;
+  const engagementScore = Math.min(m.weeklyDownloads / 10000, 1) * 40;
+  return Math.round(starsScore + contributorsScore + engagementScore);
+}
+
+function calculateResponsivenessScore(m: MaintainerMetrics): number {
+  const responseScore = Math.max(0, 100 - m.averageResponseTime * 5);
+  const resolutionScore = Math.max(0, 100 - m.issueResolutionTime * 3);
+  return Math.round((responseScore * 0.6 + resolutionScore * 0.4));
+}
+
+function calculateQualityScore(m: MaintainerMetrics): number {
+  const openIssuesScore = Math.max(0, 100 - m.openIssues * 2);
+  const mergeRateScore = m.prMergeRate;
+  return Math.round((openIssuesScore * 0.4 + mergeRateScore * 0.6));
+}
+
+function calculateGrowthScore(m: MaintainerMetrics): number {
+  const satisfactionScore = m.communitySatisfaction;
+  const contributorGrowthScore = Math.min(m.activeContributors / 100, 1) * 50;
+  return Math.round(satisfactionScore * 0.6 + contributorGrowthScore * 0.4);
+}
+
+function determineTrend(metrics: MaintainerMetrics): 'improving' | 'stable' | 'declining' {
+  // Simplified trend detection
+  if (metrics.prMergeRate > 70 && metrics.averageResponseTime < 24) return 'improving';
+  if (metrics.prMergeRate > 50 && metrics.averageResponseTime < 48) return 'stable';
+  return 'declining';
+}
+
+function generateInsights(categories: HealthScore['categories'], metrics: MaintainerMetrics): string[] {
+  const insights: string[] = [];
+
+  if (categories.activity < 40) {
+    insights.push('Consider promoting your project to increase visibility');
+  }
+  if (categories.responsiveness < 50) {
+    insights.push('Priority: Improve response time to issues and PRs');
+  }
+  if (categories.quality < 60) {
+    insights.push('Focus on reducing open issues and improving PR review speed');
+  }
+  if (categories.growth < 50) {
+    insights.push('Work on community engagement and contributor retention');
+  }
+  if (metrics.communitySatisfaction > 80) {
+    insights.push('Your community is highly satisfied - keep up the great work!');
   }
 
-  private generateOverview(
-    issues: MaintainerIssue[],
-    pullRequests: MaintainerPullRequest[],
-    stats?: { stars?: number; forks?: number }
-  ) {
-    const openIssues = issues.filter(i => i.state === "open").length;
-    const openPRs = pullRequests.filter(pr => pr.state === "open" || pr.status === "open").length;
-    const mergedPRs = pullRequests.filter(pr => pr.state === "merged" || pr.status === "merged").length;
+  return insights;
+}
 
-    return {
-      totalStars: stats?.stars ?? 0,
-      totalForks: stats?.forks ?? 0,
-      totalIssues: issues.length,
-      openIssues,
-      closedIssues: issues.length - openIssues,
-      totalPRs: pullRequests.length,
-      openPRs,
-      mergedPRs,
-    };
+export function generateMetricAlerts(metrics: MaintainerMetrics): MetricAlert[] {
+  const alerts: MetricAlert[] = [];
+
+  if (metrics.openIssues > 50) {
+    alerts.push({
+      metric: 'openIssues',
+      current: metrics.openIssues,
+      threshold: 50,
+      severity: metrics.openIssues > 100 ? 'critical' : 'warning',
+      message: `High number of open issues (${metrics.openIssues})`,
+    });
   }
 
-  private generateTrends(issues: MaintainerIssue[], pullRequests: MaintainerPullRequest[]) {
-    const now = Date.now();
-    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
-
-    const issueTimeline = this.groupByDate(
-      issues.filter(i => new Date(i.createdAt).getTime() > thirtyDaysAgo),
-      i => i.createdAt
-    );
-
-    const prTimeline = this.groupByDate(
-      pullRequests.filter(pr => new Date(pr.createdAt).getTime() > thirtyDaysAgo),
-      pr => pr.createdAt
-    );
-
-    const issuesOverTime = Object.entries(issueTimeline).map(([date, items]) => ({
-      date,
-      value: items.length,
-    }));
-
-    const prsOverTime = Object.entries(prTimeline).map(([date, items]) => ({
-      date,
-      value: items.length,
-    }));
-
-    const responseTime = this.calculateResponseTimeTrend(issues);
-    const communityActivity = this.calculateCommunityActivity(issues, pullRequests);
-
-    return { issuesOverTime, prsOverTime, responseTime, communityActivity };
+  if (metrics.averageResponseTime > 72) {
+    alerts.push({
+      metric: 'averageResponseTime',
+      current: metrics.averageResponseTime,
+      threshold: 72,
+      severity: 'warning',
+      message: 'Response time is above 72 hours',
+    });
   }
 
-  private groupByDate<T>(items: T[], getDate: (item: T) => string): Record<string, T[]> {
-    const grouped: Record<string, T[]> = {};
-    for (const item of items) {
-      const date = getDate(item).split("T")[0];
-      if (!grouped[date]) grouped[date] = [];
-      grouped[date].push(item);
-    }
-    return grouped;
+  if (metrics.prMergeRate < 40) {
+    alerts.push({
+      metric: 'prMergeRate',
+      current: metrics.prMergeRate,
+      threshold: 40,
+      severity: 'critical',
+      message: 'Low PR merge rate - contributors may be discouraged',
+    });
   }
 
-  private calculateResponseTimeTrend(issues: MaintainerIssue[]): MetricDataPoint[] {
-    const now = Date.now();
-    const weeklyAvg: MetricDataPoint[] = [];
-
-    for (let w = 0; w < 4; w++) {
-      const weekStart = now - (w + 1) * 7 * 24 * 60 * 60 * 1000;
-      const weekEnd = now - w * 7 * 24 * 60 * 60 * 1000;
-      const weekIssues = issues.filter(i => {
-        const created = new Date(i.createdAt).getTime();
-        return created >= weekStart && created < weekEnd;
-      });
-
-      const avgResponse = weekIssues.length > 0 ? Math.round(weekIssues.length * 2.5) : 0;
-      weeklyAvg.push({
-        date: new Date(weekStart).toISOString().split("T")[0],
-        value: avgResponse,
-        label: `Week ${w + 1}`,
-      });
-    }
-
-    return weeklyAvg.reverse();
+  if (metrics.communitySatisfaction < 50) {
+    alerts.push({
+      metric: 'communitySatisfaction',
+      current: metrics.communitySatisfaction,
+      threshold: 50,
+      severity: 'warning',
+      message: 'Community satisfaction needs attention',
+    });
   }
 
-  private calculateCommunityActivity(issues: MaintainerIssue[], pullRequests: MaintainerPullRequest[]): MetricDataPoint[] {
-    const activity: Record<string, { issues: number; prs: number }> = {};
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  return alerts;
+}
 
-    for (const issue of issues) {
-      if (new Date(issue.createdAt).getTime() > thirtyDaysAgo) {
-        const date = issue.createdAt.split("T")[0];
-        if (!activity[date]) activity[date] = { issues: 0, prs: 0 };
-        activity[date].issues++;
-      }
-    }
-
-    for (const pr of pullRequests) {
-      if (new Date(pr.createdAt).getTime() > thirtyDaysAgo) {
-        const date = pr.createdAt.split("T")[0];
-        if (!activity[date]) activity[date] = { issues: 0, prs: 0 };
-        activity[date].prs++;
-      }
-    }
-
-    return Object.entries(activity).map(([date, data]) => ({
-      date,
-      value: data.issues + data.prs,
-    }));
+export function generateTrendAnalysis(data: TimeSeriesData[]): {
+  average: number;
+  min: number;
+  max: number;
+  change: number; // percentage
+  trend: 'up' | 'down' | 'flat';
+} {
+  if (data.length === 0) {
+    return { average: 0, min: 0, max: 0, change: 0, trend: 'flat' };
   }
 
-  private calculateHealth(issues: MaintainerIssue[], pullRequests: MaintainerPullRequest[]) {
-    const closedIssues = issues.filter(i => i.state === "closed").length;
-    const mergedPRs = pullRequests.filter(pr => pr.state === "merged" || pr.status === "merged");
-    const openPRs = pullRequests.filter(pr => pr.state === "open" || pr.status === "open");
+  const values = data.map(d => d.value);
+  const average = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
 
-    const contributors = new Set([
-      ...issues.map(i => i.author),
-      ...pullRequests.map(pr => pr.author),
-    ]);
+  const first = values[0];
+  const last = values[values.length - 1];
+  const change = first > 0 ? Math.round(((last - first) / first) * 100) : 0;
 
-    const communityGrowth = mergedPRs.length > 0 ? Math.round((contributors.size / mergedPRs.length) * 100) / 100 : 0;
+  const trend = change > 5 ? 'up' : change < -5 ? 'down' : 'flat';
 
-    return {
-      issueCloseRate: issues.length > 0 ? Math.round((closedIssues / issues.length) * 100) : 0,
-      prMergeRate: pullRequests.length > 0 ? Math.round((mergedPRs.length / pullRequests.length) * 100) : 0,
-      averageResponseTime: Math.round(issues.length * 1.5),
-      activeContributors: contributors.size,
-      communityGrowth: Math.round(communityGrowth * 10) / 10,
-    };
-  }
+  return { average, min, max, change, trend };
+}
 
-  private generatePredictions(
-    issues: MaintainerIssue[],
-    pullRequests: MaintainerPullRequest[],
-    stats?: { stars?: number; forks?: number }
-  ) {
-    const stars = stats?.stars ?? 1000;
-    const forks = stats?.forks ?? 100;
-    const mergedPRs = pullRequests.filter(pr => pr.state === "merged" || pr.status === "merged").length;
-
-    const burnoutRisk = this.calculateBurnoutRisk(issues, mergedPRs);
-
-    return {
-      projectedStars30d: Math.round(stars * 1.1),
-      projectedForks30d: Math.round(forks * 1.05),
-      burnoutRisk,
-    };
-  }
-
-  private calculateBurnoutRisk(issues: MaintainerIssue[], mergedPRs: number): "low" | "medium" | "high" {
-    const openIssues = issues.filter(i => i.state === "open").length;
-    const recentActivity = issues.filter(i => {
-      const daysAgo = (Date.now() - new Date(i.updatedAt).getTime()) / (1000 * 60 * 60 * 24);
-      return daysAgo < 7;
-    }).length;
-
-    if (openIssues > 50 && recentActivity > 20) return "high";
-    if (openIssues > 30 && recentActivity > 10) return "medium";
-    return "low";
-  }
-
-  generateMarkdown(metrics: DashboardMetrics): string {
-    const lines: string[] = [];
-    lines.push("# Maintainer Dashboard");
-    lines.push("");
-
-    lines.push("## Overview");
-    lines.push(`- Stars: ${metrics.overview.totalStars}`);
-    lines.push(`- Forks: ${metrics.overview.totalForks}`);
-    lines.push(`- Open Issues: ${metrics.overview.openIssues}`);
-    lines.push(`- Merged PRs: ${metrics.overview.mergedPRs}`);
-    lines.push("");
-
-    lines.push("## Health");
-    lines.push(`- Issue Close Rate: ${metrics.health.issueCloseRate}%`);
-    lines.push(`- PR Merge Rate: ${metrics.health.prMergeRate}%`);
-    lines.push(`- Active Contributors: ${metrics.health.activeContributors}`);
-    lines.push(`- Community Growth: ${metrics.health.communityGrowth}x`);
-    lines.push("");
-
-    lines.push("## Predictions");
-    lines.push(`- Projected Stars (30d): ${metrics.predictions.projectedStars30d}`);
-    lines.push(`- Burnout Risk: ${metrics.predictions.burnoutRisk}`);
-
-    return lines.join("\n");
+export function formatMetricValue(metric: keyof MaintainerMetrics, value: number): string {
+  switch (metric) {
+    case 'repositoryStars':
+      return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value);
+    case 'weeklyDownloads':
+      return value >= 1000000 ? `${(value / 1000000).toFixed(1)}M` : 
+             value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value);
+    case 'prMergeRate':
+    case 'communitySatisfaction':
+      return `${value}%`;
+    case 'averageResponseTime':
+      return `${value}h`;
+    case 'issueResolutionTime':
+      return `${value}d`;
+    default:
+      return String(value);
   }
 }

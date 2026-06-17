@@ -1,201 +1,89 @@
 import { describe, it, expect } from 'vitest';
-import { BotAutomationManager } from './bot-automation';
+import { shouldTriggerBot, evaluateCondition, executeAction, runBot, GREETING_BOT, SECURITY_BOT } from './bot-automation';
 
-describe('BotAutomationManager', () => {
-  const manager = new BotAutomationManager();
+describe('Bot Automation', () => {
+  const samplePR = {
+    number: 123,
+    title: 'Add new feature',
+    author: 'contributor',
+    files: ['src/index.ts'],
+    additions: 50,
+    deletions: 10,
+    changedFiles: 1,
+    labels: [],
+    draft: false,
+    baseBranch: 'main',
+    headBranch: 'feature/new',
+  };
 
-  it('should create a rule', async () => {
-    const rule = await manager.createRule({
-      name: 'Welcome New Contributors',
-      description: 'Send welcome message to new contributors',
-      action: 'welcome_contributor',
-      trigger: {
-        type: 'event',
-        event: 'pr_opened',
-      },
+  describe('shouldTriggerBot', () => {
+    it('should trigger for matching events', () => {
+      expect(shouldTriggerBot(GREETING_BOT, 'pull_request', samplePR)).toBe(true);
     });
 
-    expect(rule.id).toBeDefined();
-    expect(rule.name).toBe('Welcome New Contributors');
-    expect(rule.enabled).toBe(true);
+    it('should not trigger for disabled bots', () => {
+      const disabled = { ...GREETING_BOT, enabled: false };
+      expect(shouldTriggerBot(disabled, 'pull_request', samplePR)).toBe(false);
+    });
+
+    it('should not trigger for non-matching events', () => {
+      expect(shouldTriggerBot(GREETING_BOT, 'push', samplePR)).toBe(false);
+    });
   });
 
-  it('should create scheduled rule', async () => {
-    const rule = await manager.createRule({
-      name: 'Close Inactive Issues',
-      description: 'Close issues inactive for 30 days',
-      action: 'close_inactive',
-      trigger: {
-        type: 'schedule',
-        schedule: '0 9 * * *', // Daily at 9 AM
-      },
+  describe('evaluateCondition', () => {
+    it('should evaluate draft condition', () => {
+      expect(evaluateCondition('draft', { ...samplePR, draft: true })).toBe(true);
+      expect(evaluateCondition('draft', samplePR)).toBe(false);
     });
 
-    expect(rule.id).toBeDefined();
-    expect(rule.trigger.type).toBe('schedule');
-    expect(rule.trigger.schedule).toBe('0 9 * * *');
+    it('should evaluate size conditions', () => {
+      expect(evaluateCondition('small pr', { ...samplePR, changedFiles: 5 })).toBe(true);
+      expect(evaluateCondition('large pr', { ...samplePR, changedFiles: 100 })).toBe(true);
+    });
+
+    it('should evaluate security conditions', () => {
+      expect(evaluateCondition('security related', { ...samplePR, labels: ['security'] })).toBe(true);
+    });
   });
 
-  it('should update rule', async () => {
-    const rule = await manager.createRule({
-      name: 'Test Rule',
-      description: 'Test',
-      action: 'welcome_contributor',
-      trigger: { type: 'event', event: 'pr_opened' },
+  describe('executeAction', () => {
+    it('should execute comment action', () => {
+      const result = executeAction(
+        { type: 'comment', config: { message: 'Hello!' } },
+        samplePR
+      );
+      expect(result.triggered).toBe(true);
+      expect(result.actionTaken).toBe('comment');
     });
 
-    const updated = await manager.updateRule(rule.id, {
-      name: 'Updated Rule',
-      enabled: false,
+    it('should execute label action', () => {
+      const result = executeAction(
+        { type: 'label', config: { name: 'approved' } },
+        samplePR
+      );
+      expect(result.triggered).toBe(true);
+      expect(result.actionTaken).toBe('add_label');
     });
-
-    expect(updated?.name).toBe('Updated Rule');
-    expect(updated?.enabled).toBe(false);
   });
 
-  it('should delete rule', async () => {
-    const rule = await manager.createRule({
-      name: 'To Delete',
-      description: 'Test',
-      action: 'welcome_contributor',
-      trigger: { type: 'event', event: 'pr_opened' },
+  describe('runBot', () => {
+    it('should run greeting bot on PR', () => {
+      const results = runBot(GREETING_BOT, 'pull_request', samplePR);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].triggered).toBe(true);
     });
 
-    const deleted = await manager.deleteRule(rule.id);
-    expect(deleted).toBe(true);
-
-    const retrieved = await manager.getRule(rule.id);
-    expect(retrieved).toBeNull();
-  });
-
-  it('should trigger event and execute matching rules', async () => {
-    await manager.createRule({
-      name: 'Welcome PRs',
-      description: 'Welcome new PRs',
-      action: 'welcome_contributor',
-      trigger: { type: 'event', event: 'pr_opened' },
+    it('should not trigger on draft PRs for greeting', () => {
+      const draftPR = { ...samplePR, draft: true };
+      const results = runBot(GREETING_BOT, 'pull_request', draftPR);
+      expect(results.every(r => !r.triggered)).toBe(true);
     });
 
-    await manager.createRule({
-      name: 'Thank Merges',
-      description: 'Thank merged PRs',
-      action: 'thank_contributor',
-      trigger: { type: 'event', event: 'pr_merged' },
+    it('should trigger security bot for security-related PRs', () => {
+      const securityPR = { ...samplePR, labels: ['security'] };
+      const results = runBot(SECURITY_BOT, 'pull_request', securityPR);
+      expect(results.some(r => r.actionTaken === 'add_label')).toBe(true);
     });
-
-    const logs = await manager.triggerEvent('pr_opened', { pr: 123 });
-    expect(logs.length).toBeGreaterThan(0);
-    expect(logs[0].ruleId).toBeDefined();
-    expect(logs[0].triggeredBy).toBe('pr_opened');
-  });
-
-  it('should execute scheduled rules', async () => {
-    await manager.createRule({
-      name: 'Daily Task',
-      description: 'Run daily',
-      action: 'close_inactive',
-      trigger: { type: 'schedule', schedule: '0 9 * * *' },
-    });
-
-    const logs = await manager.executeScheduledRules();
-    expect(logs.length).toBeGreaterThan(0);
-  });
-
-  it('should execute rule manually', async () => {
-    const rule = await manager.createRule({
-      name: 'Manual Task',
-      description: 'Run manually',
-      action: 'add_labels',
-      trigger: { type: 'event', event: 'issue_opened' },
-    });
-
-    const log = await manager.executeRuleManually(rule.id, { issue: 456 });
-    expect(log).toBeDefined();
-    expect(log?.ruleId).toBe(rule.id);
-  });
-
-  it('should get logs', async () => {
-    const rule = await manager.createRule({
-      name: 'Log Test',
-      description: 'Test',
-      action: 'welcome_contributor',
-      trigger: { type: 'event', event: 'pr_opened' },
-    });
-
-    await manager.triggerEvent('pr_opened', { pr: 1 });
-    await manager.triggerEvent('pr_opened', { pr: 2 });
-
-    const logs = await manager.getLogs(rule.id);
-    expect(logs.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it('should get metrics', async () => {
-    await manager.createRule({
-      name: 'Rule 1',
-      description: 'Test',
-      action: 'welcome_contributor',
-      trigger: { type: 'event', event: 'pr_opened' },
-    });
-
-    await manager.createRule({
-      name: 'Rule 2',
-      description: 'Test',
-      action: 'thank_contributor',
-      trigger: { type: 'event', event: 'pr_merged' },
-      enabled: false,
-    });
-
-    const metrics = await manager.getMetrics();
-    expect(metrics.totalRules).toBeGreaterThanOrEqual(2);
-    expect(metrics.activeRules).toBeGreaterThan(0);
-  });
-
-  it('should enable and disable rules', async () => {
-    const rule = await manager.createRule({
-      name: 'Toggle Test',
-      description: 'Test',
-      action: 'welcome_contributor',
-      trigger: { type: 'event', event: 'pr_opened' },
-    });
-
-    await manager.disableRule(rule.id);
-    let retrieved = await manager.getRule(rule.id);
-    expect(retrieved?.enabled).toBe(false);
-
-    await manager.enableRule(rule.id);
-    retrieved = await manager.getRule(rule.id);
-    expect(retrieved?.enabled).toBe(true);
-  });
-
-  it('should respect conditions in actions', async () => {
-    const rule = await manager.createRule({
-      name: 'Conditional Rule',
-      description: 'Test',
-      action: 'request_review',
-      trigger: { type: 'event', event: 'pr_opened' },
-      conditions: { reviewers: ['alice', 'bob'] },
-    });
-
-    const log = await manager.executeRuleManually(rule.id, { pr: 789 });
-    expect(log?.output?.reviewers).toEqual(['alice', 'bob']);
-  });
-
-  it('should track trigger count', async () => {
-    const rule = await manager.createRule({
-      name: 'Count Test',
-      description: 'Test',
-      action: 'welcome_contributor',
-      trigger: { type: 'event', event: 'pr_opened' },
-    });
-
-    expect(rule.triggerCount).toBe(0);
-
-    await manager.triggerEvent('pr_opened', { pr: 1 });
-    const updated = await manager.getRule(rule.id);
-    expect(updated?.triggerCount).toBe(1);
-
-    await manager.triggerEvent('pr_opened', { pr: 2 });
-    const updated2 = await manager.getRule(rule.id);
-    expect(updated2?.triggerCount).toBe(2);
   });
 });

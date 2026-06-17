@@ -1,61 +1,84 @@
 import { describe, it, expect } from 'vitest';
-import {
-  analyzeCommitAuthor,
-  analyzeCommitTrends,
-  detectCommitPatterns,
-  calculateRepoCommitStats
-} from './commit-analyzer';
+import { parseCommitType, analyzeCommits, generateCommitMessage } from './commit-analyzer';
 
-describe('commit-analyzer', () => {
-  describe('analyzeCommitAuthor', () => {
-    it('should analyze commits by author', () => {
-      const commits = [
-        { sha: '1', author: 'alice', additions: 100, deletions: 20, files: 5, message: 'feat: add feature', date: new Date() },
-        { sha: '2', author: 'alice', additions: 50, deletions: 10, files: 3, message: 'fix: bug', date: new Date() },
-        { sha: '3', author: 'bob', additions: 80, deletions: 15, files: 4, message: 'chore: update', date: new Date() }
-      ];
-      const analyses = analyzeCommitAuthor(commits);
-      expect(analyses).toHaveLength(2);
-      expect(analyses.find(a => a.author === 'alice')?.totalCommits).toBe(2);
-      expect(analyses.find(a => a.author === 'bob')?.totalCommits).toBe(1);
+describe('Commit Analyzer', () => {
+  describe('parseCommitType', () => {
+    it('should parse conventional commit format', () => {
+      const result = parseCommitType('feat(auth): add login functionality');
+      expect(result.type).toBe('feat');
+      expect(result.scope).toBe('auth');
+      expect(result.breaking).toBe(false);
+    });
+
+    it('should detect breaking changes', () => {
+      const result = parseCommitType('feat(api)!: change response format');
+      expect(result.type).toBe('feat');
+      expect(result.breaking).toBe(true);
+    });
+
+    it('should handle non-conventional commits', () => {
+      const result = parseCommitType('Updated README.md');
+      expect(result.type).toBe('other');
+    });
+
+    it('should parse all commit types', () => {
+      expect(parseCommitType('fix: hotfix').type).toBe('fix');
+      expect(parseCommitType('refactor(core): simplify logic').type).toBe('refactor');
+      expect(parseCommitType('docs: update readme').type).toBe('docs');
+      expect(parseCommitType('test(utils): add unit tests').type).toBe('test');
+      expect(parseCommitType('chore: update deps').type).toBe('chore');
     });
   });
 
-  describe('analyzeCommitTrends', () => {
-    it('should group commits by date', () => {
-      const commits = [
-        { date: new Date('2024-06-01'), author: 'alice', additions: 100, deletions: 20 },
-        { date: new Date('2024-06-01'), author: 'bob', additions: 50, deletions: 10 },
-        { date: new Date('2024-06-02'), author: 'alice', additions: 80, deletions: 15 }
-      ];
-      const trends = analyzeCommitTrends(commits);
-      expect(trends).toHaveLength(2);
+  describe('analyzeCommits', () => {
+    const sampleCommits = [
+      { sha: '1', message: 'feat: add feature', author: 'Alice', date: '2024-01-01', filesChanged: 5, additions: 100, deletions: 20 },
+      { sha: '2', message: 'fix: bug fix', author: 'Bob', date: '2024-01-02', filesChanged: 2, additions: 10, deletions: 10 },
+      { sha: '3', message: 'docs: update readme', author: 'Alice', date: '2024-01-03', filesChanged: 1, additions: 30, deletions: 5 },
+      { sha: '4', message: 'chore: update deps', author: 'Charlie', date: '2024-01-04', filesChanged: 1, additions: 50, deletions: 50 },
+    ];
+
+    it('should analyze commit patterns', () => {
+      const analysis = analyzeCommits(sampleCommits);
+      expect(analysis.totalCommits).toBe(4);
+      expect(analysis.commitTypes).toHaveProperty('feat');
+      expect(analysis.commitTypes).toHaveProperty('fix');
+    });
+
+    it('should track top contributors', () => {
+      const analysis = analyzeCommits(sampleCommits);
+      expect(analysis.topContributors[0].author).toBe('Alice');
+      expect(analysis.topContributors[0].count).toBe(2);
+    });
+
+    it('should calculate commit size distribution', () => {
+      const analysis = analyzeCommits(sampleCommits);
+      expect(analysis.commitSizeDistribution.small).toBeGreaterThanOrEqual(0);
+      expect(analysis.commitSizeDistribution.medium).toBeGreaterThanOrEqual(0);
+      expect(analysis.commitSizeDistribution.large).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should generate quality score', () => {
+      const analysis = analyzeCommits(sampleCommits);
+      expect(analysis.qualityScore).toBeGreaterThanOrEqual(0);
+      expect(analysis.qualityScore).toBeLessThanOrEqual(100);
     });
   });
 
-  describe('detectCommitPatterns', () => {
-    it('should detect peak hours and days', () => {
-      const commits = [
-        { date: new Date('2024-06-01T10:00:00'), message: 'feat: add' },
-        { date: new Date('2024-06-01T11:00:00'), message: 'fix: bug' },
-        { date: new Date('2024-06-03T14:00:00'), message: 'docs: update' }
-      ];
-      const patterns = detectCommitPatterns(commits);
-      expect(patterns.peakHours.length).toBeGreaterThan(0);
-      expect(patterns.avgCommitsPerDay).toBeGreaterThan(0);
+  describe('generateCommitMessage', () => {
+    it('should generate commit message with scope', () => {
+      const msg = generateCommitMessage('feat', 'auth', 'add login');
+      expect(msg).toBe('feat(auth): add login');
     });
-  });
 
-  describe('calculateRepoCommitStats', () => {
-    it('should calculate repository commit stats', () => {
-      const commits = [
-        { sha: '1', author: 'alice', additions: 100, deletions: 20, date: new Date() },
-        { sha: '2', author: 'bob', additions: 50, deletions: 10, date: new Date() }
-      ];
-      const stats = calculateRepoCommitStats(commits);
-      expect(stats.totalCommits).toBe(2);
-      expect(stats.totalAdditions).toBe(150);
-      expect(stats.contributorCount).toBe(2);
+    it('should generate commit message without scope', () => {
+      const msg = generateCommitMessage('fix', undefined, 'resolve issue');
+      expect(msg).toBe('fix: resolve issue');
+    });
+
+    it('should use default description template', () => {
+      const msg = generateCommitMessage('chore');
+      expect(msg).toContain('chore');
     });
   });
 });
