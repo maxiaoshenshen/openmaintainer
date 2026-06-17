@@ -1,188 +1,155 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
-  planRelease,
-  getReleaseReadiness,
-} from "./release-manager";
-import type { Repository, PullRequest, Issue } from "./types";
+  parseVersion,
+  formatVersion,
+  bumpVersion,
+  compareVersions,
+  parseConventionalCommit,
+  generateChangelog,
+  validateChangelogEntry,
+  suggestNextVersion,
+} from './release-manager';
 
-describe("release-manager", () => {
-  describe("planRelease", () => {
-    it("should create a release plan with version", () => {
-      const repo = createMockRepo("owner/repo");
-      const plan = planRelease(repo, [], []);
-
-      expect(plan.version).toBeTruthy();
-      expect(plan.releaseDate).toBeInstanceOf(Date);
+describe('Release Manager', () => {
+  describe('parseVersion', () => {
+    it('should parse standard version', () => {
+      const v = parseVersion('1.2.3');
+      expect(v.major).toBe(1);
+      expect(v.minor).toBe(2);
+      expect(v.patch).toBe(3);
+      expect(v.preRelease).toBeUndefined();
     });
 
-    it("should determine release type based on changes", () => {
-      const repo = createMockRepo("owner/repo");
-      const prs = [createMockPR(1, "New feature", false, 200, 10)];
-
-      const plan = planRelease(repo, prs, []);
-
-      expect(["major", "minor", "patch"]).toContain(plan.type);
+    it('should parse prerelease version', () => {
+      const v = parseVersion('1.2.3-beta.5');
+      expect(v.major).toBe(1);
+      expect(v.preRelease).toEqual({ type: 'beta', version: 5 });
     });
 
-    it("should extract features from PRs", () => {
-      const repo = createMockRepo("owner/repo");
-      const prs = [
-        createMockPR(1, "Add dark mode", false, 500, 0),
-        createMockPR(2, "Fix typo", false, 10, 0),
-      ];
-
-      const plan = planRelease(repo, prs, []);
-
-      expect(plan.features.length).toBeGreaterThanOrEqual(1);
-      expect(plan.features[0].title).toBe("Add dark mode");
-    });
-
-    it("should extract bug fixes from PRs", () => {
-      const repo = createMockRepo("owner/repo");
-      const prs = [
-        createMockPR(1, "Bug fix for login", false, 50, 5, ["bug"]),
-      ];
-
-      const plan = planRelease(repo, prs, []);
-
-      expect(plan.bugfixes.length).toBeGreaterThanOrEqual(0);
-    });
-
-    it("should detect breaking changes", () => {
-      const repo = createMockRepo("owner/repo");
-      const prs = [
-        createMockPR(1, "Breaking API change", false, 100, 0, ["breaking"]),
-      ];
-
-      const plan = planRelease(repo, prs, []);
-
-      expect(plan.breakingChanges.length).toBeGreaterThanOrEqual(0);
-    });
-
-    it("should generate changelog", () => {
-      const repo = createMockRepo("owner/repo");
-      const plan = planRelease(repo, [], []);
-
-      expect(plan.changelog).toContain(plan.version);
-      expect(plan.changelog).toContain("##");
-    });
-
-    it("should create release checklist", () => {
-      const repo = createMockRepo("owner/repo");
-      const plan = planRelease(repo, [], []);
-
-      expect(plan.checklist.length).toBeGreaterThanOrEqual(3);
-      expect(plan.checklist.some((item) => item.critical)).toBe(true);
+    it('should throw on invalid format', () => {
+      expect(() => parseVersion('invalid')).toThrow();
     });
   });
 
-  describe("getReleaseReadiness", () => {
-    it("should return not-ready for empty checklist", () => {
-      const plan = {
-        version: "1.0.0",
-        releaseDate: new Date(),
-        type: "minor" as const,
-        features: [],
-        bugfixes: [],
-        breakingChanges: [],
-        knownIssues: [],
-        changelog: "",
-        checklist: [{ id: "1", title: "Test", completed: false, critical: true }],
-      };
-
-      const readiness = getReleaseReadiness(plan);
-
-      expect(readiness.status).toBe("not-ready");
-      expect(readiness.score).toBe(0);
+  describe('formatVersion', () => {
+    it('should format standard version', () => {
+      expect(formatVersion({ major: 1, minor: 2, patch: 3 })).toBe('1.2.3');
     });
 
-    it("should return ready when all critical items complete", () => {
-      const plan = {
-        version: "1.0.0",
-        releaseDate: new Date(),
-        type: "minor" as const,
-        features: [],
-        bugfixes: [],
-        breakingChanges: [],
-        knownIssues: [],
-        changelog: "",
-        checklist: [{ id: "1", title: "Test", completed: true, critical: true }],
-      };
+    it('should format prerelease version', () => {
+      expect(formatVersion({ major: 1, minor: 2, patch: 3, preRelease: { type: 'alpha', version: 1 } }))
+        .toBe('1.2.3-alpha.1');
+    });
+  });
 
-      const readiness = getReleaseReadiness(plan);
-
-      expect(readiness.status).toBe("ready");
-      expect(readiness.blockers.length).toBe(0);
+  describe('bumpVersion', () => {
+    it('should bump major version', () => {
+      const v = bumpVersion({ major: 1, minor: 2, patch: 3 }, 'major');
+      expect(v).toEqual({ major: 2, minor: 0, patch: 0 });
     });
 
-    it("should return blockers for incomplete critical items", () => {
-      const plan = {
-        version: "1.0.0",
-        releaseDate: new Date(),
-        type: "minor" as const,
-        features: [],
-        bugfixes: [],
-        breakingChanges: [],
-        knownIssues: [],
-        changelog: "",
-        checklist: [
-          { id: "1", title: "Critical item 1", completed: false, critical: true },
-          { id: "2", title: "Critical item 2", completed: true, critical: true },
-        ],
-      };
+    it('should bump minor version', () => {
+      const v = bumpVersion({ major: 1, minor: 2, patch: 3 }, 'minor');
+      expect(v).toEqual({ major: 1, minor: 3, patch: 0 });
+    });
 
-      const readiness = getReleaseReadiness(plan);
+    it('should bump patch version', () => {
+      const v = bumpVersion({ major: 1, minor: 2, patch: 3 }, 'patch');
+      expect(v).toEqual({ major: 1, minor: 2, patch: 4 });
+    });
 
-      expect(readiness.blockers).toContain("Critical item 1");
-      expect(readiness.blockers.length).toBe(1);
+    it('should increment prerelease', () => {
+      const v = bumpVersion({ major: 1, minor: 0, patch: 0, preRelease: { type: 'alpha', version: 1 } }, 'alpha');
+      expect(v.preRelease?.version).toBe(2);
+    });
+  });
+
+  describe('compareVersions', () => {
+    it('should compare versions correctly', () => {
+      expect(compareVersions({ major: 2, minor: 0, patch: 0 }, { major: 1, minor: 9, patch: 9 })).toBeGreaterThan(0);
+      expect(compareVersions({ major: 1, minor: 2, patch: 3 }, { major: 1, minor: 2, patch: 3 })).toBe(0);
+    });
+
+    it('should handle prerelease ordering', () => {
+      expect(compareVersions({ major: 1, minor: 0, patch: 0 }, { major: 1, minor: 0, patch: 0, preRelease: { type: 'alpha', version: 1 } }))
+        .toBeGreaterThan(0);
+    });
+  });
+
+  describe('parseConventionalCommit', () => {
+    it('should parse feat commit', () => {
+      const entry = parseConventionalCommit('feat(auth): add login');
+      expect(entry?.type).toBe('feat');
+      expect(entry?.scope).toBe('auth');
+      expect(entry?.message).toBe('add login');
+    });
+
+    it('should parse breaking commit', () => {
+      const entry = parseConventionalCommit('feat!: breaking change');
+      expect(entry?.type).toBe('breaking');
+      expect(entry?.message).toContain('breaking change');
+    });
+
+    it('should return null for invalid format', () => {
+      expect(parseConventionalCommit('invalid')).toBeNull();
+    });
+  });
+
+  describe('generateChangelog', () => {
+    it('should generate changelog', () => {
+      const entries = [
+        { type: 'feat' as const, message: 'new feature', commit: 'feat: new feature' },
+        { type: 'fix' as const, message: 'bug fix', commit: 'fix: bug fix' },
+      ];
+      const version = { major: 1, minor: 0, patch: 0 };
+      const changelog = generateChangelog(entries, version);
+      expect(changelog).toContain('## 1.0.0');
+      expect(changelog).toContain('Features');
+      expect(changelog).toContain('Bug Fixes');
+    });
+
+    it('should generate Chinese changelog', () => {
+      const entries = [{ type: 'feat' as const, message: 'feature', commit: 'feat: feature' }];
+      const version = { major: 1, minor: 0, patch: 0 };
+      const changelog = generateChangelog(entries, version, { language: 'zh' });
+      expect(changelog).toContain('新功能');
+    });
+  });
+
+  describe('validateChangelogEntry', () => {
+    it('should validate correct entry', () => {
+      expect(validateChangelogEntry('feat: add feature')).toEqual({ valid: true });
+    });
+
+    it('should reject empty entry', () => {
+      expect(validateChangelogEntry('')).toEqual({ valid: false, error: 'Empty entry' });
+    });
+
+    it('should reject invalid format', () => {
+      expect(validateChangelogEntry('random text')).toEqual({ valid: false, error: 'Must follow conventional commits format' });
+    });
+  });
+
+  describe('suggestNextVersion', () => {
+    it('should suggest major for breaking changes', () => {
+      const commits = ['feat!: breaking', 'fix: something'];
+      const current = { major: 1, minor: 2, patch: 3 };
+      const next = suggestNextVersion(commits, current);
+      expect(next.major).toBe(2);
+    });
+
+    it('should suggest minor for features', () => {
+      const commits = ['feat: new feature'];
+      const current = { major: 1, minor: 2, patch: 3 };
+      const next = suggestNextVersion(commits, current);
+      expect(next.minor).toBe(3);
+    });
+
+    it('should suggest patch for fixes', () => {
+      const commits = ['fix: bug'];
+      const current = { major: 1, minor: 2, patch: 3 };
+      const next = suggestNextVersion(commits, current);
+      expect(next.patch).toBe(4);
     });
   });
 });
-
-function createMockRepo(name: string): Repository {
-  const parts = name.split("/");
-  return {
-    identity: {
-      owner: parts[0],
-      name: parts[1],
-      fullName: name,
-      url: `https://github.com/${name}`,
-    },
-    description: "Test repo",
-    stars: 100,
-    forks: 20,
-    watchers: 50,
-    openIssues: 5,
-    defaultBranch: "main",
-    license: "MIT",
-    updatedAt: new Date().toISOString(),
-    issues: [],
-    pullRequests: [],
-    contributors: [],
-  };
-}
-
-function createMockPR(
-  id: number,
-  title: string,
-  merged: boolean,
-  additions: number,
-  comments: number,
-  labels: string[] = []
-): PullRequest {
-  return {
-    id,
-    number: id,
-    title,
-    body: "Test PR",
-    author: `user${id}`,
-    labels,
-    additions,
-    deletions: additions / 2,
-    changedFiles: 3,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    url: `https://github.com/owner/repo/pull/${id}`,
-    state: merged ? "closed" : "open",
-  };
-}

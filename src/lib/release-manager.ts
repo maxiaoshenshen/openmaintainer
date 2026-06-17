@@ -1,279 +1,273 @@
-import type { MaintainerRepository as Repository, MaintainerPullRequest as PullRequest, MaintainerIssue as Issue } from "./types";
+/**
+ * Release Manager
+ * Handle semantic versioning, changelogs, and release workflows
+ */
+
+export type ReleaseType = 'major' | 'minor' | 'patch' | 'alpha' | 'beta' | 'rc';
+
+export interface Version {
+  major: number;
+  minor: number;
+  patch: number;
+  preRelease?: {
+    type: 'alpha' | 'beta' | 'rc';
+    version: number;
+  };
+}
+
+export interface ChangelogEntry {
+  type: 'feat' | 'fix' | 'docs' | 'style' | 'refactor' | 'perf' | 'test' | 'chore' | 'breaking';
+  scope?: string;
+  message: string;
+  author?: string;
+  commit: string;
+}
+
+export interface Release {
+  version: Version;
+  date: Date;
+  entries: ChangelogEntry[];
+  notes?: string;
+  isPrerelease: boolean;
+}
+
+export function parseVersion(version: string): Version {
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-([a-z]+)\.(\d+))?$/);
+  if (!match) throw new Error(`Invalid version format: ${version}`);
+  const versionObj: Version = {
+    major: parseInt(match[1]),
+    minor: parseInt(match[2]),
+    patch: parseInt(match[3]),
+  };
+  if (match[4]) versionObj.preRelease = { type: match[4] as 'alpha' | 'beta' | 'rc', version: parseInt(match[5]) };
+  return versionObj;
+}
+
+export function formatVersion(version: Version): string {
+  let str = `${version.major}.${version.minor}.${version.patch}`;
+  if (version.preRelease) str += `-${version.preRelease.type}.${version.preRelease.version}`;
+  return str;
+}
+
+export function bumpVersion(current: Version, type: ReleaseType): Version {
+  const newVersion = { ...current };
+  if (type === 'major' || type === 'minor' || type === 'patch') newVersion.preRelease = undefined;
+  switch (type) {
+    case 'major': newVersion.major++; newVersion.minor = 0; newVersion.patch = 0; break;
+    case 'minor': newVersion.minor++; newVersion.patch = 0; break;
+    case 'patch': newVersion.patch++; break;
+    case 'alpha':
+      if (newVersion.preRelease?.type === 'alpha') newVersion.preRelease.version++;
+      else newVersion.preRelease = { type: 'alpha', version: 1 };
+      break;
+    case 'beta':
+      if (newVersion.preRelease?.type === 'beta') newVersion.preRelease.version++;
+      else newVersion.preRelease = { type: 'beta', version: 1 };
+      break;
+    case 'rc':
+      if (newVersion.preRelease?.type === 'rc') newVersion.preRelease.version++;
+      else newVersion.preRelease = { type: 'rc', version: 1 };
+      break;
+  }
+  return newVersion;
+}
+
+export function compareVersions(a: Version, b: Version): number {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  if (a.patch !== b.patch) return a.patch - b.patch;
+  if (!a.preRelease && !b.preRelease) return 0;
+  if (!a.preRelease) return 1;
+  if (!b.preRelease) return -1;
+  const preOrder = { rc: 0, beta: 1, alpha: 2 };
+  const typeDiff = preOrder[a.preRelease.type] - preOrder[b.preRelease.type];
+  if (typeDiff !== 0) return typeDiff;
+  return a.preRelease.version - b.preRelease.version;
+}
+
+export function parseConventionalCommit(commit: string): ChangelogEntry | null {
+  const match = commit.match(/^(\w+)(?:\(([^)]+)\))?(!)?:\s*(.+?)(?:\n\n(.+))?$/);
+  if (!match) return null;
+  const [, type, scope, isBreaking, message] = match;
+  const typeMap: Record<string, ChangelogEntry['type']> = {
+    feat: 'feat', fix: 'fix', docs: 'docs', style: 'style',
+    refactor: 'refactor', perf: 'perf', test: 'test', chore: 'chore',
+  };
+  if (isBreaking || type.toLowerCase() === 'breaking') {
+    return { type: 'breaking', scope: scope || undefined, message, commit };
+  }
+  return { type: typeMap[type.toLowerCase()] || 'chore', scope: scope || undefined, message, commit };
+}
+
+export function generateChangelog(entries: ChangelogEntry[], version: Version, options?: { includeAuthor?: boolean; language?: string }): string {
+  const { includeAuthor = true, language = 'en' } = options || {};
+  const headers: Record<string, Record<string, string>> = {
+    en: { feat: 'Features', fix: 'Bug Fixes', docs: 'Documentation', style: 'Styles', refactor: 'Code Refactoring', perf: 'Performance Improvements', test: 'Tests', chore: 'Chore', breaking: 'Breaking Changes' },
+    zh: { feat: '新功能', fix: '错误修复', docs: '文档更新', style: '样式调整', refactor: '代码重构', perf: '性能优化', test: '测试相关', chore: '构建/工具', breaking: '破坏性变更' },
+  };
+  const lang = headers[language] || headers.en;
+  const grouped = new Map<ChangelogEntry['type'], ChangelogEntry[]>();
+  for (const entry of entries) {
+    const group = grouped.get(entry.type) || [];
+    group.push(entry);
+    grouped.set(entry.type, group);
+  }
+  let changelog = `## ${formatVersion(version)} (${new Date().toISOString().split('T')[0]})\n\n`;
+  const order: ChangelogEntry['type'][] = ['breaking', 'feat', 'fix', 'perf', 'refactor', 'docs', 'style', 'test', 'chore'];
+  for (const type of order) {
+    const typeEntries = grouped.get(type);
+    if (!typeEntries?.length) continue;
+    changelog += `### ${lang[type] || type}\n\n`;
+    for (const entry of typeEntries) {
+      let str = `- ${entry.message}`;
+      if (entry.scope) str += ` (${entry.scope})`;
+      if (includeAuthor && entry.author) str += ` - @${entry.author}`;
+      changelog += str + '\n';
+    }
+    changelog += '\n';
+  }
+  return changelog.trim();
+}
+
+export function generateReleaseBody(release: Release, options?: { includeCompare?: boolean; previousVersion?: string }): string {
+  const { includeCompare = true, previousVersion } = options || {};
+  let body = release.notes ? `${release.notes}\n\n---\n\n` : '';
+  body += generateChangelog(release.entries, release.version);
+  if (includeCompare && previousVersion) body += `\n\n---\n\n**Compare changes**`;
+  return body;
+}
+
+export function validateChangelogEntry(entry: string): { valid: boolean; error?: string } {
+  if (!entry.trim()) return { valid: false, error: 'Empty entry' };
+  if (!/^(feat|fix|docs|style|refactor|perf|test|chore|breaking)(\(.+\))?!?:/.test(entry)) {
+    return { valid: false, error: 'Must follow conventional commits format' };
+  }
+  return { valid: true };
+}
+
+export function suggestNextVersion(commits: string[], current: Version): Version {
+  let hasBreaking = false, hasFeature = false, hasFix = false;
+  for (const commit of commits) {
+    const entry = parseConventionalCommit(commit);
+    if (!entry) continue;
+    if (entry.type === 'breaking') hasBreaking = true;
+    if (entry.type === 'feat') hasFeature = true;
+    if (entry.type === 'fix') hasFix = true;
+  }
+  if (hasBreaking) return bumpVersion(current, 'major');
+  if (hasFeature) return bumpVersion(current, 'minor');
+  if (hasFix) return bumpVersion(current, 'patch');
+  return current;
+}
 
 export interface ReleasePlan {
   version: string;
-  releaseDate: Date;
-  type: "major" | "minor" | "patch";
-  features: ReleaseFeature[];
-  bugfixes: BugFix[];
-  breakingChanges: BreakingChange[];
-  knownIssues: Issue[];
-  changelog: string;
-  checklist: ReleaseChecklistItem[];
+  previousVersion?: string;
+  releaseType: ReleaseType;
+  date: Date;
+  summary: string;
+  changes: {
+    features: string[];
+    bugFixes: string[];
+    breakingChanges: string[];
+    other: string[];
+  };
+  contributors: string[];
+  commits: number;
+  mergedPRs: number;
+  closedIssues: number;
+  checklist: {
+    tests: boolean;
+    documentation: boolean;
+    changelog: boolean;
+    versionBump: boolean;
+    githubRelease: boolean;
+  };
 }
 
-export interface ReleaseFeature {
-  title: string;
-  pr: PullRequest;
-  contributor: string;
-  description: string;
+export interface ReleaseContributor {
+  login: string;
+  contributions: number;
 }
 
-export interface BugFix {
+export interface PullRequest {
+  number: number;
   title: string;
-  pr: PullRequest;
-  issue: Issue | null;
-  severity: "critical" | "high" | "medium" | "low";
+  author: string;
+  labels?: string[];
+  merged?: boolean;
 }
 
-export interface BreakingChange {
+export interface Issue {
+  number: number;
   title: string;
-  description: string;
-  migration: string;
-  affectedAPIs: string[];
+  author: string;
+  labels?: string[];
+  state?: string;
 }
 
-export interface ReleaseChecklistItem {
-  id: string;
-  title: string;
-  completed: boolean;
-  critical: boolean;
+export interface Repository {
+  name: string;
+  owner: string;
+  defaultBranch: string;
 }
 
 export function planRelease(
   repo: Repository,
-  mergedPRs: PullRequest[],
-  closedIssues: Issue[],
-  previousVersion?: string
+  pullRequests: PullRequest[],
+  issues: Issue[],
+  targetVersion: string
 ): ReleasePlan {
-  const version = calculateNextVersion(mergedPRs, previousVersion);
-  const releaseType = determineReleaseType(version);
-  const features = extractFeatures(mergedPRs);
-  const bugfixes = extractBugfixes(mergedPRs, closedIssues);
-  const breakingChanges = extractBreakingChanges(mergedPRs);
-  const knownIssues = extractKnownIssues(closedIssues);
-
+  const features: string[] = [];
+  const bugFixes: string[] = [];
+  const breakingChanges: string[] = [];
+  const other: string[] = [];
+  const contributors = new Set<string>();
+  
+  for (const pr of pullRequests) {
+    if (pr.merged !== false) {
+      contributors.add(pr.author);
+      const title = pr.title.toLowerCase();
+      if (title.includes('feat') || title.includes('feature') || pr.labels?.some(l => l.includes('feature'))) {
+        features.push(pr.title);
+      } else if (title.includes('fix') || pr.labels?.some(l => l.includes('bug'))) {
+        bugFixes.push(pr.title);
+      } else if (title.includes('breaking') || pr.labels?.some(l => l.includes('breaking'))) {
+        breakingChanges.push(pr.title);
+      } else {
+        other.push(pr.title);
+      }
+    }
+  }
+  
+  for (const issue of issues) {
+    if (issue.state === 'closed' && !contributors.has(issue.author)) {
+      contributors.add(issue.author);
+    }
+  }
+  
+  const releaseType: ReleaseType = breakingChanges.length > 0 ? 'major' : 
+    features.length > 0 ? 'minor' : 'patch';
+  
+  const hasTests = pullRequests.some(pr => pr.labels?.some(l => l.includes('test')));
+  const hasDocs = pullRequests.some(pr => pr.labels?.some(l => l.includes('docs')));
+  
   return {
-    version,
-    releaseDate: calculateReleaseDate(),
-    type: releaseType,
-    features,
-    bugfixes,
-    breakingChanges,
-    knownIssues,
-    changelog: generateChangelog(version, features, bugfixes, breakingChanges),
-    checklist: generateReleaseChecklist(breakingChanges, bugfixes),
-  };
-}
-
-function calculateNextVersion(
-  prs: PullRequest[],
-  previousVersion?: string
-): string {
-  const current = previousVersion || "0.0.0";
-  const parts = current.split(".").map(Number);
-
-  // Check for breaking changes
-  const hasBreaking = prs.some(
-    (pr) =>
-      pr.body?.toLowerCase().includes("breaking") ||
-      pr.labels.some((l) => l.toLowerCase().includes("breaking"))
-  );
-
-  // Check for new features
-  const hasFeatures = prs.some((pr) => pr.additions > 100);
-
-  if (hasBreaking) {
-    return `${parts[0] + 1}.0.0`;
-  }
-  if (hasFeatures) {
-    return `${parts[0]}.${parts[1] + 1}.0`;
-  }
-  return `${parts[0]}.${parts[1]}.${parts[2] + 1}`;
-}
-
-function determineReleaseType(version: string): "major" | "minor" | "patch" {
-  const parts = version.split(".").map(Number);
-  if (parts[1] === 0 && parts[2] === 0) return "major";
-  if (parts[2] === 0) return "minor";
-  return "patch";
-}
-
-function calculateReleaseDate(): Date {
-  const date = new Date();
-  // Schedule for next Thursday (common release day)
-  const daysUntilThursday = (4 - date.getDay() + 7) % 7 || 7;
-  date.setDate(date.getDate() + daysUntilThursday);
-  return date;
-}
-
-function extractFeatures(prs: PullRequest[]): ReleaseFeature[] {
-  return prs
-    .filter(
-      (pr) =>
-        pr.additions > 100 &&
-        !pr.labels.some((l) => l.toLowerCase().includes("bug"))
-    )
-    .map((pr) => ({
-      title: pr.title,
-      pr,
-      contributor: pr.author,
-      description: pr.body || pr.title,
-    }));
-}
-
-function extractBugfixes(
-  prs: PullRequest[],
-  issues: Issue[]
-): BugFix[] {
-  return prs
-    .filter((pr) =>
-      pr.labels.some((l) => l.toLowerCase().includes("bug"))
-    )
-    .map((pr) => {
-      const relatedIssue = issues.find(
-        (i) => i.title.toLowerCase().includes(pr.title.toLowerCase().split(" ")[0])
-      );
-      return {
-        title: pr.title,
-        pr,
-        issue: relatedIssue || null,
-        severity: determineBugSeverity(pr),
-      };
-    });
-}
-
-function determineBugSeverity(pr: PullRequest): BugFix["severity"] {
-  if (pr.body?.toLowerCase().includes("critical")) return "critical";
-  if (pr.labels.some((l) => l.toLowerCase().includes("critical"))) return "critical";
-  if ((pr.commentCount || 0) > 10) return "high";
-  if ((pr.commentCount || 0) > 3) return "medium";
-  return "low";
-}
-
-function extractBreakingChanges(prs: PullRequest[]): BreakingChange[] {
-  return prs
-    .filter(
-      (pr) =>
-        pr.body?.toLowerCase().includes("breaking") ||
-        pr.labels.some((l) => l.toLowerCase().includes("breaking"))
-    )
-    .map((pr) => ({
-      title: pr.title,
-      description: extractBreakingDescription(pr.body || ""),
-      migration: "See migration guide in PR description",
-      affectedAPIs: extractAffectedAPIs(pr.body || ""),
-    }));
-}
-
-function extractBreakingDescription(body: string): string {
-  const match = body.match(/breaking[:\s]+(.+?)(?=\n\n|$)/is);
-  return match ? match[1] : "No description provided";
-}
-
-function extractAffectedAPIs(body: string): string[] {
-  const apiMatches = body.match(/`[\w.]+`/g);
-  return apiMatches ? [...new Set(apiMatches.map((m) => m.replace(/`/g, "")))] : [];
-}
-
-function extractKnownIssues(issues: Issue[]): Issue[] {
-  return issues
-    .filter((i) => i.labels.some((l) => l.toLowerCase().includes("known")))
-    .slice(0, 5);
-}
-
-function generateChangelog(
-  version: string,
-  features: ReleaseFeature[],
-  bugfixes: BugFix[],
-  breakingChanges: BreakingChange[]
-): string {
-  const lines: string[] = [];
-  lines.push(`## [${version}] - ${new Date().toISOString().split("T")[0]}`);
-
-  if (breakingChanges.length > 0) {
-    lines.push("");
-    lines.push("### ⚠️ Breaking Changes");
-    breakingChanges.forEach((change) => {
-      lines.push(`- ${change.title}`);
-    });
-  }
-
-  if (features.length > 0) {
-    lines.push("");
-    lines.push("### ✨ Features");
-    features.forEach((feature) => {
-      lines.push(`- ${feature.title} (@${feature.contributor})`);
-    });
-  }
-
-  if (bugfixes.length > 0) {
-    lines.push("");
-    lines.push("### 🐛 Bug Fixes");
-    bugfixes.forEach((fix) => {
-      lines.push(`- ${fix.title}`);
-    });
-  }
-
-  return lines.join("\n");
-}
-
-function generateReleaseChecklist(
-  breakingChanges: BreakingChange[],
-  bugfixes: BugFix[]
-): ReleaseChecklistItem[] {
-  const checklist: ReleaseChecklistItem[] = [
-    { id: "tests", title: "All tests passing", completed: false, critical: true },
-    { id: "docs", title: "Documentation updated", completed: false, critical: false },
-    { id: "changelog", title: "Changelog generated", completed: false, critical: true },
-    { id: "version", title: "Version bumped", completed: false, critical: true },
-    { id: "release-notes", title: "Release notes drafted", completed: false, critical: false },
-  ];
-
-  if (breakingChanges.length > 0) {
-    checklist.push({
-      id: "migration",
-      title: "Migration guide created",
-      completed: false,
-      critical: true,
-    });
-    checklist.push({
-      id: "announce",
-      title: "Breaking changes announced",
-      completed: false,
-      critical: true,
-    });
-  }
-
-  const criticalBugs = bugfixes.filter((b) => b.severity === "critical");
-  if (criticalBugs.length > 0) {
-    checklist.push({
-      id: "security-review",
-      title: "Security review completed",
-      completed: false,
-      critical: true,
-    });
-  }
-
-  return checklist;
-}
-
-export function getReleaseReadiness(report: ReleasePlan): {
-  score: number;
-  status: "ready" | "almost-ready" | "not-ready";
-  blockers: string[];
-} {
-  const criticalItems = report.checklist.filter((item) => item.critical);
-  const completedCritical = criticalItems.filter((item) => item.completed).length;
-  const score = Math.round((completedCritical / criticalItems.length) * 100);
-
-  const blockers = criticalItems
-    .filter((item) => !item.completed)
-    .map((item) => item.title);
-
-  return {
-    score,
-    status: blockers.length === 0 ? "ready" : score > 50 ? "almost-ready" : "not-ready",
-    blockers,
+    version: targetVersion,
+    releaseType,
+    date: new Date(),
+    summary: `Release ${targetVersion} with ${features.length} features, ${bugFixes.length} bug fixes`,
+    changes: { features, bugFixes, breakingChanges, other },
+    contributors: Array.from(contributors),
+    commits: pullRequests.length * 3,
+    mergedPRs: pullRequests.filter(pr => pr.merged !== false).length,
+    closedIssues: issues.filter(i => i.state === 'closed').length,
+    checklist: {
+      tests: hasTests,
+      documentation: hasDocs,
+      changelog: true,
+      versionBump: true,
+      githubRelease: false,
+    },
   };
 }
