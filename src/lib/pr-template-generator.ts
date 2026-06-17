@@ -264,3 +264,24 @@ export function getTemplateTypeLabel(type: PRTemplateType, locale: string = 'en'
   };
   return labels[locale]?.[type] || labels.en[type];
 }
+
+export type PRTemplateOptions = {
+  title?: string;
+  description?: string;
+  type?: string;
+  scope?: string;
+  includeChecklist?: boolean;
+};
+
+export function generatePRTemplate(options: PRTemplateOptions = {}): GeneratedPR {
+  const type = options.type || 'feat';
+  const scope = options.scope || '';
+  const title = options.title || `${type}${scope ? `(${scope})` : ''}: description`;
+  
+  return {
+    title,
+    body: generatePRBody(options),
+    labels: [type],
+  };
+
+}

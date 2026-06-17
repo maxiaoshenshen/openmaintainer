@@ -3,6 +3,7 @@
  */
 
 export type ContributorTier = 'newcomer' | 'contributor' | 'regular' | 'core' | 'emeritus';
+import type { Repository } from "./types";
 export type ContributionType = 'code' | 'doc' | 'bug_report' | 'review' | 'design' | 'community';
 
 export interface Contributor {
@@ -296,4 +297,44 @@ export function calculateLeadershipScore(contributor: Contributor): number {
   score += contributor.badges.filter(b => b.tier === 'silver').length * 10;
 
   return Math.round(score);
+}
+
+export interface ContributorReport {
+  total: number;
+  byTier: Record<ContributorTier, number>;
+  topContributors: Contributor[];
+  recentActivity: number;
+}
+
+export function generateContributorReport(contributors: Contributor[]): ContributorReport {
+  const byTier = { newcomer: 0, contributor: 0, regular: 0, core: 0, emeritus: 0 } as Record<ContributorTier, number>;
+  contributors.forEach(c => byTier[c.tier]++);
+
+  return {
+    total: contributors.length,
+    byTier,
+    topContributors: [...contributors].sort((a, b) => b.totalContributions - a.totalContributions).slice(0, 10),
+    recentActivity: contributors.filter(c => {
+      const lastActivity = new Date(c.lastActivity);
+      return Date.now() - lastActivity.getTime() < 30 * 24 * 60 * 60 * 1000;
+    }).length,
+  };
+}
+
+export function createContributorManager(options: { repository?: string } = {}) {
+  const contributors = new Map<string, Contributor>();
+  
+  return {
+    repository: options.repository,
+    contributors,
+    getContributor(id: string) {
+      return contributors.get(id);
+    },
+    addContributor(contributor: Contributor) {
+      contributors.set(contributor.id, contributor);
+    },
+    generateReport(_repo: Repository) {
+      return generateContributorReport(Array.from(contributors.values()));
+    },
+  };
 }

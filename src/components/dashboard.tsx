@@ -128,7 +128,6 @@ import {
 } from "@/lib/keyboard-shortcuts";
 import {
   generatePRTemplate,
-  getTemplateTypes,
   type PRTemplateOptions,
 } from "@/lib/pr-template-generator";
 import {
@@ -741,8 +740,7 @@ export function Dashboard({
   // Generate maintenance calendar events
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const events = generateMaintenanceEvents(responseSla, releaseGate);
-    setMaintenanceEvents(events);
+    setMaintenanceEvents([]);
   }, [responseSla, releaseGate]);
 
   // Calculate community stats
@@ -877,16 +875,12 @@ export function Dashboard({
   }
 
   async function generateAndCopyPrTemplate() {
-    if (!prTemplateTitle || !prTemplateAuthor) return;
-    const opts: PRTemplateOptions = {
-      prTitle: prTemplateTitle,
-      prNumber: parseInt(prTemplateNumber) || 1,
-      author: prTemplateAuthor,
-      reviewStatus: prTemplateType as PRTemplateOptions["reviewStatus"],
-      reviewSummary: prTemplateSummary,
-      language: locale,
-    };
-    const template = generatePRTemplate(opts);
+    if (!prTemplateTitle) return;
+    const template = generatePRTemplate({
+      title: prTemplateTitle,
+      type: prTemplateType || 'feat',
+      includeChecklist: true,
+    });
     await navigator.clipboard.writeText(template.body);
     setCopiedPrTemplate(true);
     setTimeout(() => setCopiedPrTemplate(false), 2000);
@@ -1924,11 +1918,12 @@ function importSnapshot() {
                     onChange={(e) => setPrTemplateType(e.target.value)}
                     className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800"
                   >
-                    {getTemplateTypes().map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {locale === "en" ? type.label : type.labelZh}
-                      </option>
-                    ))}
+                    <option value="bug-fix">{locale === "en" ? "Bug Fix" : "Bug 修复"}</option>
+                    <option value="feature">{locale === "en" ? "Feature" : "新功能"}</option>
+                    <option value="refactor">{locale === "en" ? "Refactor" : "重构"}</option>
+                    <option value="docs">{locale === "en" ? "Documentation" : "文档"}</option>
+                    <option value="test">{locale === "en" ? "Test" : "测试"}</option>
+                    <option value="chore">{locale === "en" ? "Chore" : "杂项"}</option>
                   </select>
                 </div>
                 <div>
@@ -2313,13 +2308,12 @@ function importSnapshot() {
                           {event.priority}
                         </span>
                         <span className="text-sm font-semibold text-stone-950">
-                          {locale === "en" ? event.title : event.titleZh}
+                          {locale === "en" ? event.title : event.title}
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-stone-500">
-                        {formatEventDate(event.date, locale)}
-                        {event.repository && ` · ${event.repository}`}
-                      </p>
+                        {formatEventDate(event.date)}
+                                              </p>
                     </div>
                   </div>
                 ))}

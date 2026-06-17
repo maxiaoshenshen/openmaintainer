@@ -163,3 +163,50 @@ export function createMaintenanceCalendar() {
     statuses: ['pending', 'in-progress', 'completed', 'deferred'] as const
   };
 }
+
+export function getPriorityColor(priority: string): string {
+  const colors: Record<string, string> = {
+    high: '#ef4444',
+    medium: '#f59e0b',
+    low: '#22c55e',
+  };
+  return colors[priority.toLowerCase()] || '#6b7280';
+}
+
+export function getEventTypeIcon(type: string): string {
+  const icons: Record<string, string> = {
+    release: '🚀',
+    security: '🔒',
+    maintenance: '🔧',
+    meeting: '📅',
+  };
+  return icons[type.toLowerCase()] || '📌';
+}
+
+export function formatEventDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+export interface MaintenanceEvent {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  date: Date;
+  priority: string;
+}
+
+export function generateMaintenanceEvents(tasks: MaintenanceTask[]): MaintenanceEvent[] {
+  return tasks.map((task, i) => ({
+    id: `event-${i}`,
+    type: task.type,
+    title: task.title,
+    description: task.description || '',
+    date: new Date(),
+    priority: task.priority,
+  }));
+}

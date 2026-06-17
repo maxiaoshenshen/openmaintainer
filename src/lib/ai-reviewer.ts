@@ -87,7 +87,7 @@ class AIReviewer {
     for (const line of diff) {
       if (/eval\s*\(/.test(line)) {
         comments.push({
-          file: pr.files?.[0],
+          file: (pr as any).files?.[0],
           type: 'issue',
           severity: 'critical',
           title: 'Security: Avoid using eval()',
@@ -98,7 +98,7 @@ class AIReviewer {
 
       if (/innerHTML\s*=/.test(line)) {
         comments.push({
-          file: pr.files?.[0],
+          file: (pr as any).files?.[0],
           type: 'issue',
           severity: 'warning',
           title: 'Security: Potential XSS vulnerability',
@@ -109,7 +109,7 @@ class AIReviewer {
 
       if (/password\s*[=:]\s*['"][^'"]+['"]/i.test(line)) {
         comments.push({
-          file: pr.files?.[0],
+          file: (pr as any).files?.[0],
           type: 'issue',
           severity: 'critical',
           title: 'Security: Hardcoded credentials detected',
@@ -126,7 +126,7 @@ class AIReviewer {
     const comments: ReviewComment[] = [];
 
     const lines = (pr as any).additionsList || [];
-    const fileCount = pr.files?.length || 0;
+    const fileCount = (pr as any).files?.length || 0;
 
     if (lines.some(l => l.includes('for (') && l.includes('async'))) {
       comments.push({

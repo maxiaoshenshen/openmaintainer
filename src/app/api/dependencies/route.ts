@@ -4,16 +4,19 @@ import { createDependencyTracker } from '@/lib/dependency-tracker';
 export async function GET() {
   const tracker = createDependencyTracker();
   const report = tracker.generateReport({
-    id: '1',
+    id: 1,
     name: 'sample-repo',
     fullName: 'owner/sample-repo',
-    owner: 'owner',
     description: 'Sample repository',
-    isPrivate: false,
     stars: 100,
     forks: 20,
     openIssues: 10,
-    language: 'TypeScript'
+    openPRs: 5,
+    language: 'TypeScript',
+    license: 'MIT',
+    createdAt: '2024-01-01',
+    updatedAt: '2024-06-01',
+    url: 'https://github.com/owner/sample-repo'
   });
 
   return NextResponse.json(report);

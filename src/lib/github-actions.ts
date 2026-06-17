@@ -147,3 +147,23 @@ export function generateWorkflow(type: WorkflowType, options?: { imageName?: str
       return generateNodeCIWorkflow();
   }
 }
+
+export interface WorkflowRun {
+  id: string;
+  name: string;
+  status: 'queued' | 'in_progress' | 'completed';
+  conclusion?: 'success' | 'failure' | 'cancelled';
+  startedAt: string;
+  completedAt?: string;
+}
+
+export function generateMockWorkflowRuns(count = 5): WorkflowRun[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `run-${i}`,
+    name: `Build #${i + 1}`,
+    status: i === 0 ? 'in_progress' : 'completed',
+    conclusion: i === 1 ? 'failure' : 'success',
+    startedAt: new Date(Date.now() - i * 3600000).toISOString(),
+    completedAt: i === 0 ? undefined : new Date(Date.now() - i * 3600000 + 300000).toISOString(),
+  }));
+}

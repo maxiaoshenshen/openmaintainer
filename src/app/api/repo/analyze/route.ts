@@ -18,33 +18,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const now = new Date().toISOString();
+    const now = new Date();
     const mockRepo: MaintainerRepository = {
       identity: { owner, name: repo, fullName: `${owner}/${repo}`, url: `https://github.com/${owner}/${repo}` },
-      name: repo,
       description: `Repository ${repo} owned by ${owner}`,
       stars: Math.floor(Math.random() * 10000),
       forks: Math.floor(Math.random() * 1000),
+      watchers: Math.floor(Math.random() * 100),
       openIssues: Math.floor(Math.random() * 100),
-      openPullRequests: Math.floor(Math.random() * 50),
-      language: 'TypeScript',
-      createdAt: '2020-01-01',
-      updatedAt: now,
-      contributors: [
-        { username: owner, avatar: `https://github.com/${owner}.png`, contributions: 100, joinedAt: now },
-        { username: 'contributor1', avatar: 'https://github.com/contributor1.png', contributions: 50, joinedAt: now },
-      ],
-      pullRequests: [],
-      openIssuesList: [],
+      closedIssues: Math.floor(Math.random() * 500),
       defaultBranch: 'main',
       license: 'MIT',
-      topics: ['open-source', 'maintainer-tools'],
+      updatedAt: now.toISOString(),
+      issues: [],
+      pullRequests: [],
     };
 
-    const observedAt = now;
-    const analysis = analyzeRepository(mockRepo, observedAt);
-    const contributorImpact = buildContributorImpactQueue(mockRepo, analysis, observedAt);
-    const inbox = buildMaintainerInbox([{ repository: mockRepo, analysis }], observedAt);
+    const analysis = analyzeRepository(mockRepo, now);
+    const contributorImpact = buildContributorImpactQueue(mockRepo, analysis, now);
+    const inbox = buildMaintainerInbox([{ repository: mockRepo, analysis }], now);
 
     return NextResponse.json({
       repository: mockRepo,

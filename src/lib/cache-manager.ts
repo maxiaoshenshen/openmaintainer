@@ -1,166 +1,116 @@
 /**
- * Cache Manager - Intelligent caching system for maintainer operations
+ * Cache Manager - In-memory cache with TTL and LRU eviction
  */
 
-export interface CacheEntry<T> {
-  key: string;
-  value: T;
-  expiry: number;
-  createdAt: number;
-  hits: number;
-  size?: number;
-}
-
-export interface CacheStats {
-  hits: number;
-  misses: number;
-  keys: number;
-  size: number;
-  hitRate: number;
-}
-
-export interface CacheConfig {
-  ttl: number;
+export interface CacheOptions {
+  ttl?: number;
   maxSize?: number;
-  maxEntries?: number;
-  compression?: boolean;
+  onEvict?: (key: string, value: unknown) => void;
 }
 
-/**
- * LRU Cache with TTL support
- */
-export class CacheManager<T = any> {
-  private cache: Map<string, CacheEntry<T>> = new Map();
-  private config: CacheConfig;
-  private stats = { hits: 0, misses: 0 };
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+  accessCount: number;
+}
 
-  constructor(config: CacheConfig) {
-    this.config = config;
+export class CacheManager<T = unknown> {
+  private cache = new Map<string, CacheEntry<T>>();
+  private ttl: number;
+  private maxSize: number;
+  private onEvict?: (key: string, value: unknown) => void;
+
+  constructor(options: CacheOptions = {}) {
+    this.ttl = options.ttl ?? 60000;
+    this.maxSize = options.maxSize ?? 1000;
+    this.onEvict = options.onEvict;
   }
 
   set(key: string, value: T, ttl?: number): void {
-    const now = Date.now();
-    const expiry = now + (ttl || this.config.ttl);
-
-    // Enforce max entries
-    if (this.cache.size >= (this.config.maxEntries || 1000) && !this.cache.has(key)) {
-      this.evictLRU();
-    }
-
-    this.cache.set(key, {
-      key,
-      value,
-      expiry,
-      createdAt: now,
-      hits: 0,
-      size: this.estimateSize(value),
-    });
+    this.evictIfNeeded();
+    
+    const expiresAt = Date.now() + (ttl ?? this.ttl);
+    this.cache.set(key, { value, expiresAt, accessCount: 0 });
   }
 
   get(key: string): T | undefined {
     const entry = this.cache.get(key);
-    if (!entry) {
-      this.stats.misses++;
+    if (!entry) return undefined;
+
+    if (Date.now() > entry.expiresAt) {
+      this.delete(key);
       return undefined;
     }
 
-    if (entry.expiry < Date.now()) {
-      this.cache.delete(key);
-      this.stats.misses++;
-      return undefined;
-    }
-
-    entry.hits++;
-    this.stats.hits++;
+    entry.accessCount++;
     return entry.value;
   }
 
   has(key: string): boolean {
     const entry = this.cache.get(key);
     if (!entry) return false;
-    if (entry.expiry < Date.now()) {
-      this.cache.delete(key);
+    
+    if (Date.now() > entry.expiresAt) {
+      this.delete(key);
       return false;
     }
     return true;
   }
 
   delete(key: string): boolean {
-    return this.cache.delete(key);
+    const entry = this.cache.get(key);
+    if (entry) {
+      this.onEvict?.(key, entry.value);
+      return this.cache.delete(key);
+    }
+    return false;
   }
 
   clear(): void {
+    if (this.onEvict) {
+      for (const [key, entry] of this.cache) {
+        this.onEvict(key, entry.value);
+      }
+    }
     this.cache.clear();
-    this.stats = { hits: 0, misses: 0 };
   }
 
-  private evictLRU(): void {
-    let oldest: string | null = null;
+  private evictIfNeeded(): void {
+    while (this.cache.size >= this.maxSize) {
+      const lruKey = this.findLRUKey();
+      if (lruKey) {
+        const entry = this.cache.get(lruKey);
+        if (entry) {
+          this.onEvict?.(lruKey, entry.value);
+        }
+        this.cache.delete(lruKey);
+      } else {
+        break;
+      }
+    }
+  }
+
+  private findLRUKey(): string | undefined {
+    let oldest: string | undefined;
     let oldestTime = Infinity;
 
     for (const [key, entry] of this.cache) {
-      if (entry.hits === 0 && entry.createdAt < oldestTime) {
-        oldestTime = entry.createdAt;
+      if (entry.accessCount < oldestTime) {
+        oldestTime = entry.accessCount;
         oldest = key;
       }
     }
-
-    if (oldest) {
-      this.cache.delete(oldest);
-    } else {
-      // If all have hits, delete oldest by creation time
-      for (const [key, entry] of this.cache) {
-        if (entry.createdAt < oldestTime) {
-          oldestTime = entry.createdAt;
-          oldest = key;
-        }
-      }
-      if (oldest) this.cache.delete(oldest);
-    }
+    return oldest;
   }
 
-  private estimateSize(value: T): number {
-    return JSON.stringify(value).length;
-  }
-
-  getStats(): CacheStats {
-    const total = this.stats.hits + this.stats.misses;
+  getStats(): { size: number; maxSize: number; ttl: number } {
     return {
-      hits: this.stats.hits,
-      misses: this.stats.misses,
-      keys: this.cache.size,
-      size: Array.from(this.cache.values()).reduce((sum, e) => sum + (e.size || 0), 0),
-      hitRate: total > 0 ? (this.stats.hits / total) * 100 : 0,
+      size: this.cache.size,
+      maxSize: this.maxSize,
+      ttl: this.ttl
     };
   }
-
-  keys(): string[] {
-    return Array.from(this.cache.keys());
-  }
-
-  prune(): number {
-    const now = Date.now();
-    let pruned = 0;
-    for (const [key, entry] of this.cache) {
-      if (entry.expiry < now) {
-        this.cache.delete(key);
-        pruned++;
-      }
-    }
-    return pruned;
-  }
 }
 
-/**
- * Create a cache for GitHub API responses
- */
-export function createGitHubCache(ttl = 60000): CacheManager {
-  return new CacheManager({ ttl, maxEntries: 500 });
-}
-
-/**
- * Create a cache for user sessions
- */
-export function createSessionCache(ttl = 3600000): CacheManager {
-  return new CacheManager({ ttl, maxEntries: 10000 });
-}
+// Backward compatibility export
+export const cacheManager = new CacheManager();

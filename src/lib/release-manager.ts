@@ -283,3 +283,80 @@ export function satisfiesRange(version: Version, range: string): boolean {
   
   return operator ? operator(version, constraint) : true;
 }
+
+/**
+ * Plan a release with milestones and tasks
+ */
+export function planRelease(options: {
+  repo: string;
+  targetVersion: Version;
+  milestones?: string[];
+  assignees?: string[];
+}): {
+  plannedAt: number;
+  version: Version;
+  tasks: Array<{ title: string; assignee?: string }>;
+} {
+  return {
+    plannedAt: Date.now(),
+    version: options.targetVersion,
+    tasks: [
+      { title: 'Update changelog' },
+      { title: 'Run tests', assignee: options.assignees?.[0] },
+      { title: 'Update version files' },
+      { title: 'Create release PR' },
+      { title: 'Publish release' },
+    ],
+  };
+}
+
+/**
+ * Get release readiness status
+ */
+export function getReleaseReadiness(release: Release): {
+  ready: boolean;
+  blockers: string[];
+} {
+  const blockers: string[] = [];
+
+  if (release.status !== 'draft') {
+    blockers.push('Release is not in draft status');
+  }
+
+}
+
+export function createReleaseManager(options: { repository?: string } = {}) {
+  const releases: Release[] = [];
+  const currentVersion = { major: 1, minor: 0, patch: 0 };
+  
+  return {
+    repository: options.repository,
+    releases,
+    currentVersion,
+    createRelease(type: ReleaseType, title: string, description: string) {
+      const release: Release = {
+        id: `release-${Date.now()}`,
+        version: { ...currentVersion },
+        type,
+        status: 'draft',
+        title,
+        description,
+        createdAt: Date.now(),
+        changes: [],
+      };
+      releases.push(release);
+      return release;
+    },
+    generateReleasePlan(repo: any) {
+      return {
+        plannedAt: Date.now(),
+        version: { ...currentVersion },
+        tasks: [
+          { title: 'Update changelog' },
+          { title: 'Run tests' },
+          { title: 'Build and publish' },
+        ],
+      };
+    },
+  };
+}

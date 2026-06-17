@@ -3,18 +3,16 @@ import { createSecurityScanner } from '@/lib/security-scanner';
 
 export async function GET() {
   const scanner = createSecurityScanner();
-  const result = scanner.scanRepository({
-    id: '1',
-    name: 'sample-repo',
-    fullName: 'owner/sample-repo',
-    owner: 'owner',
-    description: 'Sample repository',
-    isPrivate: false,
-    stars: 100,
-    forks: 20,
-    openIssues: 10,
-    language: 'TypeScript'
-  });
+  
+  // Start a scan
+  const scanResult = scanner.startScan('scan-1', 'owner/sample-repo', 'main');
+  
+  // Complete the scan with file count
+  const result = scanner.completeScan('scan-1', 100);
 
-  return NextResponse.json(result);
+  return NextResponse.json({
+    scanId: result.id,
+    status: result.status,
+    summary: result.summary,
+  });
 }

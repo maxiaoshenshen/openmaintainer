@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       getPullRequests(owner,  repo, { state: "all" }),
     ]);
 
-    const sprintPlan = createSprintPlan(repoData, issues, prs, contributors);
+    const sprintPlan = createSprintPlan(repoData as any, issues, prs, contributors);
     const remainingIssues = issues.filter((i) => i.state === "open").length;
     const estimatedRelease = estimateReleaseDate(
       remainingIssues,

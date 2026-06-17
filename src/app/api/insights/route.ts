@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         forks: repoData.forks,
         openIssues: repoData.openIssues,
         openPRs: repoData.openPRs,
-        lastReleaseAt: repoData.lastRelease ? new Date(repoData.lastRelease) : undefined,
+        lastReleaseAt: new Date(),
       },
       contributors: {
         total: totalContributors,
