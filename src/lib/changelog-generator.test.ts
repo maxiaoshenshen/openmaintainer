@@ -1,56 +1,130 @@
 import { describe, it, expect } from 'vitest';
-import { generateChangelog, formatChangelogMarkdown, formatChangelogKeepAChangelog } from './changelog-generator';
+import { 
+  parseCommits,
+  generateChangelog,
+  suggestVersion,
+  bumpVersion,
+  parseChangelog,
+  validateChangelog
+} from './changelog-generator';
 
 describe('Changelog Generator', () => {
-  it('generates changelog', () => {
-    const changelog = generateChangelog({
-      repository: 'test/repo',
-      version: '1.0.0',
+  const mockCommits = [
+    { message: 'feat: add new feature' },
+    { message: 'fix: fix a bug' },
+    { message: 'docs: update documentation' },
+    { message: 'perf: improve performance' },
+    { message: 'BREAKING: breaking change' }
+  ];
+
+  describe('parseCommits', () => {
+    it('should categorize commits correctly', () => {
+      const changes = parseCommits(mockCommits);
+      
+      expect(changes.features).toContain('add new feature');
+      expect(changes.bugfixes).toContain('fix a bug');
+      expect(changes.documentation).toContain('update documentation');
+      expect(changes.performance).toContain('improve performance');
+      expect(changes.breaking).toContain('breaking change');
     });
 
-    expect(changelog.version).toBe('1.0.0');
-    expect(changelog.date).toBeDefined();
-    expect(changelog.sections.length).toBeGreaterThan(0);
-    expect(changelog.stats.total).toBeGreaterThan(0);
+    it('should handle scoped commits', () => {
+      const scopedCommits = [
+        { message: 'feat(auth): add login feature' }
+      ];
+      
+      const changes = parseCommits(scopedCommits);
+      
+      expect(changes.features![0]).toContain('**auth:**');
+    });
   });
 
-  it('formats markdown changelog', () => {
-    const changelog = generateChangelog({
-      repository: 'test/repo',
-      version: '2.0.0',
+  describe('generateChangelog', () => {
+    it('should generate markdown changelog', () => {
+      const entries = [{
+        version: '1.0.0',
+        date: '2024-01-01',
+        type: 'major' as const,
+        changes: parseCommits(mockCommits),
+        contributors: ['@developer']
+      }];
+      
+      const md = generateChangelog(entries);
+      
+      expect(md).toContain('# Changelog');
+      expect(md).toContain('## [1.0.0]');
+      expect(md).toContain('add new feature');
     });
-
-    const markdown = formatChangelogMarkdown(changelog);
-    expect(markdown).toContain('2.0.0');
-    expect(markdown).toContain('Changelog');
   });
 
-  it('formats keep a changelog format', () => {
-    const changelog = generateChangelog({
-      repository: 'test/repo',
-      version: '1.5.0',
+  describe('suggestVersion', () => {
+    it('should suggest major for breaking changes', () => {
+      const changes = { breaking: ['change'], features: [] };
+      expect(suggestVersion('1.0.0', changes)).toBe('major');
     });
 
-    const changelog_md = formatChangelogKeepAChangelog(changelog);
-    expect(changelog_md).toContain('Keep a Changelog');
-    expect(changelog_md).toContain('1.5.0');
+    it('should suggest minor for new features', () => {
+      const changes = { breaking: [], features: ['new'] };
+      expect(suggestVersion('1.0.0', changes)).toBe('minor');
+    });
+
+    it('should suggest patch for bugfixes only', () => {
+      const changes = { breaking: [], features: [], bugfixes: ['fix'] };
+      expect(suggestVersion('1.0.0', changes)).toBe('patch');
+    });
   });
 
-  it('counts breaking changes', () => {
-    const changelog = generateChangelog({
-      repository: 'test/repo',
-      version: '3.0.0',
+  describe('bumpVersion', () => {
+    it('should bump major version', () => {
+      expect(bumpVersion('1.2.3', 'major')).toBe('2.0.0');
     });
 
-    expect(changelog.stats.breaking).toBeGreaterThanOrEqual(0);
+    it('should bump minor version', () => {
+      expect(bumpVersion('1.2.3', 'minor')).toBe('1.3.0');
+    });
+
+    it('should bump patch version', () => {
+      expect(bumpVersion('1.2.3', 'patch')).toBe('1.2.4');
+    });
   });
 
-  it('identifies contributors', () => {
-    const changelog = generateChangelog({
-      repository: 'test/repo',
-      version: '1.0.0',
+  describe('parseChangelog', () => {
+    it('should parse existing changelog', () => {
+      const content = `# Changelog
+
+## [1.0.0] - 2024-01-01
+
+### Features
+
+- new feature
+`;
+      
+      const entries = parseChangelog(content);
+      
+      expect(entries.length).toBeGreaterThan(0);
+      expect(entries[0].version).toBe('1.0.0');
+    });
+  });
+
+  describe('validateChangelog', () => {
+    it('should validate proper changelog', () => {
+      const content = `# Changelog
+
+## [1.0.0] - 2024-01-01
+
+- change
+`;
+      
+      const result = validateChangelog(content);
+      
+      expect(result.valid).toBe(true);
     });
 
-    expect(changelog.stats.contributors.length).toBeGreaterThan(0);
+    it('should reject invalid changelog', () => {
+      const result = validateChangelog('invalid content');
+      
+      expect(result.valid).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
   });
 });
