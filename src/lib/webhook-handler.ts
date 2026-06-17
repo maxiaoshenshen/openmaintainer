@@ -1,227 +1,205 @@
-// GitHub Webhook Handler for OpenMaintainer
-// Processes incoming webhooks for real-time updates
-
-export type WebhookEventType = 
-  | 'push'
-  | 'pull_request'
-  | 'issues'
-  | 'issue_comment'
-  | 'create'
-  | 'delete'
-  | 'release'
-  | 'star'
-  | 'fork'
-  | 'member'
-  | 'workflow_run'
-  | '*';
-
-export interface WebhookPayload {
-  action: string;
-  sender: {
-    login: string;
-    avatar_url: string;
-    type: string;
-  };
-  repository: {
-    id: number;
-    name: string;
-    full_name: string;
-    owner: { login: string };
-    default_branch: string;
-  };
-  [key: string]: any;
-}
+import type { Issue, PullRequest, Contributor } from "./types";
 
 export interface WebhookEvent {
-  type: WebhookEventType;
   action: string;
-  repository: string;
-  sender: string;
-  timestamp: Date;
-  data: WebhookPayload;
-}
-
-export interface WebhookHandlerConfig {
-  secret?: string;
-  events?: WebhookEventType[];
-  onEvent?: (event: WebhookEvent) => void | Promise<void>;
-}
-
-class WebhookHandler {
-  private secret?: string;
-  private events: Set<WebhookEventType>;
-  private handlers: Map<WebhookEventType, (event: WebhookEvent) => void | Promise<void>> = new Map();
-
-  constructor(config: WebhookHandlerConfig = {}) {
-    this.secret = config.secret;
-    this.events = new Set(config.events || ['push', 'pull_request', 'issues', 'release']);
-    if (config.onEvent) {
-      this.on('*', config.onEvent);
-    }
-  }
-
-  verifySignature(payload: string, signature: string): boolean {
-    if (!this.secret) return true;
-    
-    // GitHub webhook signature format: sha256=<hash>
-    const expectedSignature = `sha256=${this.createHMAC(payload)}`;
-    return this.secureCompare(expectedSignature, signature);
-  }
-
-  private createHMAC(payload: string): string {
-    // Simple HMAC-SHA256 simulation for demonstration
-    // In production, use Node.js crypto module
-    const encoder = new TextEncoder();
-    const _data = encoder.encode(payload);
-    const _key = encoder.encode(this.secret || '');
-    
-    // This is a simplified version - production should use crypto.createHmac
-    let hash = 0;
-    const combined = payload + (this.secret || '');
-    for (let i = 0; i < combined.length; i++) {
-      const char = combined.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return Math.abs(hash).toString(16);
-  }
-
-  private secureCompare(a: string, b: string): boolean {
-    if (a.length !== b.length) return false;
-    let result = 0;
-    for (let i = 0; i < a.length; i++) {
-      result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-    }
-    return result === 0;
-  }
-
-  parseEvent(headers: Record<string, string>, payload: string): WebhookEvent | null {
-    const eventType = headers['x-github-event'] as WebhookEventType;
-    const _deliveryId = headers['x-github-delivery'];
-    
-    if (!eventType) return null;
-    if (!this.events.has(eventType)) return null;
-
-    let _data: WebhookPayload;
-    try {
-      data = JSON.parse(payload);
-    } catch {
-      return null;
-    }
-
-    return {
-      type: eventType,
-      action: data.action || 'unknown',
-      repository: data.repository?.full_name || data.repository?.name || 'unknown',
-      sender: data.sender?.login || 'unknown',
-      timestamp: new Date(),
-      data,
-    };
-  }
-
-  on(event: WebhookEventType | '*', handler: (event: WebhookEvent) => void | Promise<void>): void {
-    this.handlers.set(event, handler);
-  }
-
-  async handle(event: WebhookEvent): Promise<void> {
-    const handler = this.handlers.get(event.type) || this.handlers.get('*');
-    if (handler) {
-      await handler(event);
-    }
-  }
-
-  extractInsights(event: WebhookEvent): {
+  repository: {
+    owner: string;
+    name: string;
+    fullName: string;
+  };
+  sender: {
+    login: string;
     type: string;
-    summary: string;
-    priority: 'low' | 'medium' | 'high';
-    actionRequired: boolean;
-  } {
-    const { type, action, sender } = event;
-    const insights = {
-      push: () => ({
-        type: 'code',
-        summary: `${data.commits?.length || 0} commits pushed to ${data.ref}`,
-        priority: 'low',
-        actionRequired: false,
-      }),
-      pull_request: () => ({
-        type: 'review',
-        summary: `PR #${data.pull_request?.number}: ${data.pull_request?.title} (${action})`,
-        priority: data.action === 'opened' ? 'high' : 'medium',
-        actionRequired: data.action === 'opened',
-      }),
-      issues: () => ({
-        type: 'issue',
-        summary: `Issue #${data.issue?.number}: ${data.issue?.title} (${action})`,
-        priority: data.action === 'opened' ? 'high' : 'low',
-        actionRequired: data.action === 'opened',
-      }),
-      issue_comment: () => ({
-        type: 'engagement',
-        summary: `New comment on ${data.issue ? `issue #${data.issue.number}` : 'PR'}`,
-        priority: 'medium',
-        actionRequired: false,
-      }),
-      release: () => ({
-        type: 'milestone',
-        summary: `Release ${data.release?.tag_name} ${action}`,
-        priority: 'high',
-        actionRequired: data.action === 'published',
-      }),
-      star: () => ({
-        type: 'growth',
-        summary: `Repository ${action === 'created' ? 'received a star' : 'lost a star'}`,
-        priority: 'low',
-        actionRequired: false,
-      }),
-      fork: () => ({
-        type: 'growth',
-        summary: `Repository forked by ${sender}`,
-        priority: 'low',
-        actionRequired: false,
-      }),
-      create: () => ({
-        type: 'structure',
-        summary: `New ${data.ref_type} created: ${data.ref}`,
-        priority: 'low',
-        actionRequired: false,
-      }),
-      delete: () => ({
-        type: 'structure',
-        summary: `${data.ref_type} deleted: ${data.ref}`,
-        priority: 'medium',
-        actionRequired: true,
-      }),
-      member: () => ({
-        type: 'collaboration',
-        summary: `${sender} ${action} as a collaborator`,
-        priority: 'medium',
-        actionRequired: action === 'added',
-      }),
-      workflow_run: () => ({
-        type: 'automation',
-        summary: `Workflow "${data.workflow_run?.name}" ${action}`,
-        priority: data.action === 'completed' && data.workflow_run?.conclusion === 'failure' ? 'high' : 'low',
-        actionRequired: data.action === 'completed' && data.workflow_run?.conclusion === 'failure',
-      }),
-    };
+  };
+  issue?: {
+    number: number;
+    title: string;
+    body?: string;
+    state: string;
+    labels: string[];
+    assignees: string[];
+  };
+  pull_request?: {
+    number: number;
+    title: string;
+    body?: string;
+    state: string;
+    merged: boolean;
+    labels: string[];
+  };
+}
 
-    const extractor = insights[type];
-    if (extractor) {
-      return extractor();
+export interface WebhookHandler {
+  handleIssueOpened(issue: Issue): Promise<void>;
+  handleIssueClosed(issue: Issue): Promise<void>;
+  handlePROpened(pr: PullRequest): Promise<void>;
+  handlePRMerged(pr: PullRequest): Promise<void>;
+  handleContributorJoined(contributor: Contributor): Promise<void>;
+}
+
+export interface AutomationRule {
+  id: string;
+  name: string;
+  trigger: "issue.opened" | "issue.closed" | "pr.opened" | "pr.merged" | "contributor.joined";
+  conditions: AutomationCondition[];
+  actions: AutomationAction[];
+  enabled: boolean;
+}
+
+export interface AutomationCondition {
+  type: "label" | "author" | "title" | "body" | "size";
+  operator: "contains" | "equals" | "starts_with" | "regex";
+  value: string;
+}
+
+export interface AutomationAction {
+  type: "add_label" | "remove_label" | "assign" | "comment" | "notify" | "close";
+  value: string;
+}
+
+class WebhookAutomationEngine {
+  private rules: AutomationRule[] = [];
+
+  addRule(rule: AutomationRule): void {
+    this.rules.push(rule);
+  }
+
+  removeRule(ruleId: string): void {
+    this.rules = this.rules.filter((r) => r.id !== ruleId);
+  }
+
+  getRules(): AutomationRule[] {
+    return [...this.rules];
+  }
+
+  private evaluateCondition(condition: AutomationCondition, event: WebhookEvent): boolean {
+    const data = this.getEventData(event);
+    
+    switch (condition.type) {
+      case "label":
+        return this.checkStringArray(data.labels, condition);
+      case "author":
+        return this.checkString(data.author, condition);
+      case "title":
+        return this.checkString(data.title, condition);
+      case "body":
+        return this.checkString(data.body || "", condition);
+      default:
+        return false;
     }
+  }
 
-    return {
-      type: 'unknown',
-      summary: `Unknown event: ${type}`,
-      priority: 'low',
-      actionRequired: false,
+  private checkString(value: string, condition: AutomationCondition): boolean {
+    const normalizedValue = value.toLowerCase();
+    const normalizedTarget = condition.value.toLowerCase();
+
+    switch (condition.operator) {
+      case "contains":
+        return normalizedValue.includes(normalizedTarget);
+      case "equals":
+        return normalizedValue === normalizedTarget;
+      case "starts_with":
+        return normalizedValue.startsWith(normalizedTarget);
+      case "regex":
+        return new RegExp(condition.value, "i").test(value);
+      default:
+        return false;
+    }
+  }
+
+  private checkStringArray(values: string[], condition: AutomationCondition): boolean {
+    return values.some((v) => this.checkString(v, condition));
+  }
+
+  private getEventData(event: WebhookEvent): { 
+    title: string; 
+    body: string; 
+    author: string; 
+    labels: string[];
+  } {
+    if (event.issue) {
+      return {
+        title: event.issue.title,
+        body: event.issue.body || "",
+        author: event.sender.login,
+        labels: event.issue.labels.map((l) => (typeof l === "string" ? l : l.name)),
+      };
+    }
+    if (event.pull_request) {
+      return {
+        title: event.pull_request.title,
+        body: event.pull_request.body || "",
+        author: event.sender.login,
+        labels: event.pull_request.labels.map((l) => (typeof l === "string" ? l : l.name)),
+      };
+    }
+    return { title: "", body: "", author: event.sender.login, labels: [] };
+  }
+
+  evaluateRules(event: WebhookEvent): AutomationAction[][] {
+    const triggerMap: Record<string, string> = {
+      "issue.opened": "opened",
+      "issue.closed": "closed",
+      "pr.opened": "opened",
+      "pr.merged": "merged",
     };
+
+    const applicableRules = this.rules.filter((rule) => {
+      const [entity, action] = rule.trigger.split(".");
+      const expectedAction = triggerMap[rule.trigger];
+      
+      if (entity === "issue" && event.issue) {
+        return event.action === expectedAction;
+      }
+      if (entity === "pr" && event.pull_request) {
+        return event.action === expectedAction;
+      }
+      if (rule.trigger === "contributor.joined") {
+        return event.action === "joined";
+      }
+      return false;
+    });
+
+    return applicableRules
+      .filter((rule) => rule.enabled && rule.conditions.every((c) => this.evaluateCondition(c, event)))
+      .map((rule) => rule.actions);
   }
 }
 
-export function createWebhookHandler(config?: WebhookHandlerConfig): WebhookHandler {
-  return new WebhookHandler(config);
-}
+export const webhookEngine = new WebhookAutomationEngine();
 
-export { WebhookHandler };
+// Default automation rules
+webhookEngine.addRule({
+  id: "auto-label-bug",
+  name: "Auto-label bug reports",
+  trigger: "issue.opened",
+  conditions: [
+    { type: "title", operator: "contains", value: "bug" },
+  ],
+  actions: [{ type: "add_label", value: "bug" }],
+  enabled: true,
+});
+
+webhookEngine.addRule({
+  id: "auto-label-feature",
+  name: "Auto-label feature requests",
+  trigger: "issue.opened",
+  conditions: [
+    { type: "title", operator: "contains", value: "feature" },
+  ],
+  actions: [{ type: "add_label", value: "enhancement" }],
+  enabled: true,
+});
+
+webhookEngine.addRule({
+  id: "auto-thank-contributor",
+  name: "Thank first-time contributors",
+  trigger: "pr.opened",
+  conditions: [
+    { type: "author", operator: "regex", value: "^[a-zA-Z0-9]{1,10}$" }, // New accounts
+  ],
+  actions: [{ type: "comment", value: "Thank you for your contribution! 🎉" }],
+  enabled: true,
+});
+
+export { WebhookAutomationEngine };
