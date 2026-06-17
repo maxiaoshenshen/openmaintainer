@@ -1,87 +1,107 @@
 import { describe, it, expect } from 'vitest';
-import { createNotificationSystem } from './notification-system';
+import { createNotification, filterNotifications, groupByDate, markAsRead, getUnreadCount } from './notification-system';
 
-describe('notification-system', () => {
-  const { generateNotifications, summarize, markAsRead, getUnreadCount, getPriorityIcon } = createNotificationSystem();
-
-  const mockRepo = {
-    id: '1',
-    name: 'test-repo',
-    fullName: 'owner/test-repo',
-    owner: 'owner',
-    description: 'Test repository',
-    isPrivate: false,
-    stars: 100,
-    forks: 20,
-    openIssues: 10,
-    language: 'TypeScript'
+describe('Notification System', () => {
+  const defaultPreferences = {
+    userId: 'user1',
+    channels: {
+      email: { enabled: true, events: ['new-issue', 'new-pr'] },
+      slack: { enabled: true, events: ['new-issue', 'new-pr'] },
+      in_app: { enabled: true, events: ['new-issue', 'new-pr', 'pr-merged'] },
+    },
+    filters: {
+      ignoreOwnActions: true,
+      minPriority: 'low' as const,
+    },
   };
 
-  const mockIssues = [
-    { id: '1', number: 1, title: 'Bug', state: 'open' as const, body: '', author: 'user1', labels: [], assignees: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), comments: 0 },
-    { id: '2', number: 2, title: 'Feature', state: 'open' as const, body: '', author: 'user2', labels: [], assignees: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), comments: 0 }
-  ];
-
-  const mockPRs = [
-    { id: '1', number: 1, title: 'Fix bug', state: 'open' as const, additions: 50, deletions: 10, changedFiles: 3, author: 'contrib1', labels: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-  ];
-
-  describe('generateNotifications', () => {
-    it('should generate notifications', () => {
-      const notifications = generateNotifications(mockRepo, mockIssues, mockPRs);
+  describe('createNotification', () => {
+    it('should create notification for matching event', () => {
+      const notification = createNotification('new-issue', {
+        repo: 'test-repo',
+        title: 'Bug fix',
+        number: '123',
+        author: 'user1',
+        body: 'Fixed the issue',
+      }, defaultPreferences);
       
-      expect(notifications.length).toBeGreaterThan(0);
-      expect(notifications[0]).toHaveProperty('id');
-      expect(notifications[0]).toHaveProperty('type');
-      expect(notifications[0]).toHaveProperty('priority');
-      expect(notifications[0]).toHaveProperty('read');
+      expect(notification).toBeDefined();
+      expect(notification?.type).toBe('new-issue');
     });
 
-    it('should sort by creation date descending', () => {
-      const notifications = generateNotifications(mockRepo, mockIssues, mockPRs);
-      
-      for (let i = 1; i < notifications.length; i++) {
-        expect(notifications[i - 1].createdAt.getTime()).toBeGreaterThanOrEqual(notifications[i].createdAt.getTime());
-      }
+    it('should return null for disabled channel', () => {
+      const prefs = {
+        ...defaultPreferences,
+        channels: {
+          email: { enabled: false, events: ['new-issue'] },
+        },
+      };
+      const notification = createNotification('new-issue', { repo: 'test', title: 'Test', number: '1', author: 'u' }, prefs);
+      expect(notification).toBeNull();
+    });
+
+    it('should return null for non-matching event', () => {
+      const notification = createNotification('mention', { repo: 'test', mentionedBy: 'user2', context: 'issue #1' }, defaultPreferences);
+      expect(notification).toBeNull();
     });
   });
 
-  describe('summarize', () => {
-    it('should generate summary', () => {
-      const notifications = generateNotifications(mockRepo, mockIssues, mockPRs);
-      const summary = summarize(notifications);
-      
-      expect(summary.total).toBe(notifications.length);
-      expect(summary.unread).toBeGreaterThanOrEqual(0);
-      expect(summary.byType).toBeDefined();
-      expect(summary.urgentItems).toBeDefined();
+  describe('filterNotifications', () => {
+    const notifications = [
+      { id: '1', type: 'new-issue', title: 'Issue 1', message: '', priority: 'normal' as const, channels: ['email'] as const[], recipient: 'u', createdAt: '2024-01-01', read: false },
+      { id: '2', type: 'security-alert', title: 'Alert', message: '', priority: 'urgent' as const, channels: ['slack'] as const[], recipient: 'u', createdAt: '2024-01-01', read: false },
+      { id: '3', type: 'new-pr', title: 'PR', message: '', priority: 'low' as const, channels: ['email'] as const[], recipient: 'u', createdAt: '2024-01-01', read: true },
+    ];
+
+    it('should filter by unread only', () => {
+      const filtered = filterNotifications(notifications, { unreadOnly: true });
+      expect(filtered.length).toBe(2);
+    });
+
+    it('should filter by priority', () => {
+      const filtered = filterNotifications(notifications, { priority: 'high' });
+      expect(filtered.length).toBe(1);
+      expect(filtered[0].id).toBe('2');
+    });
+
+    it('should filter by channel', () => {
+      const filtered = filterNotifications(notifications, { channels: ['email'] });
+      expect(filtered.length).toBe(2);
+    });
+  });
+
+  describe('groupByDate', () => {
+    it('should group notifications by date', () => {
+      const notifications = [
+        { id: '1', type: 'new-issue', title: 'Issue 1', message: '', priority: 'normal' as const, channels: ['email'] as const[], recipient: 'u', createdAt: '2024-01-15T10:00:00Z', read: false },
+        { id: '2', type: 'new-pr', title: 'PR', message: '', priority: 'normal' as const, channels: ['email'] as const[], recipient: 'u', createdAt: '2024-01-15T12:00:00Z', read: false },
+        { id: '3', type: 'security-alert', title: 'Alert', message: '', priority: 'normal' as const, channels: ['email'] as const[], recipient: 'u', createdAt: '2024-01-16T09:00:00Z', read: false },
+      ];
+      const grouped = groupByDate(notifications);
+      expect(Object.keys(grouped).length).toBe(2);
+      expect(grouped['1/15/2024'].length).toBe(2);
     });
   });
 
   describe('markAsRead', () => {
-    it('should mark notification as read', () => {
-      const notifications = generateNotifications(mockRepo, mockIssues, mockPRs);
-      const firstId = notifications[0].id;
-      const updated = markAsRead(notifications, firstId);
-      
-      expect(updated.find(n => n.id === firstId)?.read).toBe(true);
+    it('should mark specified notifications as read', () => {
+      const notifications = [
+        { id: '1', type: 'new-issue', title: 'Issue 1', message: '', priority: 'normal' as const, channels: ['email'] as const[], recipient: 'u', createdAt: '2024-01-01', read: false },
+        { id: '2', type: 'new-pr', title: 'PR', message: '', priority: 'normal' as const, channels: ['email'] as const[], recipient: 'u', createdAt: '2024-01-01', read: false },
+      ];
+      const result = markAsRead(notifications, ['1']);
+      expect(result[0].read).toBe(true);
+      expect(result[1].read).toBe(false);
     });
   });
 
   describe('getUnreadCount', () => {
-    it('should return unread count', () => {
-      const notifications = generateNotifications(mockRepo, mockIssues, mockPRs);
-      const count = getUnreadCount(notifications);
-      
-      expect(count).toBeGreaterThanOrEqual(0);
-      expect(count).toBeLessThanOrEqual(notifications.length);
-    });
-  });
-
-  describe('getPriorityIcon', () => {
-    it('should return icons for priorities', () => {
-      expect(getPriorityIcon('low')).toBe('📬');
-      expect(getPriorityIcon('urgent')).toBe('🔴');
+    it('should return count of unread notifications', () => {
+      const notifications = [
+        { id: '1', type: 'new-issue', title: 'Issue 1', message: '', priority: 'normal' as const, channels: ['email'] as const[], recipient: 'u', createdAt: '2024-01-01', read: false },
+        { id: '2', type: 'new-pr', title: 'PR', message: '', priority: 'normal' as const, channels: ['email'] as const[], recipient: 'u', createdAt: '2024-01-01', read: true },
+      ];
+      expect(getUnreadCount(notifications)).toBe(1);
     });
   });
 });

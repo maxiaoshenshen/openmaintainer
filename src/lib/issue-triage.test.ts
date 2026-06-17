@@ -1,120 +1,98 @@
 import { describe, it, expect } from 'vitest';
-import { createIssueTriageSystem } from './issue-triage';
+import { classifyIssue, suggestAssignee, suggestLabels, triageIssue, batchTriage } from './issue-triage';
 
-describe('issue-triage', () => {
-  const { categorizeIssue, triageIssues, generateTriageSummary, getPriorityColor, getCategoryColor } = createIssueTriageSystem();
-
-  const mockIssue = {
+describe('Issue Triage', () => {
+  const sampleIssue = {
     id: '1',
-    number: 1,
-    title: 'Test Issue',
-    state: 'open' as const,
-    body: 'This is a test issue',
-    author: 'testuser',
+    title: 'Fix login bug',
+    body: 'The login button is not working when clicked',
     labels: [],
-    assignees: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    comments: 0
+    author: 'user1',
+    createdAt: '2024-01-01',
   };
 
-  describe('categorizeIssue', () => {
-    it('should categorize bug issues', () => {
-      const issue = { ...mockIssue, title: 'App crashes when clicking button' };
-      const result = categorizeIssue(issue);
-      
-      expect(result.category).toBe('bug');
-      expect(result.priority).toBe('high');
-      expect(result.suggestedLabels).toContain('bug');
+  describe('classifyIssue', () => {
+    it('should classify bug issues', () => {
+      const result = classifyIssue(sampleIssue);
+      expect(result.type).toBe('bug');
     });
 
-    it('should categorize security issues', () => {
-      const issue = { ...mockIssue, title: 'Security vulnerability in auth' };
-      const result = categorizeIssue(issue);
-      
-      expect(result.category).toBe('security');
+    it('should classify feature requests', () => {
+      const result = classifyIssue({
+        ...sampleIssue,
+        title: 'Add dark mode feature',
+        body: 'Would be nice to have dark mode support',
+      });
+      expect(result.type).toBe('feature');
+    });
+
+    it('should classify questions', () => {
+      const result = classifyIssue({
+        ...sampleIssue,
+        title: 'How to contribute?',
+        body: 'Can someone explain how to set up the project?',
+      });
+      expect(result.type).toBe('question');
+    });
+
+    it('should detect critical priority', () => {
+      const result = classifyIssue({
+        ...sampleIssue,
+        title: 'CRITICAL: Security vulnerability',
+        body: 'There is a critical security issue',
+      });
       expect(result.priority).toBe('critical');
-      expect(result.suggestedLabels).toContain('security');
-    });
-
-    it('should categorize feature requests', () => {
-      const issue = { ...mockIssue, title: 'Would be nice to have dark mode' };
-      const result = categorizeIssue(issue);
-      
-      expect(result.category).toBe('feature-request');
-      expect(result.confidence).toBeGreaterThan(0.5);
-    });
-
-    it('should return confidence score', () => {
-      const result = categorizeIssue(mockIssue);
-      
-      expect(result.confidence).toBeGreaterThanOrEqual(0);
-      expect(result.confidence).toBeLessThanOrEqual(1);
-    });
-
-    it('should suggest labels', () => {
-      const result = categorizeIssue(mockIssue);
-      
-      expect(result.suggestedLabels).toBeDefined();
-      expect(Array.isArray(result.suggestedLabels)).toBe(true);
     });
   });
 
-  describe('triageIssues', () => {
-    it('should triage multiple issues', () => {
-      const issues = [
-        { ...mockIssue, title: 'App crashes when clicking' },
-        { ...mockIssue, title: 'Add dark mode feature' },
-        { ...mockIssue, title: 'How to use?' }
+  describe('suggestAssignee', () => {
+    const team = [
+      { name: 'Alice', skills: ['javascript', 'typescript'], currentWorkload: 2, expertise: { javascript: 5, typescript: 4 }, availability: 'full' as const },
+      { name: 'Bob', skills: ['python'], currentWorkload: 5, expertise: { python: 5 }, availability: 'partial' as const },
+    ];
+
+    it('should suggest based on skills', () => {
+      const issue = { ...sampleIssue, body: 'Fix JavaScript issue' };
+      const assignee = suggestAssignee(issue, team);
+      expect(assignee).toBe('Alice');
+    });
+
+    it('should skip unavailable members', () => {
+      const unavailableTeam = [{ name: 'Carol', skills: ['javascript'], currentWorkload: 0, expertise: { javascript: 10 }, availability: 'unavailable' as const }];
+      const assignee = suggestAssignee(sampleIssue, unavailableTeam);
+      expect(assignee).toBeUndefined();
+    });
+  });
+
+  describe('suggestLabels', () => {
+    it('should suggest type and priority labels', () => {
+      const classification = { type: 'bug' as const, priority: 'high' as const, complexity: 'moderate' as const, confidence: 80 };
+      const labels = suggestLabels(sampleIssue, classification);
+      expect(labels).toContain('type: bug');
+      expect(labels).toContain('priority: high');
+    });
+  });
+
+  describe('triageIssue', () => {
+    it('should triage and return complete result', () => {
+      const team = [
+        { name: 'Alice', skills: ['javascript'], currentWorkload: 0, expertise: { javascript: 5 }, availability: 'full' as const },
       ];
-      
-      const results = triageIssues(issues);
-      
-      expect(results.length).toBe(3);
-      expect(results[0].category).toBe('bug');
+      const result = triageIssue(sampleIssue, team);
+      expect(result.classification).toBeDefined();
+      expect(result.routing).toBeDefined();
+      expect(result.actionItems).toBeDefined();
     });
   });
 
-  describe('generateTriageSummary', () => {
-    it('should generate summary statistics', () => {
+  describe('batchTriage', () => {
+    it('should sort by priority', () => {
       const issues = [
-        { ...mockIssue, title: 'Bug 1' },
-        { ...mockIssue, title: 'Add dark mode feature' },
-        { ...mockIssue, title: 'Documentation fix' }
+        { ...sampleIssue, id: '1', title: 'Low priority', labels: [], author: 'u', createdAt: '2024-01-01' },
+        { ...sampleIssue, id: '2', title: 'CRITICAL issue', labels: [], author: 'u', createdAt: '2024-01-01' },
       ];
-      const results = triageIssues(issues);
-      const summary = generateTriageSummary(results);
-      
-      expect(summary.totalIssues).toBe(3);
-      expect(summary.byCategory).toBeDefined();
-      expect(summary.byPriority).toBeDefined();
-    });
-
-    it('should track issues by priority', () => {
-      const results = triageIssues([mockIssue]);
-      const summary = generateTriageSummary(results);
-      
-      expect(summary.byPriority).toHaveProperty('critical');
-      expect(summary.byPriority).toHaveProperty('high');
-      expect(summary.byPriority).toHaveProperty('medium');
-      expect(summary.byPriority).toHaveProperty('low');
-    });
-  });
-
-  describe('getPriorityColor', () => {
-    it('should return correct colors', () => {
-      expect(getPriorityColor('critical')).toBe('#ef4444');
-      expect(getPriorityColor('high')).toBe('#f97316');
-      expect(getPriorityColor('medium')).toBe('#f59e0b');
-      expect(getPriorityColor('low')).toBe('#10b981');
-    });
-  });
-
-  describe('getCategoryColor', () => {
-    it('should return correct colors', () => {
-      expect(getCategoryColor('bug')).toBe('#ef4444');
-      expect(getCategoryColor('security')).toBe('#dc2626');
-      expect(getCategoryColor('feature-request')).toBe('#8b5cf6');
+      const results = batchTriage(issues, []);
+      expect(results[0].classification.priority).toBe('critical');
     });
   });
 });
