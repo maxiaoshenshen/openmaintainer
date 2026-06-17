@@ -1,159 +1,285 @@
-import type { Repository, PullRequest } from './types';
-
 /**
- * Release Manager - Manages release planning and tracking
+ * Release Manager - Automate versioning, changelogs, and releases
  */
+
+export type ReleaseType = 'major' | 'minor' | 'patch' | 'prerelease' | 'build';
+export type ReleaseStatus = 'draft' | 'published' | 'prerelease' | 'archived';
+
+export interface Version {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease?: string;
+  build?: string;
+}
+
 export interface Release {
   id: string;
-  version: string;
-  tagName: string;
-  status: 'draft' | 'prerelease' | 'released' | 'cancelled';
-  targetDate: Date;
-  actualDate?: Date;
-  notes: string;
-  changes: ReleaseChange[];
-  contributors: string[];
-  downloadCount?: number;
-}
-
-export interface ReleaseChange {
-  type: 'feature' | 'bugfix' | 'breaking' | 'security' | 'performance' | 'docs';
+  version: Version;
+  type: ReleaseType;
+  status: ReleaseStatus;
+  title: string;
   description: string;
-  prNumber?: number;
-  breakingChanges?: string[];
+  publishedAt?: number;
+  createdAt: number;
+  changes: Change[];
+  assets?: ReleaseAsset[];
 }
 
-export interface ReleasePlan {
-  repository: Repository;
-  upcomingRelease: Release;
-  releaseHistory: Release[];
-  changelog: string;
-  readinessScore: number;
-  blockers: string[];
+export interface Change {
+  type: 'feature' | 'fix' | 'breaking' | 'deprecation' | 'security' | 'performance' | 'docs' | 'refactor' | 'test' | 'chore';
+  scope?: string;
+  message: string;
+  pr?: number;
+  author?: string;
 }
 
-export function createReleaseManager() {
-  const generateReleasePlan = (repo: Repository): ReleasePlan => {
-    const upcomingRelease = generateUpcomingRelease(repo);
-    const releaseHistory = generateReleaseHistory(repo);
+export interface ReleaseAsset {
+  name: string;
+  size: number;
+  url: string;
+  contentType: string;
+}
 
-    return {
-      repository: repo,
-      upcomingRelease,
-      releaseHistory,
-      changelog: generateChangelog(upcomingRelease, releaseHistory),
-      readinessScore: calculateReadinessScore(upcomingRelease),
-      blockers: identifyBlockers(upcomingRelease)
-    };
-  };
+export interface ChangelogOptions {
+  types?: Change['type'][];
+  authors?: boolean;
+  prLinks?: boolean;
+  includeCommitHash?: boolean;
+}
 
-  const generateUpcomingRelease = (repo: Repository): Release => {
-    const version = '2.1.0';
-    return {
-      id: `release-${Date.now()}`,
-      version,
-      tagName: `v${version}`,
-      status: 'draft',
-      targetDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      notes: `Release ${version} of ${repo.name}`,
-      changes: [
-        { type: 'feature', description: 'New dashboard analytics', prNumber: 142 },
-        { type: 'bugfix', description: 'Fix authentication timeout', prNumber: 145 },
-        { type: 'performance', description: 'Optimize database queries' },
-        { type: 'docs', description: 'Update API documentation' }
-      ],
-      contributors: ['alice', 'bob', 'charlie']
-    };
-  };
-
-  const generateReleaseHistory = (repo: Repository): Release[] => {
-    return [
-      {
-        id: 'rel-1',
-        version: '2.0.0',
-        tagName: 'v2.0.0',
-        status: 'released',
-        targetDate: new Date('2026-05-01'),
-        actualDate: new Date('2026-05-01'),
-        notes: 'Major release with new architecture',
-        changes: [
-          { type: 'breaking', description: 'Migration to new plugin system' },
-          { type: 'feature', description: 'Cloud deployment support' }
-        ],
-        contributors: ['alice', 'bob'],
-        downloadCount: 15420
-      },
-      {
-        id: 'rel-2',
-        version: '1.9.0',
-        tagName: 'v1.9.0',
-        status: 'released',
-        targetDate: new Date('2026-04-01'),
-        actualDate: new Date('2026-04-03'),
-        notes: 'Incremental improvement release',
-        changes: [
-          { type: 'feature', description: 'Enhanced search' },
-          { type: 'bugfix', description: 'Multiple bug fixes' }
-        ],
-        contributors: ['charlie', 'diana'],
-        downloadCount: 12300
-      }
-    ];
-  };
-
-  const generateChangelog = (upcoming: Release, history: Release[]): string => {
-    const lines = [`# Changelog\n`];
-    
-    lines.push(`## ${upcoming.version} (Upcoming)\n`);
-    upcoming.changes.forEach(change => {
-      const emoji = { feature: '✨', bugfix: '🐛', breaking: '💥', security: '🔒', performance: '⚡', docs: '📝' };
-      lines.push(`- ${emoji[change.type] || '-'} ${change.description}`);
-    });
-
-    history.forEach(rel => {
-      lines.push(`\n## ${rel.version} (${rel.actualDate?.toISOString().split('T')[0] || 'Unknown'})\n`);
-      rel.changes.forEach(change => {
-        const emoji = { feature: '✨', bugfix: '🐛', breaking: '💥', security: '🔒', performance: '⚡', docs: '📝' };
-        lines.push(`- ${emoji[change.type] || '-'} ${change.description}`);
-      });
-    });
-
-    return lines.join('\n');
-  };
-
-  const calculateReadinessScore = (release: Release): number => {
-    let score = 100;
-    
-    if (release.changes.filter(c => c.type === 'bugfix').length > 3) score -= 10;
-    if (release.changes.some(c => c.type === 'breaking')) score -= 20;
-    if (release.changes.filter(c => c.type === 'feature').length > 5) score -= 15;
-    
-    return Math.max(0, score);
-  };
-
-  const identifyBlockers = (release: Release): string[] => {
-    const blockers: string[] = [];
-    
-    if (release.changes.some(c => c.type === 'breaking')) {
-      blockers.push('Breaking changes require migration guide');
-    }
-    
-    if (release.status === 'draft') {
-      blockers.push('Release notes not finalized');
-    }
-    
-    return blockers;
-  };
-
-  const formatReleaseNotes = (release: Release): string => {
-    return `# ${release.tagName}\n\n${release.notes}\n\n## Changes\n` +
-      release.changes.map(c => `- **${c.type}**: ${c.description}`).join('\n');
-  };
+/**
+ * Parse version string into Version object
+ */
+export function parseVersion(version: string): Version {
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.]+))?(?:\+([a-zA-Z0-9.]+))?$/);
+  if (!match) {
+    throw new Error(`Invalid version format: ${version}`);
+  }
 
   return {
-    generateReleasePlan,
-    formatReleaseNotes,
-    releaseStatuses: ['draft', 'prerelease', 'released', 'cancelled'] as const,
-    changeTypes: ['feature', 'bugfix', 'breaking', 'security', 'performance', 'docs'] as const
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10),
+    patch: parseInt(match[3], 10),
+    prerelease: match[4],
+    build: match[5],
   };
+}
+
+/**
+ * Convert Version object to string
+ */
+export function formatVersion(version: Version): string {
+  let result = `${version.major}.${version.minor}.${version.patch}`;
+  if (version.prerelease) {
+    result += `-${version.prerelease}`;
+  }
+  if (version.build) {
+    result += `+${version.build}`;
+  }
+  return result;
+}
+
+/**
+ * Calculate next version based on release type
+ */
+export function calculateNextVersion(
+  current: Version,
+  type: ReleaseType,
+  prereleaseTag?: string
+): Version {
+  const next = { ...current };
+
+  switch (type) {
+    case 'major':
+      next.major += 1;
+      next.minor = 0;
+      next.patch = 0;
+      next.prerelease = undefined;
+      next.build = undefined;
+      break;
+    case 'minor':
+      next.minor += 1;
+      next.patch = 0;
+      next.prerelease = undefined;
+      next.build = undefined;
+      break;
+    case 'patch':
+      next.patch += 1;
+      next.prerelease = undefined;
+      next.build = undefined;
+      break;
+    case 'prerelease':
+      next.prerelease = prereleaseTag || 'alpha.1';
+      next.build = undefined;
+      break;
+    case 'build':
+      next.build = prereleaseTag || 'build.1';
+      break;
+  }
+
+  return next;
+}
+
+/**
+ * Compare two versions
+ */
+export function compareVersions(a: Version, b: Version): number {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  if (a.patch !== b.patch) return a.patch - b.patch;
+  
+  // Pre-release versions have lower precedence
+  if (a.prerelease && !b.prerelease) return -1;
+  if (!a.prerelease && b.prerelease) return 1;
+  if (a.prerelease && b.prerelease) {
+    return a.prerelease.localeCompare(b.prerelease);
+  }
+  
+  return 0;
+}
+
+/**
+ * Determine release type based on conventional commits
+ */
+export function determineReleaseType(changes: Change[]): ReleaseType {
+  // Breaking changes always trigger major
+  if (changes.some(c => c.type === 'breaking')) {
+    return 'major';
+  }
+  
+  // New features trigger minor
+  if (changes.some(c => c.type === 'feature')) {
+    return 'minor';
+  }
+  
+  return 'patch';
+}
+
+/**
+ * Generate changelog in markdown format
+ */
+export function generateChangelog(release: Release, options?: ChangelogOptions): string {
+  const lines: string[] = [];
+  const versionStr = formatVersion(release.version);
+  
+  lines.push(`## ${versionStr} (${new Date(release.createdAt).toISOString().split('T')[0]})`);
+  lines.push('');
+  
+  if (release.title) {
+    lines.push(`### ${release.title}`);
+    lines.push('');
+  }
+  
+  // Group changes by type
+  const grouped = groupChangesByType(release.changes, options?.types);
+  
+  const typeLabels: Record<Change['type'], string> = {
+    breaking: '⚠️ Breaking Changes',
+    feature: '🚀 Features',
+    fix: '🐛 Bug Fixes',
+    security: '🔒 Security',
+    performance: '⚡ Performance',
+    deprecation: '💀 Deprecations',
+    docs: '📝 Documentation',
+    refactor: '♻️ Refactoring',
+    test: '✅ Tests',
+    chore: '🔧 Chores',
+  };
+  
+  for (const [type, changes] of Object.entries(grouped)) {
+    if (changes.length === 0) continue;
+    
+    lines.push(`### ${typeLabels[type as Change['type']]}`);
+    lines.push('');
+    
+    for (const change of changes) {
+      let line = `- ${change.message}`;
+      
+      if (options?.prLinks && change.pr) {
+        line += ` (#${change.pr})`;
+      }
+      
+      if (options?.authors && change.author) {
+        line += ` - @${change.author}`;
+      }
+      
+      if (options?.includeCommitHash && change.pr) {
+        line += ` [${change.pr}]`;
+      }
+      
+      lines.push(line);
+    }
+    
+    lines.push('');
+  }
+  
+  return lines.join('\n').trim();
+}
+
+function groupChangesByType(changes: Change[], types?: Change['type'][]): Record<Change['type'], Change[]> {
+  const result: Record<Change['type'], Change[]> = {
+    breaking: [],
+    feature: [],
+    fix: [],
+    security: [],
+    performance: [],
+    deprecation: [],
+    docs: [],
+    refactor: [],
+    test: [],
+    chore: [],
+  };
+  
+  for (const change of changes) {
+    if (!types || types.includes(change.type)) {
+      result[change.type].push(change);
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Create a release object
+ */
+export function createRelease(
+  version: Version,
+  type: ReleaseType,
+  changes: Change[],
+  title?: string,
+  description?: string
+): Release {
+  return {
+    id: `rel_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    version,
+    type,
+    status: 'draft',
+    title: title || `${formatVersion(version)} Release`,
+    description: description || '',
+    createdAt: Date.now(),
+    changes,
+  };
+}
+
+/**
+ * Check if version satisfies a semver range
+ */
+export function satisfiesRange(version: Version, range: string): boolean {
+  // Simple implementation - in production use semver library
+  const operators: Record<string, (v: Version, constraint: Version) => boolean> = {
+    '=': (v, c) => compareVersions(v, c) === 0,
+    '>=': (v, c) => compareVersions(v, c) >= 0,
+    '<=': (v, c) => compareVersions(v, c) <= 0,
+    '>': (v, c) => compareVersions(v, c) > 0,
+    '<': (v, c) => compareVersions(v, c) < 0,
+  };
+  
+  const match = range.match(/^([<>=]+)?(\d+\.\d+\.\d+.*)$/);
+  if (!match) return true;
+  
+  const operator = operators[match[1] || '='];
+  const constraint = parseVersion(match[2]);
+  
+  return operator ? operator(version, constraint) : true;
 }
