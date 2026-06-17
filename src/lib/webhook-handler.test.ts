@@ -1,215 +1,215 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { webhookEngine, WebhookAutomationEngine, type WebhookEvent } from "./webhook-handler";
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  verifyWebhookSignature,
+  parseWebhookPayload,
+  createWebhookServer,
+  processWorkflowEvent,
+  formatWebhookNotification,
+} from './webhook-handler';
 
-describe("WebhookAutomationEngine", () => {
-  let engine: WebhookAutomationEngine;
-
-  beforeEach(() => {
-    engine = new WebhookAutomationEngine();
-  });
-
-  describe("addRule and removeRule", () => {
-    it("should add and retrieve rules", () => {
-      engine.addRule({
-        id: "test-rule",
-        name: "Test Rule",
-        trigger: "issue.opened",
-        conditions: [],
-        actions: [{ type: "add_label", value: "test" }],
-        enabled: true,
-      });
-      const rules = engine.getRules();
-      expect(rules).toHaveLength(1);
-      expect(rules[0].id).toBe("test-rule");
+describe('Webhook Handler', () => {
+  describe('verifyWebhookSignature', () => {
+    it('should return true when no secret is configured', () => {
+      const result = verifyWebhookSignature('payload', 'signature', '');
+      expect(result).toBe(true);
     });
 
-    it("should remove rules by id", () => {
-      engine.addRule({
-        id: "test-rule",
-        name: "Test Rule",
-        trigger: "issue.opened",
-        conditions: [],
-        actions: [{ type: "add_label", value: "test" }],
-        enabled: true,
-      });
-      engine.removeRule("test-rule");
-      expect(engine.getRules()).toHaveLength(0);
+    it('should verify correct signature', () => {
+      const crypto = require('crypto');
+      const secret = 'test-secret';
+      const payload = '{"test": "data"}';
+      const hmac = crypto.createHmac('sha256', secret);
+      const signature = 'sha256=' + hmac.update(payload).digest('hex');
+      
+      const result = verifyWebhookSignature(payload, signature, secret);
+      expect(result).toBe(true);
     });
   });
 
-  describe("evaluateRules", () => {
-    it("should trigger rules matching issue.opened", () => {
-      engine.addRule({
-        id: "label-bug",
-        name: "Label bugs",
-        trigger: "issue.opened",
-        conditions: [
-          { type: "title", operator: "contains", value: "bug" },
-        ],
-        actions: [{ type: "add_label", value: "bug" }],
-        enabled: true,
-      });
-
-      const event: WebhookEvent = {
-        action: "opened",
-        repository: { owner: "test", name: "repo", fullName: "test/repo" },
-        sender: { login: "user", type: "User" },
-        issue: {
-          number: 1,
-          title: "Bug: something is broken",
-          body: "Description",
-          state: "open",
-          labels: [],
-          assignees: [],
+  describe('parseWebhookPayload', () => {
+    it('should parse webhook payload correctly', () => {
+      const payload = {
+        action: 'opened',
+        sender: { login: 'testuser', id: 123, type: 'User' },
+        repository: {
+          id: 1,
+          name: 'test-repo',
+          full_name: 'org/test-repo',
+          owner: { login: 'org' },
         },
       };
 
-      const actions = engine.evaluateRules(event);
-      expect(actions.length).toBe(1);
-      expect(actions[0]).toContainEqual({ type: "add_label", value: "bug" });
-    });
+      const result = parseWebhookPayload('issues', payload);
 
-    it("should not trigger disabled rules", () => {
-      engine.addRule({
-        id: "test-rule",
-        name: "Test Rule",
-        trigger: "issue.opened",
-        conditions: [],
-        actions: [{ type: "add_label", value: "test" }],
-        enabled: false,
+      expect(result.event).toBe('issues');
+      expect(result.action).toBe('opened');
+      expect(result.sender).toBe('testuser');
+      expect(result.repository).toBe('org/test-repo');
+      expect(result.id).toBeDefined();
+    });
+  });
+
+  describe('createWebhookServer', () => {
+    it('should process events with registered handlers', async () => {
+      let handlerCalled = false;
+      const server = createWebhookServer({
+        handlers: [
+          {
+            event: 'push',
+            handler: async () => { handlerCalled = true; },
+          },
+        ],
       });
 
-      const event: WebhookEvent = {
-        action: "opened",
-        repository: { owner: "test", name: "repo", fullName: "test/repo" },
-        sender: { login: "user", type: "User" },
-        issue: {
-          number: 1,
-          title: "Test issue",
-          body: "",
-          state: "open",
-          labels: [],
-          assignees: [],
+      await server.process('push', {
+        sender: { login: 'user', id: 1, type: 'User' },
+        repository: {
+          id: 1,
+          name: 'repo',
+          full_name: 'user/repo',
+          owner: { login: 'user' },
+        },
+      });
+
+      expect(handlerCalled).toBe(true);
+    });
+
+    it('should return processed events', async () => {
+      const server = createWebhookServer({ handlers: [] });
+
+      await server.process('issues', {
+        action: 'opened',
+        sender: { login: 'user', id: 1, type: 'User' },
+        repository: {
+          id: 1,
+          name: 'repo',
+          full_name: 'user/repo',
+          owner: { login: 'user' },
+        },
+      });
+
+      const events = server.getEvents();
+      expect(events.length).toBe(1);
+      expect(events[0].event).toBe('issues');
+    });
+
+    it('should filter events by type', async () => {
+      const server = createWebhookServer({ handlers: [] });
+
+      await server.process('push', {
+        sender: { login: 'user', id: 1, type: 'User' },
+        repository: { id: 1, name: 'repo', full_name: 'user/repo', owner: { login: 'user' } },
+      });
+      await server.process('issues', {
+        sender: { login: 'user', id: 1, type: 'User' },
+        repository: { id: 1, name: 'repo', full_name: 'user/repo', owner: { login: 'user' } },
+      });
+
+      const pushEvents = server.getEventsByType('push');
+      expect(pushEvents.length).toBe(1);
+    });
+
+    it('should clear event history', async () => {
+      const server = createWebhookServer({ handlers: [] });
+
+      await server.process('push', {
+        sender: { login: 'user', id: 1, type: 'User' },
+        repository: { id: 1, name: 'repo', full_name: 'user/repo', owner: { login: 'user' } },
+      });
+
+      server.clearHistory();
+      expect(server.getEvents().length).toBe(0);
+    });
+  });
+
+  describe('processWorkflowEvent', () => {
+    it('should process workflow_run event', () => {
+      const payload = {
+        action: 'completed',
+        workflow: 'CI',
+        workflow_run: {
+          id: 123,
+          status: 'completed',
+          conclusion: 'success',
+          name: 'CI',
+        },
+        sender: { login: 'user', id: 1, type: 'User' },
+        repository: {
+          id: 1,
+          name: 'repo',
+          full_name: 'user/repo',
+          owner: { login: 'user' },
         },
       };
 
-      const actions = engine.evaluateRules(event);
-      expect(actions.length).toBe(0);
+      const result = processWorkflowEvent(payload);
+
+      expect(result).not.toBeNull();
+      expect(result!.workflow).toBe('CI');
+      expect(result!.run_id).toBe(123);
+      expect(result!.status).toBe('completed');
+      expect(result!.conclusion).toBe('success');
     });
 
-    it("should trigger PR rules", () => {
-      engine.addRule({
-        id: "label-enhancement",
-        name: "Label enhancements",
-        trigger: "pr.opened",
-        conditions: [
-          { type: "title", operator: "contains", value: "feat" },
-        ],
-        actions: [{ type: "add_label", value: "enhancement" }],
-        enabled: true,
-      });
-
-      const event: WebhookEvent = {
-        action: "opened",
-        repository: { owner: "test", name: "repo", fullName: "test/repo" },
-        sender: { login: "user", type: "User" },
-        pull_request: {
-          number: 1,
-          title: "feat: add new feature",
-          body: "",
-          state: "open",
-          merged: false,
-          labels: [],
+    it('should return null for non-workflow events', () => {
+      const payload = {
+        sender: { login: 'user', id: 1, type: 'User' },
+        repository: {
+          id: 1,
+          name: 'repo',
+          full_name: 'user/repo',
+          owner: { login: 'user' },
         },
       };
 
-      const actions = engine.evaluateRules(event);
-      expect(actions.length).toBe(1);
+      const result = processWorkflowEvent(payload);
+      expect(result).toBeNull();
     });
   });
 
-  describe("condition evaluation", () => {
-    it("should evaluate contains operator (case-insensitive)", () => {
-      engine.addRule({
-        id: "test",
-        name: "Test",
-        trigger: "issue.opened",
-        conditions: [
-          { type: "title", operator: "contains", value: "error" },
-        ],
-        actions: [{ type: "add_label", value: "bug" }],
-        enabled: true,
-      });
-
-      const matchingEvent: WebhookEvent = {
-        action: "opened",
-        repository: { owner: "test", name: "repo", fullName: "test/repo" },
-        sender: { login: "user", type: "User" },
-        issue: { number: 1, title: "This has an error", body: "", state: "open", labels: [], assignees: [] },
+  describe('formatWebhookNotification', () => {
+    it('should format push event notification', () => {
+      const event = {
+        id: '1',
+        event: 'push' as const,
+        sender: 'user',
+        repository: 'org/repo',
+        timestamp: new Date(),
+        data: {},
       };
 
-      const nonMatchingEvent: WebhookEvent = {
-        action: "opened",
-        repository: { owner: "test", name: "repo", fullName: "test/repo" },
-        sender: { login: "user", type: "User" },
-        issue: { number: 1, title: "This is fine", body: "", state: "open", labels: [], assignees: [] },
-      };
-
-      expect(engine.evaluateRules(matchingEvent).length).toBe(1);
-      expect(engine.evaluateRules(nonMatchingEvent).length).toBe(0);
+      const result = formatWebhookNotification(event);
+      expect(result).toContain('New push');
     });
 
-    it("should evaluate equals operator (case-insensitive)", () => {
-      engine.addRule({
-        id: "test",
-        name: "Test",
-        trigger: "issue.opened",
-        conditions: [
-          { type: "title", operator: "equals", value: "critical bug" },
-        ],
-        actions: [{ type: "add_label", value: "priority" }],
-        enabled: true,
-      });
-
-      // Both should match because comparison is case-insensitive
-      const event1: WebhookEvent = {
-        action: "opened",
-        repository: { owner: "test", name: "repo", fullName: "test/repo" },
-        sender: { login: "user", type: "User" },
-        issue: { number: 1, title: "critical bug", body: "", state: "open", labels: [], assignees: [] },
+    it('should format PR event notification', () => {
+      const event = {
+        id: '1',
+        event: 'pull_request' as const,
+        action: 'opened',
+        sender: 'user',
+        repository: 'org/repo',
+        timestamp: new Date(),
+        data: {},
       };
 
-      const event2: WebhookEvent = {
-        action: "opened",
-        repository: { owner: "test", name: "repo", fullName: "test/repo" },
-        sender: { login: "user", type: "User" },
-        issue: { number: 1, title: "Critical Bug", body: "", state: "open", labels: [], assignees: [] },
-      };
-
-      expect(engine.evaluateRules(event1).length).toBe(1);
-      expect(engine.evaluateRules(event2).length).toBe(1);
+      const result = formatWebhookNotification(event);
+      expect(result).toContain('PR opened');
     });
-  });
-});
 
-describe("default webhookEngine", () => {
-  it("should have default rules configured", () => {
-    const rules = webhookEngine.getRules();
-    expect(rules.length).toBeGreaterThan(0);
-  });
+    it('should format release event notification', () => {
+      const event = {
+        id: '1',
+        event: 'release' as const,
+        action: 'published',
+        sender: 'user',
+        repository: 'org/repo',
+        timestamp: new Date(),
+        data: {},
+      };
 
-  it("should auto-label bug reports", () => {
-    const event: WebhookEvent = {
-      action: "opened",
-      repository: { owner: "test", name: "repo", fullName: "test/repo" },
-      sender: { login: "user", type: "User" },
-      issue: { number: 1, title: "Bug in login", body: "", state: "open", labels: [], assignees: [] },
-    };
-    
-    const actions = webhookEngine.evaluateRules(event);
-    const hasBugLabel = actions.some((actionList) => 
-      actionList.some((action) => action.type === "add_label" && action.value === "bug")
-    );
-    expect(hasBugLabel).toBe(true);
+      const result = formatWebhookNotification(event);
+      expect(result).toContain('Release published');
+    });
   });
 });
