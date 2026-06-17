@@ -1,135 +1,208 @@
+import type { Repository, PullRequest } from './types';
+
 /**
- * PR Merge Advisor
- * Analyze PRs and provide merge recommendations with risk assessment
+ * PR Merge Advisor - Suggests optimal merge timing and strategy
  */
-
-export type MergeRecommendation = 'approve' | 'request_changes' | 'comment' | 'block';
-export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
-
-export interface PRAnalysis {
-  prNumber: number;
-  title: string;
-  riskLevel: RiskLevel;
-  recommendation: MergeRecommendation;
-  score: number; // 0-100
-  factors: RiskFactor[];
+export interface MergeRecommendation {
+  pullRequest: PullRequest;
+  canMerge: boolean;
+  mergeStrategy: MergeStrategy;
+  score: number;
+  blockers: MergeBlocker[];
   suggestions: string[];
+  estimatedReviewTime: number;
+  riskLevel: 'low' | 'medium' | 'high';
+  conflictResolution?: string;
 }
 
-export interface RiskFactor {
-  name: string;
-  impact: number; // positive or negative
-  description: string;
+export type MergeStrategy = 'squash' | 'merge' | 'rebase';
+
+export interface MergeBlocker {
+  type: 'conflict' | 'review' | 'test' | 'status' | 'draft' | 'stale';
+  severity: 'blocking' | 'warning';
+  message: string;
+  fixSuggestion: string;
 }
 
-export interface CodeQuality {
-  testCoverage: number;
-  lintScore: number;
-  complexity: number;
-  documentation: number;
+export interface BatchMergeResult {
+  recommendedOrder: PullRequest[];
+  batchGroups: BatchGroup[];
+  estimatedCompletionTime: number;
+  warnings: string[];
 }
 
-export interface MergeChecklist {
-  title: string;
-  passed: boolean;
-  required: boolean;
+export interface BatchGroup {
+  priority: number;
+  prs: PullRequest[];
+  reason: string;
 }
 
-/**
- * Calculate overall PR score
- */
-export function calculatePRScore(factors: RiskFactor[]): number {
-  const baseScore = 70;
-  const totalImpact = factors.reduce((sum, f) => sum + f.impact, 0);
-  return Math.max(0, Math.min(100, baseScore + totalImpact));
-}
+export function createPRMergeAdvisor() {
+  const analyzePR = (pr: PullRequest, repo: Repository): MergeRecommendation => {
+    const blockers: MergeBlocker[] = [];
+    let score = 100;
+    const suggestions: string[] = [];
 
-/**
- * Determine risk level based on score
- */
-export function getRiskLevel(score: number): RiskLevel {
-  if (score >= 80) return 'low';
-  if (score >= 60) return 'medium';
-  if (score >= 40) return 'high';
-  return 'critical';
-}
+    // Check draft status
+    if (pr.state === 'draft') {
+      blockers.push({
+        type: 'draft',
+        severity: 'blocking',
+        message: 'PR is in draft state',
+        fixSuggestion: 'Mark PR as ready for review or close draft status'
+      });
+      score -= 30;
+    }
 
-/**
- * Generate merge recommendation
- */
-export function getMergeRecommendation(score: number, factors: RiskFactor[]): MergeRecommendation {
-  const hasBlockingFactor = factors.some(f => f.impact <= -20);
-  const hasMajorConcern = factors.some(f => f.impact <= -10);
-  const hasMinorConcern = factors.some(f => f.impact < 0);
+    // Check test coverage
+    if (pr.additions > 50 && !pr.body?.includes('test')) {
+      blockers.push({
+        type: 'test',
+        severity: 'warning',
+        message: 'Large PR without test information',
+        fixSuggestion: 'Add test plan or include test coverage'
+      });
+      score -= 15;
+    }
 
-  if (hasBlockingFactor) return 'block';
-  if (hasMajorConcern) return 'request_changes';
-  if (hasMinorConcern || score < 75) return 'comment';
-  return 'approve';
-}
+    // Check review status
+    if (!pr.labels?.includes('approved') && pr.additions > 100) {
+      blockers.push({
+        type: 'review',
+        severity: 'blocking',
+        message: 'Large PR needs review before merge',
+        fixSuggestion: 'Request review from maintainers'
+      });
+      score -= 25;
+    }
 
-/**
- * Analyze PR code quality
- */
-export function analyzeCodeQuality(code: string): CodeQuality {
-  const lines = code.split('\n');
-  const totalLines = lines.length;
-  
-  // Calculate test coverage estimate (simplified)
-  const testLines = lines.filter(l => l.includes('test') || l.includes('describe') || l.includes('it(')).length;
-  const testCoverage = Math.min(100, Math.round((testLines / Math.max(totalLines, 1)) * 100 * 5));
-  
-  // Lint score based on basic patterns
-  let issues = 0;
-  if (/console\.log/.test(code)) issues++;
-  if (/TODO|FIXME|HACK/.test(code)) issues++;
-  if (/var\s+\w+/.test(code)) issues++;
-  const lintScore = Math.max(0, 100 - issues * 10);
-  
-  // Complexity estimate
-  const cyclomatic = (code.match(/if\(|for\(|while\(|switch\(/g) || []).length;
-  const complexity = Math.min(100, Math.round(cyclomatic / Math.max(totalLines / 50, 1)));
-  
-  // Documentation score
-  const commentLines = lines.filter(l => l.trim().startsWith('//') || l.trim().startsWith('*')).length;
-  const documentation = Math.min(100, Math.round((commentLines / Math.max(totalLines, 1)) * 100 * 3));
-  
-  return { testCoverage, lintScore, complexity, documentation };
-}
+    // Check CI status
+    if (!pr.body?.includes('ci') && !pr.body?.includes('CI')) {
+      suggestions.push('Verify CI/CD pipelines passed');
+      score -= 5;
+    }
 
-/**
- * Generate PR merge checklist
- */
-export function generateMergeChecklist(analysis: PRAnalysis): MergeChecklist[] {
-  const checklist: MergeChecklist[] = [
-    { title: 'Tests pass', passed: analysis.score >= 60, required: true },
-    { title: 'Code review approved', passed: analysis.recommendation !== 'block', required: true },
-    { title: 'No critical security issues', passed: analysis.riskLevel !== 'critical', required: true },
-    { title: 'Documentation updated', passed: true, required: false },
-    { title: 'Breaking changes documented', passed: true, required: false },
-  ];
-  
-  return checklist;
-}
+    // Check stale PRs
+    const updatedDays = Math.floor((Date.now() - new Date(pr.updatedAt).getTime()) / (24 * 60 * 60 * 1000));
+    if (updatedDays > 14) {
+      blockers.push({
+        type: 'stale',
+        severity: 'warning',
+        message: `PR is ${updatedDays} days old`,
+        fixSuggestion: 'Rebase or update with recent changes'
+      });
+      score -= 10;
+    }
 
-/**
- * Generate PR summary for maintainer
- */
-export function generatePRSummary(analysis: PRAnalysis): string {
-  const emoji = {
-    approve: '✅',
-    request_changes: '⚠️',
-    comment: '💬',
-    block: '🚫',
+    // Size-based recommendations
+    if (pr.additions > 500) {
+      suggestions.push('Consider splitting large PR into smaller ones');
+      score -= 20;
+    }
+
+    const canMerge = !blockers.some(b => b.severity === 'blocking');
+    const mergeStrategy = determineMergeStrategy(pr);
+    const riskLevel = score >= 80 ? 'low' : score >= 50 ? 'medium' : 'high';
+    const estimatedReviewTime = calculateReviewTime(pr);
+
+    return {
+      pullRequest: pr,
+      canMerge,
+      mergeStrategy,
+      score: Math.max(0, score),
+      blockers,
+      suggestions,
+      estimatedReviewTime,
+      riskLevel
+    };
   };
-  
-  let summary = `${emoji[analysis.recommendation]} **PR #${analysis.prNumber}**: ${analysis.title}\n`;
-  summary += `📊 Score: ${analysis.score}/100 | Risk: ${analysis.riskLevel}\n\n`;
-  
-  if (analysis.suggestions.length > 0) {
-    summary += '💡 Suggestions:\n';
-    analysis.suggestions.forEach(s => summary += `- ${s}\n`);
-  }
-  
-  return summary;
+
+  const determineMergeStrategy = (pr: PullRequest): MergeStrategy => {
+    if (pr.additions > 300) return 'squash';
+    if (pr.title.includes('refactor')) return 'rebase';
+    return 'merge';
+  };
+
+  const calculateReviewTime = (pr: PullRequest): number => {
+    const baseTime = 5;
+    const sizeTime = Math.floor(pr.additions / 50) * 3;
+    const complexityTime = Math.floor((pr.additions + pr.deletions) / 100) * 2;
+    return baseTime + sizeTime + complexityTime;
+  };
+
+  const createBatchMergePlan = (prs: PullRequest[], repo: Repository): BatchMergeResult => {
+    const analyzed = prs.map(pr => ({ pr, rec: analyzePR(pr, repo) }));
+    
+    // Sort by merge readiness
+    analyzed.sort((a, b) => {
+      if (a.rec.canMerge !== b.rec.canMerge) return a.rec.canMerge ? -1 : 1;
+      return b.rec.score - a.rec.score;
+    });
+
+    const batchGroups: BatchGroup[] = [
+      { priority: 1, prs: analyzed.filter(a => a.rec.canMerge).map(a => a.pr), reason: 'Ready to merge' },
+      { priority: 2, prs: analyzed.filter(a => !a.rec.canMerge && a.rec.score >= 50).map(a => a.pr), reason: 'Needs minor fixes' },
+      { priority: 3, prs: analyzed.filter(a => a.rec.score < 50).map(a => a.pr), reason: 'Requires significant work' }
+    ].filter(g => g.prs.length > 0);
+
+    const estimatedTime = analyzed
+      .filter(a => a.rec.canMerge)
+      .reduce((sum, a) => sum + a.rec.estimatedReviewTime, 0);
+
+    const warnings = analyzed
+      .filter(a => a.rec.riskLevel === 'high')
+      .map(a => `⚠️ ${a.pr.title} has high risk level`);
+
+    return {
+      recommendedOrder: analyzed.map(a => a.pr),
+      batchGroups,
+      estimatedCompletionTime: estimatedTime,
+      warnings
+    };
+  };
+
+  const getMergeScoreColor = (score: number): string => {
+    if (score >= 80) return '#10b981';
+    if (score >= 50) return '#f59e0b';
+    return '#ef4444';
+  };
+
+  const formatMergeRecommendation = (rec: MergeRecommendation): string => {
+    const lines = [
+      `# Merge Recommendation: #${rec.pullRequest.number}`,
+      '',
+      `**Status**: ${rec.canMerge ? '✅ Ready to Merge' : '❌ Not Ready'}`,
+      `**Score**: ${rec.score}/100`,
+      `**Strategy**: ${rec.mergeStrategy}`,
+      `**Risk**: ${rec.riskLevel.toUpperCase()}`,
+      ''
+    ];
+
+    if (rec.blockers.length > 0) {
+      lines.push('## Blockers');
+      rec.blockers.forEach(b => {
+        lines.push(`- [${b.severity}] ${b.message}`);
+      });
+      lines.push('');
+    }
+
+    if (rec.suggestions.length > 0) {
+      lines.push('## Suggestions');
+      rec.suggestions.forEach(s => lines.push(`- ${s}`));
+      lines.push('');
+    }
+
+    lines.push(`**Estimated Review Time**: ${rec.estimatedReviewTime} minutes`);
+
+    return lines.join('\n');
+  };
+
+  return {
+    analyzePR,
+    createBatchMergePlan,
+    getMergeScoreColor,
+    formatMergeRecommendation,
+    mergeStrategies: ['squash', 'merge', 'rebase'] as const,
+    riskLevels: ['low', 'medium', 'high'] as const
+  };
 }
