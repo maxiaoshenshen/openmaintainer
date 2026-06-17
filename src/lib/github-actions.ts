@@ -1,175 +1,149 @@
-// GitHub Actions Integration
-export interface WorkflowRun {
-  id: number;
+/**
+ * GitHub Actions - Automate CI/CD workflows
+ */
+
+export interface WorkflowConfig {
   name: string;
-  status: "queued" | "in_progress" | "completed";
-  conclusion: "success" | "failure" | "cancelled" | "skipped" | null;
-  created_at: string;
-  updated_at: string;
-  html_url: string;
-  head_branch: string;
-  run_number: number;
-  event: string;
-  actor: {
-    login: string;
-    avatar_url: string;
-  };
-  jobs?: WorkflowJob[];
+  on: string | string[] | { [key: string]: any };
+  jobs: JobConfig[];
 }
 
-export interface WorkflowJob {
-  id: number;
+export interface JobConfig {
   name: string;
-  status: "queued" | "in_progress" | "completed";
-  conclusion: "success" | "failure" | "cancelled" | null;
-  started_at: string | null;
-  completed_at: string | null;
-  steps?: WorkflowStep[];
+  runsOn: string;
+  steps: StepConfig[];
+  needs?: string[];
+  if?: string;
 }
 
-export interface WorkflowStep {
+export interface StepConfig {
   name: string;
-  status: "queued" | "in_progress" | "completed";
-  conclusion: "success" | "failure" | "skipped" | null;
-  number: number;
+  uses?: string;
+  run?: string;
+  with?: Record<string, string>;
+  env?: Record<string, string>;
+  if?: string;
 }
 
-export interface ActionsSummary {
-  totalRuns: number;
-  successRate: number;
-  averageDuration: number;
-  recentRuns: WorkflowRun[];
-  mostFailingWorkflow: string | null;
-  lastSuccessDate: string | null;
-}
+export type WorkflowType = 'node' | 'python' | 'docker' | 'security' | 'release' | 'custom';
 
-export function getWorkflowStatusColor(status: WorkflowRun["status"]): string {
-  switch (status) {
-    case "completed":
-      return "text-green-500";
-    case "in_progress":
-      return "text-yellow-500";
-    case "queued":
-      return "text-gray-400";
-    default:
-      return "text-gray-400";
-  }
-}
-
-export function getConclusionColor(conclusion: WorkflowRun["conclusion"]): string {
-  switch (conclusion) {
-    case "success":
-      return "text-green-500 bg-green-500/10";
-    case "failure":
-      return "text-red-500 bg-red-500/10";
-    case "cancelled":
-      return "text-gray-500 bg-gray-500/10";
-    case "skipped":
-      return "text-gray-400 bg-gray-400/10";
-    default:
-      return "text-gray-400 bg-gray-400/10";
-  }
-}
-
-export function formatDuration(startTime: string, endTime: string | null): string {
-  const start = new Date(startTime).getTime();
-  const end = endTime ? new Date(endTime).getTime() : Date.now();
-  const durationMs = end - start;
-  
-  const minutes = Math.floor(durationMs / 60000);
-  const seconds = Math.floor((durationMs % 60000) / 1000);
-  
-  if (minutes > 0) {
-    return `${minutes}m ${seconds}s`;
-  }
-  return `${seconds}s`;
-}
-
-export function calculateActionsSummary(runs: WorkflowRun[]): ActionsSummary {
-  if (runs.length === 0) {
-    return {
-      totalRuns: 0,
-      successRate: 0,
-      averageDuration: 0,
-      recentRuns: [],
-      mostFailingWorkflow: null,
-      lastSuccessDate: null,
-    };
-  }
-
-  const completedRuns = runs.filter(r => r.conclusion !== null);
-  const successfulRuns = runs.filter(r => r.conclusion === "success");
-  const successRate = completedRuns.length > 0 
-    ? (successfulRuns.length / completedRuns.length) * 100 
-    : 0;
-
-  // Calculate average duration
-  let totalDuration = 0;
-  let durationCount = 0;
-  runs.forEach(run => {
-    if (run.conclusion !== null) {
-      const duration = new Date(run.updatedAt).getTime() - new Date(run.createdAt).getTime();
-      totalDuration += duration;
-      durationCount++;
-    }
-  });
-  const averageDuration = durationCount > 0 ? totalDuration / durationCount : 0;
-
-  // Find most failing workflow
-  const failureCount: Record<string, number> = {};
-  runs.forEach(run => {
-    if (run.conclusion === "failure") {
-      failureCount[run.name] = (failureCount[run.name] || 0) + 1;
-    }
-  });
-  let mostFailingWorkflow: string | null = null;
-  let maxFailures = 0;
-  Object.entries(failureCount).forEach(([name, count]) => {
-    if (count > maxFailures) {
-      maxFailures = count;
-      mostFailingWorkflow = name;
-    }
-  });
-
-  // Find last success date
-  const lastSuccess = runs
-    .filter(r => r.conclusion === "success")
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-
+/**
+ * Generate Node.js CI workflow
+ */
+export function generateNodeCIWorkflow(nodeVersion = '20.x'): WorkflowConfig {
   return {
-    totalRuns: runs.length,
-    successRate: Math.round(successRate),
-    averageDuration: Math.round(averageDuration / 1000),
-    recentRuns: runs.slice(0, 10),
-    mostFailingWorkflow,
-    lastSuccessDate: lastSuccess?.updatedAt || null,
+    name: 'Node.js CI',
+    on: ['push', 'pull_request'],
+    jobs: [{
+      name: 'Test',
+      runsOn: 'ubuntu-latest',
+      steps: [
+        { name: 'Checkout', uses: 'actions/checkout@v4' },
+        { name: 'Setup Node', uses: 'actions/setup-node@v4', with: { 'node-version': nodeVersion } },
+        { name: 'Cache dependencies', uses: 'actions/cache@v4', with: { path: '~/.npm', key: 'npm-${{ hashFiles(\'**/package-lock.json\') }}' } },
+        { name: 'Install', run: 'npm ci' },
+        { name: 'Lint', run: 'npm run lint' },
+        { name: 'Test', run: 'npm test' },
+        { name: 'Build', run: 'npm run build' }
+      ]
+    }]
   };
 }
 
-// Mock data for demo mode
-export function generateMockWorkflowRuns(): WorkflowRun[] {
-  const workflows = ["CI", "CD", "Lint", "Test", "Build"];
-  const statuses: WorkflowRun["status"][] = ["completed", "completed", "completed", "in_progress", "queued"];
-  const conclusions: WorkflowRun["conclusion"][] = ["success", "success", "failure", null, null];
-  const branches = ["main", "feature/new-ui", "fix/bug-123", "main", "main"];
-  const events = ["push", "pull_request", "push", "push", "schedule"];
+/**
+ * Generate Docker workflow
+ */
+export function generateDockerWorkflow(imageName: string): WorkflowConfig {
+  return {
+    name: 'Docker',
+    on: { push: { branches: ['main'] }, pull_request: { branches: ['main'] } },
+    jobs: [{
+      name: 'Build and Push',
+      runsOn: 'ubuntu-latest',
+      steps: [
+        { name: 'Checkout', uses: 'actions/checkout@v4' },
+        { name: 'Set up Docker Buildx', uses: 'docker/setup-buildx-action@v3' },
+        { name: 'Login to Docker Hub', uses: 'docker/login-action@v3', if: 'github.event_name != "pull_request"', with: { username: '${{ secrets.DOCKER_USERNAME }}', password: '${{ secrets.DOCKER_TOKEN }}' } },
+        { name: 'Build and push', uses: 'docker/build-push-action@v5', with: { context: '.', push: 'github.event_name != "pull_request"', tags: imageName + ':latest,' + imageName + ':${{ github.sha }}' } }
+      ]
+    }]
+  };
+}
 
-  return workflows.map((name, i) => ({
-    id: 10000000 + i,
-    name,
-    status: statuses[i],
-    conclusion: conclusions[i],
-    created_at: new Date(Date.now() - (i + 1) * 3600000).toISOString(),
-    updated_at: statuses[i] === "in_progress" 
-      ? new Date().toISOString() 
-      : new Date(Date.now() - i * 1800000).toISOString(),
-    html_url: `https://github.com/example/repo/actions/runs/${10000000 + i}`,
-    head_branch: branches[i],
-    run_number: 100 + i,
-    event: events[i],
-    actor: {
-      login: "maintainer",
-      avatar_url: "https://avatars.githubusercontent.com/u/1234567",
-    },
-  }));
+/**
+ * Generate Security scanning workflow
+ */
+export function generateSecurityWorkflow(): WorkflowConfig {
+  return {
+    name: 'Security',
+    on: { schedule: [{ cron: '0 0 * * 0' }], push: { branches: ['main'] } },
+    jobs: [{
+      name: 'Security Scan',
+      runsOn: 'ubuntu-latest',
+      steps: [
+        { name: 'Checkout', uses: 'actions/checkout@v4' },
+        { name: 'Run Trivy', uses: 'aquasecurity/trivy-action@master', with: { 'scan-type': 'fs', 'exit-code': '1', severity: 'CRITICAL' } }
+      ]
+    }]
+  };
+}
+
+/**
+ * Generate Release workflow
+ */
+export function generateReleaseWorkflow(): WorkflowConfig {
+  return {
+    name: 'Release',
+    on: { push: { tags: ['v*'] } },
+    jobs: [{
+      name: 'Create Release',
+      runsOn: 'ubuntu-latest',
+      steps: [
+        { name: 'Checkout', uses: 'actions/checkout@v4' },
+        { name: 'Create Release', uses: 'actions/create-release@v1', env: { GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }, with: { 'tag_name': '${{ github.ref }}', 'release_name': 'Release ${{ github.ref }}' } }
+      ]
+    }]
+  };
+}
+
+/**
+ * Generate workflow YAML
+ */
+export function generateWorkflowYAML(config: WorkflowConfig): string {
+  let yaml = `name: ${config.name}\n\n`;
+  yaml += `on: ${JSON.stringify(config.on)}\n\n`;
+  yaml += `jobs:\n`;
+  config.jobs.forEach(job => {
+    yaml += `  ${job.name}:\n`;
+    yaml += `    runs-on: ${job.runsOn}\n`;
+    if (job.needs) yaml += `    needs: [${job.needs.join(', ')}]\n`;
+    if (job.if) yaml += `    if: ${job.if}\n`;
+    yaml += `    steps:\n`;
+    job.steps.forEach(step => {
+      yaml += `      - name: ${step.name}\n`;
+      if (step.uses) yaml += `        uses: ${step.uses}\n`;
+      if (step.run) yaml += `        run: |\n          ${step.run.split('\n').join('\n          ')}\n`;
+      if (step.with) yaml += `        with: ${JSON.stringify(step.with)}\n`;
+      if (step.env) yaml += `        env: ${JSON.stringify(step.env)}\n`;
+    });
+  });
+  return yaml;
+}
+
+/**
+ * Generate workflow for type
+ */
+export function generateWorkflow(type: WorkflowType, options?: { imageName?: string; nodeVersion?: string }): WorkflowConfig {
+  switch (type) {
+    case 'node':
+      return generateNodeCIWorkflow(options?.nodeVersion || '20.x');
+    case 'docker':
+      return generateDockerWorkflow(options?.imageName || 'myapp');
+    case 'security':
+      return generateSecurityWorkflow();
+    case 'release':
+      return generateReleaseWorkflow();
+    default:
+      return generateNodeCIWorkflow();
+  }
 }

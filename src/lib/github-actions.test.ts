@@ -1,61 +1,65 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from 'vitest';
 import {
-  calculateActionsSummary,
-  getConclusionColor,
-  getWorkflowStatusColor,
-  formatDuration,
-  generateMockWorkflowRuns,
-} from "./github-actions";
+  generateNodeCIWorkflow,
+  generateDockerWorkflow,
+  generateSecurityWorkflow,
+  generateReleaseWorkflow,
+  generateWorkflowYAML,
+  generateWorkflow
+} from './github-actions';
 
-describe("github-actions", () => {
-  describe("calculateActionsSummary", () => {
-    it("should calculate summary for empty runs", () => {
-      const summary = calculateActionsSummary([]);
-      expect(summary.totalRuns).toBe(0);
-      expect(summary.successRate).toBe(0);
+describe('github-actions', () => {
+  describe('generateNodeCIWorkflow', () => {
+    it('should generate Node.js workflow', () => {
+      const workflow = generateNodeCIWorkflow('18.x');
+      expect(workflow.name).toBe('Node.js CI');
+      expect(workflow.jobs).toHaveLength(1);
+      expect(workflow.jobs[0].runsOn).toBe('ubuntu-latest');
     });
 
-    it("should calculate success rate correctly", () => {
-      const runs = [
-        { ...generateMockWorkflowRuns()[0], conclusion: "success" },
-        { ...generateMockWorkflowRuns()[1], conclusion: "success" },
-        { ...generateMockWorkflowRuns()[2], conclusion: "failure" },
-      ] as unknown[];
-      const summary = calculateActionsSummary(runs);
-      expect(summary.totalRuns).toBe(3);
-      expect(summary.successRate).toBe(67); // 2/3 ≈ 67%
-    });
-
-    it("should find most failing workflow", () => {
-      const runs = [
-        { ...generateMockWorkflowRuns()[0], conclusion: "failure", name: "CI" },
-        { ...generateMockWorkflowRuns()[1], conclusion: "failure", name: "CI" },
-        { ...generateMockWorkflowRuns()[2], conclusion: "failure", name: "Test" },
-      ] as unknown[];
-      const summary = calculateActionsSummary(runs);
-      expect(summary.mostFailingWorkflow).toBe("CI");
+    it('should include test steps', () => {
+      const workflow = generateNodeCIWorkflow();
+      const testStep = workflow.jobs[0].steps.find(s => s.name === 'Test');
+      expect(testStep).toBeTruthy();
     });
   });
 
-  describe("getConclusionColor", () => {
-    it("should return correct colors for each conclusion", () => {
-      expect(getConclusionColor("success")).toContain("green");
-      expect(getConclusionColor("failure")).toContain("red");
-      expect(getConclusionColor("cancelled")).toContain("gray");
+  describe('generateDockerWorkflow', () => {
+    it('should generate Docker workflow', () => {
+      const workflow = generateDockerWorkflow('myimage');
+      expect(workflow.name).toBe('Docker');
+      expect(workflow.jobs[0].steps.some(s => s.uses?.includes('docker'))).toBe(true);
     });
   });
 
-  describe("formatDuration", () => {
-    it("should format duration correctly", () => {
-      const start = "2024-01-01T10:00:00Z";
-      const end = "2024-01-01T10:02:30Z";
-      expect(formatDuration(start, end)).toBe("2m 30s");
+  describe('generateSecurityWorkflow', () => {
+    it('should generate security workflow', () => {
+      const workflow = generateSecurityWorkflow();
+      expect(workflow.name).toBe('Security');
+      expect(workflow.jobs[0].steps.some(s => s.uses?.includes('trivy'))).toBe(true);
     });
+  });
 
-    it("should handle seconds only", () => {
-      const start = "2024-01-01T10:00:00Z";
-      const end = "2024-01-01T10:00:45Z";
-      expect(formatDuration(start, end)).toBe("45s");
+  describe('generateWorkflowYAML', () => {
+    it('should generate valid YAML', () => {
+      const workflow = generateNodeCIWorkflow();
+      const yaml = generateWorkflowYAML(workflow);
+      expect(yaml).toContain('name: Node.js CI');
+      expect(yaml).toContain('on:');
+      expect(yaml).toContain('jobs:');
+    });
+  });
+
+  describe('generateWorkflow', () => {
+    it('should generate workflow by type', () => {
+      const node = generateWorkflow('node');
+      expect(node.name).toBe('Node.js CI');
+
+      const docker = generateWorkflow('docker', { imageName: 'test' });
+      expect(docker.name).toBe('Docker');
+
+      const security = generateWorkflow('security');
+      expect(security.name).toBe('Security');
     });
   });
 });

@@ -1,41 +1,58 @@
 import { describe, it, expect } from 'vitest';
-import { 
-  parseCommits,
+import {
+  parseCommit,
+  groupCommitsByType,
+  generateMarkdownChangelog,
   generateChangelog,
-  suggestVersion,
-  bumpVersion,
-  parseChangelog,
-  validateChangelog
+  getChangelogStats
 } from './changelog-generator';
 
-describe('Changelog Generator', () => {
-  const mockCommits = [
-    { message: 'feat: add new feature' },
-    { message: 'fix: fix a bug' },
-    { message: 'docs: update documentation' },
-    { message: 'perf: improve performance' },
-    { message: 'BREAKING: breaking change' }
-  ];
-
-  describe('parseCommits', () => {
-    it('should categorize commits correctly', () => {
-      const changes = parseCommits(mockCommits);
-      
-      expect(changes.features).toContain('add new feature');
-      expect(changes.bugfixes).toContain('fix a bug');
-      expect(changes.documentation).toContain('update documentation');
-      expect(changes.performance).toContain('improve performance');
-      expect(changes.breaking).toContain('breaking change');
+describe('changelog-generator', () => {
+  describe('parseCommit', () => {
+    it('should parse feat commit', () => {
+      const commit = {
+        hash: 'abc123',
+        message: 'feat(auth): add login',
+        author: 'test@example.com',
+        date: new Date()
+      };
+      const parsed = parseCommit(commit);
+      expect(parsed.type).toBe('feat');
+      expect(parsed.scope).toBe('auth');
     });
 
-    it('should handle scoped commits', () => {
-      const scopedCommits = [
-        { message: 'feat(auth): add login feature' }
+    it('should parse fix commit', () => {
+      const commit = {
+        hash: 'def456',
+        message: 'fix: resolve bug',
+        author: 'test@example.com',
+        date: new Date()
+      };
+      const parsed = parseCommit(commit);
+      expect(parsed.type).toBe('fix');
+    });
+
+    it('should detect breaking changes', () => {
+      const commit = {
+        hash: 'ghi789',
+        message: 'feat!: breaking change',
+        author: 'test@example.com',
+        date: new Date()
+      };
+      const parsed = parseCommit(commit);
+      expect(parsed.breaking).toBe(true);
+    });
+  });
+
+  describe('groupCommitsByType', () => {
+    it('should group commits correctly', () => {
+      const commits = [
+        { hash: '1', message: 'feat: new feature', author: 'a', date: new Date(), type: 'feat' as const },
+        { hash: '2', message: 'fix: bug fix', author: 'b', date: new Date(), type: 'fix' as const }
       ];
-      
-      const changes = parseCommits(scopedCommits);
-      
-      expect(changes.features![0]).toContain('**auth:**');
+      const grouped = groupCommitsByType(commits);
+      expect(grouped.added.length).toBeGreaterThan(0);
+      expect(grouped.fixed.length).toBeGreaterThan(0);
     });
   });
 
@@ -43,88 +60,38 @@ describe('Changelog Generator', () => {
     it('should generate markdown changelog', () => {
       const entries = [{
         version: '1.0.0',
-        date: '2024-01-01',
-        type: 'major' as const,
-        changes: parseCommits(mockCommits),
-        contributors: ['@developer']
+        date: new Date('2024-01-01'),
+        changes: { added: ['Feature 1'], changed: [], deprecated: [], removed: [], fixed: [], security: [] },
+        breaking: []
       }];
-      
-      const md = generateChangelog(entries);
-      
-      expect(md).toContain('# Changelog');
-      expect(md).toContain('## [1.0.0]');
-      expect(md).toContain('add new feature');
+      const changelog = generateChangelog(entries, { format: 'conventionalcommits', includeBreaking: true });
+      expect(changelog).toContain('# Changelog');
+      expect(changelog).toContain('1.0.0');
+    });
+
+    it('should generate JSON format', () => {
+      const entries = [{
+        version: '1.0.0',
+        date: new Date(),
+        changes: { added: [], changed: [], deprecated: [], removed: [], fixed: [], security: [] },
+        breaking: []
+      }];
+      const changelog = generateChangelog(entries, { format: 'json', includeBreaking: true });
+      expect(() => JSON.parse(changelog)).not.toThrow();
     });
   });
 
-  describe('suggestVersion', () => {
-    it('should suggest major for breaking changes', () => {
-      const changes = { breaking: ['change'], features: [] };
-      expect(suggestVersion('1.0.0', changes)).toBe('major');
-    });
-
-    it('should suggest minor for new features', () => {
-      const changes = { breaking: [], features: ['new'] };
-      expect(suggestVersion('1.0.0', changes)).toBe('minor');
-    });
-
-    it('should suggest patch for bugfixes only', () => {
-      const changes = { breaking: [], features: [], bugfixes: ['fix'] };
-      expect(suggestVersion('1.0.0', changes)).toBe('patch');
-    });
-  });
-
-  describe('bumpVersion', () => {
-    it('should bump major version', () => {
-      expect(bumpVersion('1.2.3', 'major')).toBe('2.0.0');
-    });
-
-    it('should bump minor version', () => {
-      expect(bumpVersion('1.2.3', 'minor')).toBe('1.3.0');
-    });
-
-    it('should bump patch version', () => {
-      expect(bumpVersion('1.2.3', 'patch')).toBe('1.2.4');
-    });
-  });
-
-  describe('parseChangelog', () => {
-    it('should parse existing changelog', () => {
-      const content = `# Changelog
-
-## [1.0.0] - 2024-01-01
-
-### Features
-
-- new feature
-`;
-      
-      const entries = parseChangelog(content);
-      
-      expect(entries.length).toBeGreaterThan(0);
-      expect(entries[0].version).toBe('1.0.0');
-    });
-  });
-
-  describe('validateChangelog', () => {
-    it('should validate proper changelog', () => {
-      const content = `# Changelog
-
-## [1.0.0] - 2024-01-01
-
-- change
-`;
-      
-      const result = validateChangelog(content);
-      
-      expect(result.valid).toBe(true);
-    });
-
-    it('should reject invalid changelog', () => {
-      const result = validateChangelog('invalid content');
-      
-      expect(result.valid).toBe(false);
-      expect(result.errors.length).toBeGreaterThan(0);
+  describe('getChangelogStats', () => {
+    it('should calculate statistics', () => {
+      const commits = [
+        { hash: '1', message: 'feat: one', author: 'a', date: new Date(), type: 'feat' as const, breaking: false },
+        { hash: '2', message: 'feat: two', author: 'b', date: new Date(), type: 'feat' as const, breaking: false },
+        { hash: '3', message: 'fix: one', author: 'a', date: new Date(), type: 'fix' as const, breaking: false }
+      ];
+      const stats = getChangelogStats(commits);
+      expect(stats.total).toBe(3);
+      expect(stats.byType.feat).toBe(2);
+      expect(stats.contributors).toContain('a');
     });
   });
 });

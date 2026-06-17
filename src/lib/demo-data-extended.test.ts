@@ -18,8 +18,8 @@ describe("demo-data-extended", () => {
     it("should have valid community health metrics", () => {
       const data = generateExtendedDemoData("test/repo");
       
-      expect(data.communityHealth.overall).toBeGreaterThanOrEqual(0);
-      expect(data.communityHealth.overall).toBeLessThanOrEqual(100);
+      expect(data.communityHealth.score).toBeGreaterThanOrEqual(0);
+      expect(data.communityHealth.score).toBeLessThanOrEqual(100);
     });
 
     it("should have sprint plan with current sprint", () => {

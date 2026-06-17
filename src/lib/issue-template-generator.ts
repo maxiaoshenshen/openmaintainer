@@ -1,93 +1,179 @@
-/**
- * Issue Template Generator
- * Creates structured issue templates for better bug reports
- */
 export interface IssueTemplate {
   name: string;
   description: string;
+  title: string;
   body: string;
   labels: string[];
   assignees?: string[];
+  milestone?: string;
 }
 
-export function generateBugReportTemplate(): IssueTemplate {
+export interface TemplateVariable {
+  name: string;
+  description: string;
+  required: boolean;
+  defaultValue?: string;
+}
+
+export interface TemplateSchema {
+  id: string;
+  name: string;
+  description: string;
+  variables: TemplateVariable[];
+  sections: {
+    title: string;
+    description?: string;
+    inputType: 'text' | 'textarea' | 'select' | 'multiselect' | 'checklist';
+    options?: { label: string; value: string }[];
+    required: boolean;
+  }[];
+}
+
+export function createBugTemplate(): IssueTemplate {
   return {
-    name: "Bug Report",
-    description: "Report a bug to help us improve",
-    body: `## Bug Description
-A clear and concise description of what the bug is.
+    name: 'Bug Report',
+    description: 'Report a bug in the project',
+    title: '[Bug] ',
+    body: `## Description
+Describe the bug clearly.
 
 ## Steps to Reproduce
-1. Go to '...'
-2. Click on '...'
-3. Scroll down to '...'
-4. See error
+1. 
+2. 
+3. 
 
 ## Expected Behavior
-A clear and concise description of what you expected to happen.
+What should happen.
 
 ## Actual Behavior
-A clear and concise description of what actually happened.
+What actually happens.
 
 ## Environment
-- OS: [e.g. macOS, Windows, Linux]
-- Version: [e.g. 1.0.0]
-- Node version: [e.g. 18.0.0]
+- OS: 
+- Version: 
 
-## Screenshots
-If applicable, add screenshots to help explain your problem.
-
-## Additional Context
-Add any other context about the problem here.
-
-\`\`\`
-Error logs here
-\`\`\``,
-    labels: ["bug"],
+## Screenshots (optional)
+`,
+    labels: ['bug']
   };
 }
 
-export function generateFeatureRequestTemplate(): IssueTemplate {
+export function createFeatureTemplate(): IssueTemplate {
   return {
-    name: "Feature Request",
-    description: "Suggest a new feature or enhancement",
-    body: `## Feature Summary
-A brief one-sentence summary of the feature.
+    name: 'Feature Request',
+    description: 'Suggest a new feature',
+    title: '[Feature] ',
+    body: `## Feature Description
+Describe the feature you want.
 
-## Problem Statement
-Describe the problem this feature would solve.
+## Problem It Solves
+What problem does this solve?
 
 ## Proposed Solution
-Describe the solution you'd like to see.
+How should it work?
 
 ## Alternatives Considered
-Describe any alternative solutions you've considered.
-
-## Use Cases
-1. As a [user type], I want to [goal] so that [benefit].
-2. ...
+Any alternatives you've considered?
 
 ## Additional Context
-Add any other context or mockups about the feature request here.`,
-    labels: ["enhancement", "feature"],
+Any other information?
+`,
+    labels: ['enhancement']
   };
 }
 
-export function generateQuestionTemplate(): IssueTemplate {
+export function createQuestionTemplate(): IssueTemplate {
   return {
-    name: "Question",
-    description: "Ask a question about the project",
+    name: 'Question',
+    description: 'Ask a question',
+    title: '[Question] ',
     body: `## Question
-What do you want to know?
+What do you want to ask?
 
 ## Context
-Provide relevant context for your question.
+Provide relevant context.
 
 ## What I've Tried
-Describe what you've already tried.
-
-## Additional Information
-Add any other relevant information.`,
-    labels: ["question"],
+What have you already tried?
+`,
+    labels: ['question']
   };
+}
+
+export function createPRReviewTemplate(): IssueTemplate {
+  return {
+    name: 'Pull Request Review',
+    description: 'Template for reviewing pull requests',
+    title: '[Review] ',
+    body: `## Type of Review
+- [ ] Code Review
+- [ ] Security Review
+- [ ] Performance Review
+- [ ] Documentation Review
+
+## Summary
+Brief summary of the changes.
+
+## Changes Made
+List the key changes.
+
+## Testing
+How was this tested?
+
+## Feedback
+Your feedback here.
+`,
+    labels: ['review']
+  };
+}
+
+export function createSchema(
+  name: string,
+  description: string,
+  sections: TemplateSchema['sections']
+): TemplateSchema {
+  const variables: TemplateVariable[] = [];
+  sections.forEach(s => {
+    if (s.inputType === 'text' || s.inputType === 'textarea') {
+      variables.push({
+        name: s.title.toLowerCase().replace(/\s+/g, '_'),
+        description: s.description || s.title,
+        required: s.required
+      });
+    }
+  });
+
+  return {
+    id: `schema-${Date.now()}`,
+    name,
+    description,
+    variables,
+    sections
+  };
+}
+
+export function generateIssueFromTemplate(
+  template: IssueTemplate,
+  variables: Record<string, string>
+): { title: string; body: string; labels: string[] } {
+  let body = template.body;
+  
+  Object.entries(variables).forEach(([key, value]) => {
+    body = body.replace(new RegExp(`{{${key}}}`, 'g'), value || '');
+  });
+
+  return {
+    title: template.title + (variables.title || ''),
+    body,
+    labels: template.labels
+  };
+}
+
+export function getDefaultTemplates(): IssueTemplate[] {
+  return [
+    createBugTemplate(),
+    createFeatureTemplate(),
+    createQuestionTemplate(),
+    createPRReviewTemplate()
+  ];
 }
