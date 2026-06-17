@@ -1,202 +1,208 @@
-/**
- * Notification System
- * Manage and prioritize notifications for maintainers
- */
-
-export type NotificationType = 'pr_review' | 'issue_comment' | 'mention' | 'approval' | 'change_request' | 'mention' | 'assignment';
-export type NotificationPriority = 'urgent' | 'high' | 'normal' | 'low';
+export type NotificationType = "info" | "success" | "warning" | "error";
+export type NotificationChannel = "in_app" | "email" | "webhook" | "slack";
 
 export interface Notification {
   id: string;
   type: NotificationType;
-  priority: NotificationPriority;
   title: string;
-  body: string;
-  actor: string;
-  repository: string;
-  timestamp: Date;
+  message: string;
+  timestamp: number;
   read: boolean;
-  actionUrl?: string;
-  metadata?: Record<string, any>;
+  channel: NotificationChannel;
+  metadata?: Record<string, unknown>;
 }
 
-export interface NotificationSummary {
-  unread: number;
-  byType: Record<NotificationType, number>;
-  byPriority: Record<NotificationPriority, number>;
-  urgentCount: number;
-}
-
-export interface DigestConfig {
+export interface NotificationPreferences {
+  channel: NotificationChannel;
   enabled: boolean;
-  frequency: 'realtime' | 'hourly' | 'daily' | 'weekly';
-  quietHours?: { start: string; end: string };
+  types: NotificationType[];
+  minSeverity?: NotificationType;
 }
 
-/**
- * Determine notification priority based on content
- */
-export function getNotificationPriority(notification: Pick<Notification, 'type' | 'title' | 'body'>): NotificationPriority {
-  const content = `${notification.title} ${notification.body}`.toLowerCase();
-  
-  // Urgent keywords
-  if (/urgent|critical|security|emergency|asap/i.test(content)) return 'urgent';
-  
-  // High priority types
-  if (['approval', 'change_request', 'mention'].includes(notification.type)) return 'high';
-  
-  return 'normal';
-}
+class NotificationManager {
+  private notifications: Notification[] = [];
+  private preferences: Map<NotificationChannel, NotificationPreferences> = new Map();
+  private listeners: ((notification: Notification) => void)[] = [];
 
-/**
- * Calculate notification summary
- */
-export function calculateNotificationSummary(notifications: Notification[]): NotificationSummary {
-  const unread = notifications.filter(n => !n.read).length;
-  
-  const byType: Record<NotificationType, number> = {
-    pr_review: 0,
-    issue_comment: 0,
-    mention: 0,
-    approval: 0,
-    change_request: 0,
-    assignment: 0,
-  };
-  
-  const byPriority: Record<NotificationPriority, number> = {
-    urgent: 0,
-    high: 0,
-    normal: 0,
-    low: 0,
-  };
-  
-  notifications.forEach(n => {
-    byType[n.type]++;
-    byPriority[n.priority]++;
-  });
-  
-  return {
-    unread,
-    byType,
-    byPriority,
-    urgentCount: byPriority.urgent,
-  };
-}
-
-/**
- * Filter notifications by criteria
- */
-export function filterNotifications(
-  notifications: Notification[],
-  filters: {
-    type?: NotificationType;
-    priority?: NotificationPriority;
-    repository?: string;
-    unreadOnly?: boolean;
+  constructor() {
+    // Default preferences
+    this.setPreferences("in_app", { channel: "in_app", enabled: true, types: ["info", "success", "warning", "error"] });
+    this.setPreferences("email", { channel: "email", enabled: false, types: ["warning", "error"] });
+    this.setPreferences("webhook", { channel: "webhook", enabled: false, types: ["warning", "error"] });
+    this.setPreferences("slack", { channel: "slack", enabled: false, types: ["error"] });
   }
-): Notification[] {
-  return notifications.filter(n => {
-    if (filters.type && n.type !== filters.type) return false;
-    if (filters.priority && n.priority !== filters.priority) return false;
-    if (filters.repository && n.repository !== filters.repository) return false;
-    if (filters.unreadOnly && n.read) return false;
-    return true;
-  });
-}
 
-/**
- * Sort notifications by priority and time
- */
-export function sortNotifications(notifications: Notification[]): Notification[] {
-  return [...notifications].sort((a, b) => {
-    // Unread first
-    if (a.read !== b.read) return a.read ? 1 : -1;
-    
-    // Then by priority
-    const priorityOrder: Record<NotificationPriority, number> = {
-      urgent: 0,
-      high: 1,
-      normal: 2,
-      low: 3,
-    };
-    const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
-    if (priorityDiff !== 0) return priorityDiff;
-    
-    // Then by timestamp (newest first)
-    return b.timestamp.getTime() - a.timestamp.getTime();
-  });
-}
-
-/**
- * Generate notification digest
- */
-export function generateNotificationDigest(
-  notifications: Notification[],
-  config: DigestConfig
-): string {
-  const summary = calculateNotificationSummary(notifications);
-  let digest = '📬 **Notification Digest**\n\n';
-  
-  if (summary.unread > 0) {
-    digest += `You have **${summary.unread}** unread notifications\n\n`;
+  private generateId(): string {
+    return `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
-  
-  // Group by type
-  const groupedByType = notifications.reduce((acc, n) => {
-    if (!acc[n.type]) acc[n.type] = [];
-    acc[n.type].push(n);
-    return acc;
-  }, {} as Record<NotificationType, Notification[]>);
-  
-  for (const [type, items] of Object.entries(groupedByType)) {
-    if (items.length > 0) {
-      const typeEmoji: Record<NotificationType, string> = {
-        pr_review: '🔍',
-        issue_comment: '💬',
-        mention: '@️',
-        approval: '✅',
-        change_request: '⚠️',
-        assignment: '📋',
-      };
-      digest += `**${typeEmoji[type as NotificationType] || '📌'} ${type}** (${items.length})\n`;
+
+  notify(
+    type: NotificationType,
+    title: string,
+    message: string,
+    channel: NotificationChannel = "in_app",
+    metadata?: Record<string, unknown>
+  ): Notification | null {
+    const preference = this.preferences.get(channel);
+    
+    // Check if notification should be sent
+    if (!preference?.enabled || !preference.types.includes(type)) {
+      return null;
     }
+
+    const notification: Notification = {
+      id: this.generateId(),
+      type,
+      title,
+      message,
+      timestamp: Date.now(),
+      read: false,
+      channel,
+      metadata,
+    };
+
+    this.notifications.unshift(notification);
+    this.listeners.forEach((listener) => listener(notification));
+
+    // Keep only last 100 notifications
+    if (this.notifications.length > 100) {
+      this.notifications = this.notifications.slice(0, 100);
+    }
+
+    return notification;
   }
-  
-  return digest;
+
+  getNotifications(options?: {
+    channel?: NotificationChannel;
+    type?: NotificationType;
+    unreadOnly?: boolean;
+    limit?: number;
+  }): Notification[] {
+    let result = [...this.notifications];
+
+    if (options?.channel) {
+      result = result.filter((n) => n.channel === options.channel);
+    }
+    if (options?.type) {
+      result = result.filter((n) => n.type === options.type);
+    }
+    if (options?.unreadOnly) {
+      result = result.filter((n) => !n.read);
+    }
+    if (options?.limit) {
+      result = result.slice(0, options.limit);
+    }
+
+    return result;
+  }
+
+  markAsRead(id: string): boolean {
+    const notification = this.notifications.find((n) => n.id === id);
+    if (notification) {
+      notification.read = true;
+      return true;
+    }
+    return false;
+  }
+
+  markAllAsRead(): void {
+    this.notifications.forEach((n) => (n.read = true));
+  }
+
+  deleteNotification(id: string): boolean {
+    const index = this.notifications.findIndex((n) => n.id === id);
+    if (index !== -1) {
+      this.notifications.splice(index, 1);
+      return true;
+    }
+    return false;
+  }
+
+  clearAll(): void {
+    this.notifications = [];
+  }
+
+  getUnreadCount(): number {
+    return this.notifications.filter((n) => !n.read).length;
+  }
+
+  setPreferences(channel: NotificationChannel, prefs: NotificationPreferences): void {
+    this.preferences.set(channel, prefs);
+  }
+
+  getPreferences(channel: NotificationChannel): NotificationPreferences | undefined {
+    return this.preferences.get(channel);
+  }
+
+  getAllPreferences(): NotificationPreferences[] {
+    return Array.from(this.preferences.values());
+  }
+
+  subscribe(listener: (notification: Notification) => void): () => void {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter((l) => l !== listener);
+    };
+  }
+
+  // Pre-defined notification helpers
+  notifySuccess(title: string, message: string, metadata?: Record<string, unknown>): Notification | null {
+    return this.notify("success", title, message, "in_app", metadata);
+  }
+
+  notifyError(title: string, message: string, metadata?: Record<string, unknown>): Notification | null {
+    return this.notify("error", title, message, "in_app", metadata);
+  }
+
+  notifyWarning(title: string, message: string, metadata?: Record<string, unknown>): Notification | null {
+    return this.notify("warning", title, message, "in_app", metadata);
+  }
+
+  notifyInfo(title: string, message: string, metadata?: Record<string, unknown>): Notification | null {
+    return this.notify("info", title, message, "in_app", metadata);
+  }
+
+  // Notify about repository events
+  notifyNewIssue(repoFullName: string, issueNumber: number, issueTitle: string): Notification | null {
+    return this.notify(
+      "info",
+      "New Issue",
+      `${repoFullName}#${issueNumber}: ${issueTitle}`,
+      "in_app",
+      { type: "issue", repoFullName, issueNumber }
+    );
+  }
+
+  notifyNewPR(repoFullName: string, prNumber: number, prTitle: string): Notification | null {
+    return this.notify(
+      "info",
+      "New Pull Request",
+      `${repoFullName}#${prNumber}: ${prTitle}`,
+      "in_app",
+      { type: "pr", repoFullName, prNumber }
+    );
+  }
+
+  notifyPRMerged(repoFullName: string, prNumber: number, prTitle: string): Notification | null {
+    return this.notify(
+      "success",
+      "PR Merged",
+      `${repoFullName}#${prNumber}: ${prTitle}`,
+      "in_app",
+      { type: "pr_merged", repoFullName, prNumber }
+    );
+  }
+
+  notifyStaleIssue(repoFullName: string, issueNumber: number, daysStale: number): Notification | null {
+    return this.notify(
+      "warning",
+      "Stale Issue",
+      `${repoFullName}#${issueNumber} has been stale for ${daysStale} days`,
+      "in_app",
+      { type: "stale_issue", repoFullName, issueNumber, daysStale }
+    );
+  }
 }
 
-/**
- * Format notification for display
- */
-export function formatNotification(notification: Notification): string {
-  const typeEmoji: Record<NotificationType, string> = {
-    pr_review: '🔍',
-    issue_comment: '💬',
-    mention: '@️',
-    approval: '✅',
-    change_request: '⚠️',
-    assignment: '📋',
-  };
-  
-  const priorityPrefix = notification.priority === 'urgent' ? '🚨 ' : 
-                       notification.priority === 'high' ? '⭐ ' : '';
-  
-  const readStatus = notification.read ? '' : '• ';
-  const timeAgo = getTimeAgo(notification.timestamp);
-  
-  return `${readStatus}${typeEmoji[notification.type]} **${notification.title}** by ${notification.actor}\n` +
-         `   ${notification.body} · ${timeAgo}`;
-}
-
-/**
- * Get relative time string
- */
-function getTimeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  return date.toLocaleDateString();
-}
+export const notificationManager = new NotificationManager();
+export { NotificationManager };
