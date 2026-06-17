@@ -1,0 +1,99 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { WebhookDebugger } from './webhook-debugger';
+
+describe('WebhookDebugger', () => {
+  let debugger: WebhookDebugger;
+
+  beforeEach(() => {
+    debugger = new WebhookDebugger();
+  });
+
+  describe('createEndpoint', () => {
+    it('should create webhook endpoint', () => {
+      const endpoint = debugger.createEndpoint('https://example.com/webhook', ['push', 'pull_request'], 'secret123');
+      expect(endpoint.id).toBeDefined();
+      expect(endpoint.url).toBe('https://example.com/webhook');
+      expect(endpoint.active).toBe(true);
+    });
+  });
+
+  describe('getEndpoint', () => {
+    it('should return endpoint', () => {
+      const created = debugger.createEndpoint('https://test.com/hook', ['push']);
+      expect(debugger.getEndpoint(created.id)).toBeDefined();
+    });
+
+    it('should return undefined for non-existent', () => {
+      expect(debugger.getEndpoint('non-existent')).toBeUndefined();
+    });
+  });
+
+  describe('listEndpoints', () => {
+    it('should list all endpoints', () => {
+      debugger.createEndpoint('https://a.com', ['push']);
+      debugger.createEndpoint('https://b.com', ['push']);
+      expect(debugger.listEndpoints()).toHaveLength(2);
+    });
+  });
+
+  describe('updateEndpoint', () => {
+    it('should update endpoint', () => {
+      const endpoint = debugger.createEndpoint('https://test.com', ['push']);
+      const updated = debugger.updateEndpoint(endpoint.id, { active: false });
+      expect(updated?.active).toBe(false);
+    });
+  });
+
+  describe('sendRequest', () => {
+    it('should send webhook request', async () => {
+      const endpoint = debugger.createEndpoint('https://test.com/webhook', ['push']);
+      const request = await debugger.sendRequest(endpoint.id, { test: 'data' });
+      expect(request.status).toBeDefined();
+      expect(request.responseStatus).toBeDefined();
+    });
+  });
+
+  describe('addInterceptor', () => {
+    it('should add and use interceptor', async () => {
+      debugger.addInterceptor((req) => {
+        req.headers['X-Custom'] = 'intercepted';
+        return req;
+      });
+      const endpoint = debugger.createEndpoint('https://test.com', ['push']);
+      const request = await debugger.sendRequest(endpoint.id, {});
+      expect(request.headers['X-Intercepted']).toBe('true');
+    });
+  });
+
+  describe('getDebuggerStats', () => {
+    it('should return statistics', async () => {
+      const endpoint = debugger.createEndpoint('https://test.com', ['push']);
+      await debugger.sendRequest(endpoint.id, {});
+      const stats = debugger.getDebuggerStats();
+      expect(stats.totalRequests).toBeGreaterThan(0);
+    });
+  });
+
+  describe('exportRequest', () => {
+    it('should export request as curl', async () => {
+      const endpoint = debugger.createEndpoint('https://test.com', ['push']);
+      const request = await debugger.sendRequest(endpoint.id, { test: true });
+      const exported = debugger.exportRequest(request.id);
+      expect(exported).toBeDefined();
+      expect(exported?.method).toBe('POST');
+    });
+  });
+
+  describe('importRequest', () => {
+    it('should import request', () => {
+      const imported = debugger.importRequest({
+        url: 'https://example.com/imported',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{"test": true}'
+      });
+      expect(imported).toBeDefined();
+      expect(imported?.url).toBe('https://example.com/imported');
+    });
+  });
+});

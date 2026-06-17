@@ -1,0 +1,260 @@
+/**
+ * Webhook Debugger - Test and debug webhooks
+ */
+
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  events: string[];
+  secret?: string;
+  active: boolean;
+  createdAt: Date;
+}
+
+export interface WebhookRequest {
+  id: string;
+  endpointId: string;
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body?: string;
+  timestamp: Date;
+  responseStatus?: number;
+  responseHeaders?: Record<string, string>;
+  responseBody?: string;
+  responseTime?: number;
+  status: 'pending' | 'success' | 'failed' | 'timeout';
+  error?: string;
+}
+
+export interface WebhookEvent {
+  id: string;
+  type: string;
+  payload: unknown;
+  delivered: boolean;
+  attempts: number;
+  lastAttempt?: Date;
+  nextRetry?: Date;
+  history: WebhookRequest[];
+}
+
+export class WebhookDebugger {
+  private endpoints: Map<string, WebhookEndpoint> = new Map();
+  private requests: WebhookRequest[] = [];
+  private events: Map<string, WebhookEvent> = new Map();
+  private interceptors: ((req: WebhookRequest) => WebhookRequest | null)[] = [];
+
+  createEndpoint(url: string, events: string[], secret?: string): WebhookEndpoint {
+    const endpoint: WebhookEndpoint = {
+      id: `endpoint-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      url,
+      events,
+      secret,
+      active: true,
+      createdAt: new Date()
+    };
+    this.endpoints.set(endpoint.id, endpoint);
+    return endpoint;
+  }
+
+  getEndpoint(id: string): WebhookEndpoint | undefined {
+    return this.endpoints.get(id);
+  }
+
+  listEndpoints(): WebhookEndpoint[] {
+    return Array.from(this.endpoints.values());
+  }
+
+  updateEndpoint(id: string, updates: Partial<WebhookEndpoint>): WebhookEndpoint | null {
+    const endpoint = this.endpoints.get(id);
+    if (!endpoint) return null;
+    Object.assign(endpoint, updates);
+    return endpoint;
+  }
+
+  deleteEndpoint(id: string): boolean {
+    return this.endpoints.delete(id);
+  }
+
+  async sendRequest(endpointId: string, payload: unknown, options?: {
+    method?: string;
+    headers?: Record<string, string>;
+    timeout?: number;
+  }): Promise<WebhookRequest> {
+    const endpoint = this.endpoints.get(endpointId);
+    if (!endpoint) {
+      throw new Error('Endpoint not found');
+    }
+
+    const request: WebhookRequest = {
+      id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      endpointId,
+      method: options?.method || 'POST',
+      url: endpoint.url,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Webhook-Event': endpoint.events[0] || 'unknown',
+        ...options?.headers
+      },
+      body: JSON.stringify(payload),
+      timestamp: new Date(),
+      status: 'pending'
+    };
+
+    if (endpoint.secret) {
+      // Would add signature here
+      request.headers['X-Webhook-Signature'] = 'simulated-signature';
+    }
+
+    // Apply interceptors
+    for (const interceptor of this.interceptors) {
+      const modified = interceptor(request);
+      if (modified) {
+        request.headers = { ...request.headers, 'X-Intercepted': 'true' };
+      }
+    }
+
+    this.requests.push(request);
+
+    // Simulate request
+    await new Promise(resolve => setTimeout(resolve, Math.random() * 50));
+    
+    const success = Math.random() > 0.1;
+    request.responseStatus = success ? 200 : 500;
+    request.responseHeaders = { 'content-type': 'application/json' };
+    request.responseBody = success ? '{"received": true}' : '{"error": "Internal error"}';
+    request.responseTime = Math.floor(Math.random() * 200);
+    request.status = success ? 'success' : 'failed';
+
+    if (!success) {
+      request.error = 'Server returned error status';
+    }
+
+    return request;
+  }
+
+  addInterceptor(interceptor: (req: WebhookRequest) => WebhookRequest | null): void {
+    this.interceptors.push(interceptor);
+  }
+
+  clearInterceptors(): void {
+    this.interceptors = [];
+  }
+
+  replayRequest(requestId: string): Promise<WebhookRequest | null> {
+    const request = this.requests.find(r => r.id === requestId);
+    if (!request) return Promise.resolve(null);
+    return this.sendRequest(request.endpointId, JSON.parse(request.body || '{}'), {
+      headers: request.headers
+    });
+  }
+
+  getRequest(id: string): WebhookRequest | undefined {
+    return this.requests.find(r => r.id === id);
+  }
+
+  listRequests(filters?: { endpointId?: string; status?: WebhookRequest['status'] }): WebhookRequest[] {
+    let requests = [...this.requests];
+    if (filters?.endpointId) {
+      requests = requests.filter(r => r.endpointId === filters.endpointId);
+    }
+    if (filters?.status) {
+      requests = requests.filter(r => r.status === filters.status);
+    }
+    return requests.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }
+
+  createEvent(type: string, payload: unknown): WebhookEvent {
+    const event: WebhookEvent = {
+      id: `event-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+      type,
+      payload,
+      delivered: false,
+      attempts: 0,
+      history: []
+    };
+    this.events.set(event.id, event);
+    return event;
+  }
+
+  getEvent(id: string): WebhookEvent | undefined {
+    return this.events.get(id);
+  }
+
+  async deliverEvent(eventId: string, endpointId: string): Promise<boolean> {
+    const event = this.events.get(eventId);
+    const endpoint = this.endpoints.get(endpointId);
+    if (!event || !endpoint) return false;
+
+    event.attempts++;
+    event.lastAttempt = new Date();
+
+    const request = await this.sendRequest(endpointId, event.payload);
+    event.history.push(request);
+
+    if (request.status === 'success') {
+      event.delivered = true;
+      return true;
+    }
+
+    // Schedule retry
+    event.nextRetry = new Date(Date.now() + Math.pow(2, event.attempts) * 1000);
+    return false;
+  }
+
+  getDebuggerStats(): {
+    totalEndpoints: number;
+    activeEndpoints: number;
+    totalRequests: number;
+    successRate: number;
+    averageResponseTime: number;
+  } {
+    const requests = this.requests;
+    const successful = requests.filter(r => r.status === 'success');
+    
+    return {
+      totalEndpoints: this.endpoints.size,
+      activeEndpoints: Array.from(this.endpoints.values()).filter(e => e.active).length,
+      totalRequests: requests.length,
+      successRate: requests.length > 0 ? (successful.length / requests.length) * 100 : 0,
+      averageResponseTime: requests.length > 0
+        ? requests.reduce((sum, r) => sum + (r.responseTime || 0), 0) / requests.length
+        : 0
+    };
+  }
+
+  clearHistory(): void {
+    this.requests = [];
+  }
+
+  exportRequest(id: string): Record<string, unknown> | null {
+    const request = this.getRequest(id);
+    if (!request) return null;
+    return {
+      method: request.method,
+      url: request.url,
+      headers: request.headers,
+      body: request.body,
+      timestamp: request.timestamp.toISOString()
+    };
+  }
+
+  importRequest(data: Record<string, unknown>): WebhookRequest | null {
+    try {
+      const request: WebhookRequest = {
+        id: `imported-${Date.now()}`,
+        endpointId: data.endpointId as string || 'unknown',
+        method: data.method as string || 'POST',
+        url: data.url as string,
+        headers: data.headers as Record<string, string>,
+        body: data.body as string,
+        timestamp: new Date(),
+        status: 'pending'
+      };
+      this.requests.push(request);
+      return request;
+    } catch {
+      return null;
+    }
+  }
+}
