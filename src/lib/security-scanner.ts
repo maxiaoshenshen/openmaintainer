@@ -1,29 +1,32 @@
 /**
- * Security Scanner - Automated vulnerability detection and dependency audits
+ * Security Scanner - Scan repositories for security vulnerabilities
  */
 
-export type SeverityLevel = 'critical' | 'high' | 'medium' | 'low' | 'info';
+export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+export type ScanStatus = 'pending' | 'running' | 'completed' | 'failed';
 
-export interface SecurityFinding {
+export interface Vulnerability {
   id: string;
-  type: 'vulnerability' | 'license' | 'secret' | 'weakness';
-  severity: SeverityLevel;
   title: string;
   description: string;
-  file?: string;
-  line?: number;
-  cveId?: string;
-  package?: string;
-  version?: string;
+  severity: Severity;
+  cve?: string;
+  affectedFile: string;
+  affectedLine?: number;
   recommendation: string;
-  references?: string[];
+  references: string[];
 }
 
-export interface SecurityReport {
+export interface ScanResult {
+  id: string;
   repository: string;
-  timestamp: number;
+  branch: string;
+  status: ScanStatus;
+  vulnerabilities: Vulnerability[];
+  scannedFiles: number;
   scanDuration: number;
-  findings: SecurityFinding[];
+  startedAt: Date;
+  completedAt?: Date;
   summary: {
     critical: number;
     high: number;
@@ -32,189 +35,234 @@ export interface SecurityReport {
     info: number;
     total: number;
   };
-  passed: boolean;
 }
 
-export interface ScanConfig {
-  includeDevDeps: boolean;
-  scanSecrets: boolean;
-  scanLicenses: boolean;
-  severityThreshold: SeverityLevel;
+export interface ScanPolicy {
+  id: string;
+  name: string;
+  enabled: boolean;
+  severityThreshold: Severity;
+  excludePatterns: string[];
+  failOnSeverity: Severity | null;
 }
 
-/**
- * Scan dependencies for known vulnerabilities
- */
-export async function scanDependencies(
-  packages: Array<{ name: string; version: string; dev?: boolean }>,
-  config?: Partial<ScanConfig>
-): Promise<SecurityFinding[]> {
-  const findings: SecurityFinding[] = [];
-  const severityLevels: SeverityLevel[] = ['critical', 'high', 'medium', 'low', 'info'];
-  const threshold = config?.severityThreshold || 'low';
-  const thresholdIndex = severityLevels.indexOf(threshold);
+export class SecurityScanner {
+  private scanResults: Map<string, ScanResult> = new Map();
+  private policies: Map<string, ScanPolicy> = new Map();
+  private vulnerabilities: Map<string, Vulnerability[]> = new Map();
 
-  for (const pkg of packages) {
-    if (pkg.dev && !config?.includeDevDeps) continue;
-
-    // Simulate vulnerability database lookup
-    const vulns = simulateVulnerabilityLookup(pkg.name, pkg.version);
-    for (const vuln of vulns) {
-      if (severityLevels.indexOf(vuln.severity) <= thresholdIndex) {
-        findings.push(vuln);
-      }
-    }
+  createPolicy(policy: ScanPolicy): ScanPolicy {
+    this.policies.set(policy.id, policy);
+    return policy;
   }
 
-  return findings;
-}
-
-/**
- * Scan code for hardcoded secrets and API keys
- */
-export function scanForSecrets(
-  files: Array<{ path: string; content: string }>,
-  patterns?: RegExp[]
-): SecurityFinding[] {
-  const findings: SecurityFinding[] = [];
-  const defaultPatterns = [
-    { regex: /api[_-]?key["\s:]+["']?[a-zA-Z0-9]{20,}["']?/gi, name: 'API Key' },
-    { regex: /secret[_-]?passphrase["\s:]+["']?[a-zA-Z0-9]{16,}["']?/gi, name: 'Secret' },
-    { regex: /password["\s:]+["']?[^"\s]{8,}["']?/gi, name: 'Password' },
-    { regex: /-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----/g, name: 'Private Key' },
-    { regex: /github[_-]?token["\s:]+["']?[a-zA-Z0-9]{36,}["']?/gi, name: 'GitHub Token' },
-    { regex: /aws_access_key_id["\s:=]+["']?[A-Z0-9]{16,20}["']?/gi, name: 'AWS Access Key' },
-  ];
-
-  const activePatterns = patterns || defaultPatterns;
-
-  for (const file of files) {
-    for (const pattern of activePatterns) {
-      const matches = file.content.matchAll(pattern.regex instanceof RegExp ? pattern.regex : new RegExp(pattern.regex.source, 'gi'));
-      for (const match of matches) {
-        findings.push({
-          id: `secret_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          type: 'secret',
-          severity: 'critical',
-          title: `Potential ${pattern.name} found`,
-          description: `Found a potential ${pattern.name} in ${file.path}. This could be a security risk if committed.`,
-          file: file.path,
-          recommendation: 'Remove this secret and use environment variables instead.',
-          references: ['https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions'],
-        });
-      }
-    }
+  getPolicy(id: string): ScanPolicy | undefined {
+    return this.policies.get(id);
   }
 
-  return findings;
-}
+  updatePolicy(id: string, updates: Partial<ScanPolicy>): ScanPolicy | null {
+    const policy = this.policies.get(id);
+    if (!policy) return null;
+    const updated = { ...policy, ...updates };
+    this.policies.set(id, updated);
+    return updated;
+  }
 
-/**
- * Check for problematic license usage
- */
-export function checkLicenses(
-  dependencies: Array<{ name: string; version: string; license: string }>,
-  allowedLicenses?: string[],
-  forbiddenLicenses?: string[]
-): SecurityFinding[] {
-  const findings: SecurityFinding[] = [];
-  const forbidden = forbiddenLicenses || ['GPL-3.0', 'AGPL-3.0', 'LGPL-3.0'];
-  const risky = ['MPL-2.0', 'CDDL-1.0', 'EPL-1.0'];
+  deletePolicy(id: string): boolean {
+    return this.policies.delete(id);
+  }
 
-  for (const dep of dependencies) {
-    if (forbidden.includes(dep.license)) {
-      findings.push({
-        id: `license_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        type: 'license',
-        severity: 'high',
-        title: `Forbidden license: ${dep.license}`,
-        description: `${dep.name}@${dep.version} uses ${dep.license} which may have licensing implications for your project.`,
-        package: dep.name,
-        version: dep.version,
-        recommendation: `Consider finding an alternative package with a permissive license (MIT, Apache-2.0, BSD-3-Clause).`,
+  listPolicies(): ScanPolicy[] {
+    return Array.from(this.policies.values());
+  }
+
+  startScan(id: string, repository: string, branch: string): ScanResult {
+    const result: ScanResult = {
+      id,
+      repository,
+      branch,
+      status: 'running',
+      vulnerabilities: [],
+      scannedFiles: 0,
+      scanDuration: 0,
+      startedAt: new Date(),
+      summary: { critical: 0, high: 0, medium: 0, low: 0, info: 0, total: 0 }
+    };
+    this.scanResults.set(id, result);
+    return result;
+  }
+
+  addVulnerability(scanId: string, vulnerability: Omit<Vulnerability, 'id'>): Vulnerability {
+    const result = this.scanResults.get(scanId);
+    if (!result) throw new Error('Scan not found');
+
+    const vuln: Vulnerability = {
+      id: `vuln-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      ...vulnerability
+    };
+
+    result.vulnerabilities.push(vuln);
+    this.updateSummary(result);
+    return vuln;
+  }
+
+  completeScan(scanId: string, scannedFiles: number): ScanResult {
+    const result = this.scanResults.get(scanId);
+    if (!result) throw new Error('Scan not found');
+
+    result.status = 'completed';
+    result.scannedFiles = scannedFiles;
+    result.completedAt = new Date();
+    result.scanDuration = result.completedAt.getTime() - result.startedAt.getTime();
+
+    return result;
+  }
+
+  failScan(scanId: string, error: string): ScanResult {
+    const result = this.scanResults.get(scanId);
+    if (!result) throw new Error('Scan not found');
+
+    result.status = 'failed';
+    result.completedAt = new Date();
+    result.scanDuration = result.completedAt.getTime() - result.startedAt.getTime();
+    return result;
+  }
+
+  private updateSummary(result: ScanResult): void {
+    const summary = { critical: 0, high: 0, medium: 0, low: 0, info: 0, total: 0 };
+    for (const vuln of result.vulnerabilities) {
+      summary[vuln.severity]++;
+      summary.total++;
+    }
+    result.summary = summary;
+  }
+
+  getScanResult(id: string): ScanResult | undefined {
+    return this.scanResults.get(id);
+  }
+
+  listScanResults(filters?: { status?: ScanStatus; repository?: string }): ScanResult[] {
+    let results = Array.from(this.scanResults.values());
+    if (filters?.status) {
+      results = results.filter(r => r.status === filters.status);
+    }
+    if (filters?.repository) {
+      results = results.filter(r => r.repository === filters.repository);
+    }
+    return results.sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+  }
+
+  getVulnerabilities(scanId: string): Vulnerability[] {
+    const result = this.scanResults.get(scanId);
+    return result?.vulnerabilities || [];
+  }
+
+  filterVulnerabilities(scanId: string, criteria: { severity?: Severity[]; cve?: string }): Vulnerability[] {
+    const vulnerabilities = this.getVulnerabilities(scanId);
+    return vulnerabilities.filter(v => {
+      if (criteria.severity && !criteria.severity.includes(v.severity)) return false;
+      if (criteria.cve && v.cve !== criteria.cve) return false;
+      return true;
+    });
+  }
+
+  checkPolicyCompliance(scanId: string, policyId: string): {
+    compliant: boolean;
+    violations: Vulnerability[];
+    blocked: boolean;
+  } {
+    const scan = this.scanResults.get(scanId);
+    const policy = this.policies.get(policyId);
+    if (!scan || !policy) {
+      return { compliant: false, violations: [], blocked: false };
+    }
+
+    const severityOrder: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
+    const thresholdIndex = severityOrder.indexOf(policy.severityThreshold);
+
+    const violations = scan.vulnerabilities.filter(v => {
+      const vulnIndex = severityOrder.indexOf(v.severity);
+      return vulnIndex <= thresholdIndex;
+    });
+
+    let blocked = false;
+    if (policy.failOnSeverity) {
+      const failIndex = severityOrder.indexOf(policy.failOnSeverity);
+      blocked = violations.some(v => {
+        const vulnIndex = severityOrder.indexOf(v.severity);
+        return vulnIndex <= failIndex;
       });
-    } else if (risky.includes(dep.license)) {
-      findings.push({
-        id: `license_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        type: 'license',
-        severity: 'medium',
-        title: `Risky license: ${dep.license}`,
-        description: `${dep.name}@${dep.version} uses ${dep.license} which has some usage restrictions.`,
-        package: dep.name,
-        version: dep.version,
-        recommendation: 'Review the license terms to ensure compatibility with your project.',
-      });
     }
+
+    return {
+      compliant: violations.length === 0,
+      violations,
+      blocked
+    };
   }
 
-  return findings;
+  generateReport(scanId: string): {
+    summary: ScanResult['summary'];
+    criticalVulnerabilities: Vulnerability[];
+    recommendations: string[];
+    complianceStatus: { policy: string; compliant: boolean }[];
+  } | null {
+    const scan = this.scanResults.get(scanId);
+    if (!scan) return null;
+
+    const criticalVulns = scan.vulnerabilities.filter(v => v.severity === 'critical');
+    const recommendations = new Set<string>();
+
+    for (const vuln of scan.vulnerabilities) {
+      recommendations.add(vuln.recommendation);
+    }
+
+    const complianceStatus = this.listPolicies()
+      .filter(p => p.enabled)
+      .map(p => {
+        const check = this.checkPolicyCompliance(scanId, p.id);
+        return { policy: p.name, compliant: check.compliant };
+      });
+
+    return {
+      summary: scan.summary,
+      criticalVulnerabilities: criticalVulns,
+      recommendations: Array.from(recommendations),
+      complianceStatus
+    };
+  }
+
+  getStatistics(): {
+    totalScans: number;
+    byStatus: Record<ScanStatus, number>;
+    averageScanDuration: number;
+    vulnerabilitiesFound: number;
+    criticalFound: number;
+  } {
+    const scans = Array.from(this.scanResults.values());
+    const byStatus: Record<ScanStatus, number> = {
+      pending: 0, running: 0, completed: 0, failed: 0
+    };
+
+    let totalDuration = 0;
+    let vulnerabilitiesFound = 0;
+    let criticalFound = 0;
+
+    for (const scan of scans) {
+      byStatus[scan.status]++;
+      totalDuration += scan.scanDuration;
+      vulnerabilitiesFound += scan.summary.total;
+      criticalFound += scan.summary.critical;
+    }
+
+    return {
+      totalScans: scans.length,
+      byStatus,
+      averageScanDuration: scans.length > 0 ? totalDuration / scans.length : 0,
+      vulnerabilitiesFound,
+      criticalFound
+    };
+  }
 }
 
-/**
- * Generate comprehensive security report
- */
-export async function generateSecurityReport(
-  repository: string,
-  packages: Array<{ name: string; version: string; dev?: boolean }>,
-  config?: Partial<ScanConfig>
-): Promise<SecurityReport> {
-  const startTime = Date.now();
-
-  const [vulnFindings, secretFindings, licenseFindings] = await Promise.all([
-    scanDependencies(packages, config),
-    config?.scanSecrets ? scanForSecrets([]) : Promise.resolve([]),
-    config?.scanLicenses ? checkLicenses(packages.map(p => ({ ...p, license: 'MIT' }))) : Promise.resolve([]),
-  ]);
-
-  const allFindings = [...vulnFindings, ...secretFindings, ...licenseFindings];
-
-  const summary = {
-    critical: allFindings.filter(f => f.severity === 'critical').length,
-    high: allFindings.filter(f => f.severity === 'high').length,
-    medium: allFindings.filter(f => f.severity === 'medium').length,
-    low: allFindings.filter(f => f.severity === 'low').length,
-    info: allFindings.filter(f => f.severity === 'info').length,
-    total: allFindings.length,
-  };
-
-  return {
-    repository,
-    timestamp: Date.now(),
-    scanDuration: Date.now() - startTime,
-    findings: allFindings,
-    summary,
-    passed: summary.critical === 0 && summary.high === 0,
-  };
-}
-
-function simulateVulnerabilityLookup(name: string, version: string): SecurityFinding[] {
-  // Simulate some common vulnerabilities
-  const knownVulns: Record<string, SecurityFinding> = {
-    'lodash': {
-      id: 'vuln_lodash_2023',
-      type: 'vulnerability',
-      severity: 'high',
-      title: 'Prototype Pollution in lodash',
-      description: 'Versions before 4.17.21 are vulnerable to prototype pollution attacks.',
-      cveId: 'CVE-2021-23337',
-      package: 'lodash',
-      version: '<4.17.21',
-      recommendation: 'Upgrade to version 4.17.21 or later.',
-      references: ['https://nvd.nist.gov/vuln/detail/CVE-2021-23337'],
-    },
-    'axios': {
-      id: 'vuln_axios_2019',
-      type: 'vulnerability',
-      severity: 'medium',
-      title: 'Server-Side Request Forgery in axios',
-      description: 'Versions before 0.18.1 allow SSRF attacks.',
-      cveId: 'CVE-2019-10742',
-      package: 'axios',
-      version: '<0.18.1',
-      recommendation: 'Upgrade to version 0.18.1 or later.',
-      references: ['https://nvd.nist.gov/vuln/detail/CVE-2019-10742'],
-    },
-  };
-
-  return Object.values(knownVulns).filter(v => v.package === name);
-}
+export const createSecurityScanner = () => new SecurityScanner();

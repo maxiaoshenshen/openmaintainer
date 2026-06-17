@@ -1,140 +1,197 @@
-import { describe, it, expect } from "vitest";
-import {
-  scanDependencies,
-  scanForSecrets,
-  checkLicenses,
-  generateSecurityReport,
-  type SecurityFinding,
-} from "./security-scanner";
+import { describe, it, expect, beforeEach } from 'vitest';
+import { SecurityScanner } from './security-scanner';
 
-describe("SecurityScanner", () => {
-  describe("scanDependencies", () => {
-    it("should find vulnerabilities in dependencies", async () => {
-      const packages = [
-        { name: "lodash", version: "4.17.19" },
-        { name: "axios", version: "0.18.0" },
-        { name: "express", version: "4.18.0" },
-      ];
+describe('SecurityScanner', () => {
+  let scanner: SecurityScanner;
 
-      const findings = await scanDependencies(packages);
-      expect(findings.length).toBeGreaterThan(0);
-      
-      const lodashVuln = findings.find(f => f.package === "lodash");
-      expect(lodashVuln).toBeDefined();
-      expect(lodashVuln?.severity).toBe("high");
-      expect(lodashVuln?.cveId).toBe("CVE-2021-23337");
+  beforeEach(() => {
+    scanner = new SecurityScanner();
+  });
+
+  describe('policies', () => {
+    it('should create policy', () => {
+      const policy = scanner.createPolicy({
+        id: 'policy-1',
+        name: 'Strict Policy',
+        enabled: true,
+        severityThreshold: 'high',
+        excludePatterns: ['*.test.ts'],
+        failOnSeverity: 'critical'
+      });
+
+      expect(policy.id).toBe('policy-1');
+      expect(scanner.getPolicy('policy-1')?.name).toBe('Strict Policy');
     });
 
-    it("should respect severity threshold", async () => {
-      const packages = [{ name: "axios", version: "0.18.0" }];
-      const findings = await scanDependencies(packages, { severityThreshold: "high" });
-      
-      const criticalHigh = findings.filter(f => f.severity === "critical" || f.severity === "high");
-      expect(criticalHigh.length).toBe(0);
-    });
+    it('should update policy', () => {
+      scanner.createPolicy({
+        id: 'update-test',
+        name: 'Original',
+        enabled: false,
+        severityThreshold: 'medium',
+        excludePatterns: [],
+        failOnSeverity: null
+      });
 
-    it("should skip dev dependencies when configured", async () => {
-      const packages = [
-        { name: "lodash", version: "4.17.19", dev: false },
-        { name: "jest", version: "27.0.0", dev: true },
-      ];
-
-      const findings = await scanDependencies(packages, { includeDevDeps: false });
-      expect(findings.some(f => f.package === "jest")).toBe(false);
+      scanner.updatePolicy('update-test', { name: 'Updated', enabled: true });
+      expect(scanner.getPolicy('update-test')?.name).toBe('Updated');
+      expect(scanner.getPolicy('update-test')?.enabled).toBe(true);
     });
   });
 
-  describe("scanForSecrets", () => {
-    it("should detect AWS access keys", () => {
-      const files = [{
-        path: "config.js",
-        content: "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\nGITHUB_TOKEN=ghp_1234567890abcdefghijklmnop",
-      }];
-
-      const findings = scanForSecrets(files);
-      expect(findings.length).toBeGreaterThanOrEqual(1);
-      expect(findings.some(f => f.type === "secret")).toBe(true);
+  describe('scans', () => {
+    it('should start scan', () => {
+      const scan = scanner.startScan('scan-1', 'repo/test', 'main');
+      expect(scan.status).toBe('running');
+      expect(scan.repository).toBe('repo/test');
     });
 
-    it("should detect private keys", () => {
-      const files = [{
-        path: "keys.pem",
-        content: "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAL...\n-----END RSA PRIVATE KEY-----",
-      }];
+    it('should add vulnerability', () => {
+      scanner.startScan('vuln-test', 'repo/test', 'main');
+      const vuln = scanner.addVulnerability('vuln-test', {
+        title: 'SQL Injection',
+        description: 'Potential SQL injection',
+        severity: 'critical',
+        affectedFile: 'src/db.ts',
+        recommendation: 'Use parameterized queries',
+        references: []
+      });
 
-      const findings = scanForSecrets(files);
-      expect(findings.some(f => f.title.includes("Private Key"))).toBe(true);
+      expect(vuln.id).toContain('vuln-');
+      const result = scanner.getScanResult('vuln-test');
+      expect(result?.vulnerabilities).toHaveLength(1);
+      expect(result?.summary.critical).toBe(1);
     });
 
-    it("should return empty array for clean code", () => {
-      const files = [{
-        path: "index.js",
-        content: "const port = process.env.PORT || 3000;\nexport default app;",
-      }];
+    it('should complete scan', () => {
+      scanner.startScan('complete-test', 'repo/test', 'main');
+      const result = scanner.completeScan('complete-test', 100);
 
-      const findings = scanForSecrets(files);
-      expect(findings.length).toBe(0);
-    });
-  });
-
-  describe("checkLicenses", () => {
-    it("should flag forbidden licenses", () => {
-      const dependencies = [
-        { name: "fancy-license-lib", version: "1.0.0", license: "GPL-3.0" },
-        { name: "mit-lib", version: "2.0.0", license: "MIT" },
-      ];
-
-      const findings = checkLicenses(dependencies);
-      expect(findings.length).toBeGreaterThan(0);
-      expect(findings[0].severity).toBe("high");
-      expect(findings[0].title).toContain("Forbidden license");
+      expect(result.status).toBe('completed');
+      expect(result.scannedFiles).toBe(100);
+      expect(result.completedAt).toBeInstanceOf(Date);
     });
 
-    it("should flag risky licenses with medium severity", () => {
-      const dependencies = [
-        { name: "mpl-lib", version: "1.0.0", license: "MPL-2.0" },
-      ];
+    it('should fail scan', () => {
+      scanner.startScan('fail-test', 'repo/test', 'main');
+      scanner.failScan('fail-test', 'Network error');
 
-      const findings = checkLicenses(dependencies);
-      expect(findings[0].severity).toBe("medium");
-    });
-
-    it("should allow MIT licensed packages", () => {
-      const dependencies = [
-        { name: "express", version: "4.18.0", license: "MIT" },
-      ];
-
-      const findings = checkLicenses(dependencies);
-      expect(findings.length).toBe(0);
+      const result = scanner.getScanResult('fail-test');
+      expect(result?.status).toBe('failed');
     });
   });
 
-  describe("generateSecurityReport", () => {
-    it("should generate comprehensive report", async () => {
-      const packages = [
-        { name: "lodash", version: "4.17.19" },
-        { name: "express", version: "4.18.0" },
-      ];
+  describe('filterVulnerabilities', () => {
+    it('should filter by severity', () => {
+      scanner.startScan('filter-test', 'repo/test', 'main');
+      scanner.addVulnerability('filter-test', {
+        title: 'High Vuln',
+        description: 'Test',
+        severity: 'high',
+        affectedFile: 'a.ts',
+        recommendation: 'Fix it',
+        references: []
+      });
+      scanner.addVulnerability('filter-test', {
+        title: 'Low Vuln',
+        description: 'Test',
+        severity: 'low',
+        affectedFile: 'b.ts',
+        recommendation: 'Fix it',
+        references: []
+      });
 
-      const report = await generateSecurityReport("owner/repo", packages);
+      const critical = scanner.filterVulnerabilities('filter-test', { severity: ['critical'] });
+      expect(critical).toHaveLength(0);
 
-      expect(report.repository).toBe("owner/repo");
-      expect(report.timestamp).toBeDefined();
-      expect(report.scanDuration).toBeGreaterThanOrEqual(0);
-      expect(report.findings).toBeDefined();
-      expect(report.summary).toBeDefined();
-      expect(report.summary.total).toBe(report.findings.length);
-      expect(report.summary.critical).toBeDefined();
-      expect(report.summary.high).toBeDefined();
+      const high = scanner.filterVulnerabilities('filter-test', { severity: ['high'] });
+      expect(high).toHaveLength(1);
+    });
+  });
+
+  describe('checkPolicyCompliance', () => {
+    it('should pass compliant scan', () => {
+      scanner.createPolicy({
+        id: 'check-policy',
+        name: 'Check Policy',
+        enabled: true,
+        severityThreshold: 'high',
+        excludePatterns: [],
+        failOnSeverity: 'critical'
+      });
+
+      scanner.startScan('compliance-test', 'repo/test', 'main');
+      scanner.addVulnerability('compliance-test', {
+        title: 'Low Vuln',
+        description: 'Test',
+        severity: 'low',
+        affectedFile: 'a.ts',
+        recommendation: 'Fix it',
+        references: []
+      });
+
+      const check = scanner.checkPolicyCompliance('compliance-test', 'check-policy');
+      expect(check.compliant).toBe(true);
+      expect(check.blocked).toBe(false);
     });
 
-    it("should pass when no critical/high vulnerabilities", async () => {
-      const packages = [
-        { name: "safe-lib", version: "1.0.0" },
-      ];
+    it('should fail non-compliant scan', () => {
+      scanner.createPolicy({
+        id: 'strict-policy',
+        name: 'Strict Policy',
+        enabled: true,
+        severityThreshold: 'high',
+        excludePatterns: [],
+        failOnSeverity: 'critical'
+      });
 
-      const report = await generateSecurityReport("owner/repo", packages);
-      expect(report.passed).toBe(true);
+      scanner.startScan('fail-compliance', 'repo/test', 'main');
+      scanner.addVulnerability('fail-compliance', {
+        title: 'Critical Vuln',
+        description: 'Test',
+        severity: 'critical',
+        affectedFile: 'a.ts',
+        recommendation: 'Fix it',
+        references: []
+      });
+
+      const check = scanner.checkPolicyCompliance('fail-compliance', 'strict-policy');
+      expect(check.compliant).toBe(false);
+      expect(check.blocked).toBe(true);
+    });
+  });
+
+  describe('generateReport', () => {
+    it('should generate report', () => {
+      scanner.startScan('report-test', 'repo/test', 'main');
+      scanner.addVulnerability('report-test', {
+        title: 'Critical Vuln',
+        description: 'Test',
+        severity: 'critical',
+        affectedFile: 'a.ts',
+        recommendation: 'Use sanitization',
+        references: ['https://cve.example.com']
+      });
+      scanner.completeScan('report-test', 50);
+
+      const report = scanner.generateReport('report-test');
+      expect(report).not.toBeNull();
+      expect(report?.summary.critical).toBe(1);
+      expect(report?.criticalVulnerabilities).toHaveLength(1);
+      expect(report?.recommendations).toContain('Use sanitization');
+    });
+  });
+
+  describe('getStatistics', () => {
+    it('should return correct statistics', () => {
+      scanner.startScan('stats-1', 'repo/test', 'main');
+      scanner.completeScan('stats-1', 100);
+      scanner.startScan('stats-2', 'repo/test', 'main');
+      scanner.completeScan('stats-2', 200);
+
+      const stats = scanner.getStatistics();
+      expect(stats.totalScans).toBe(2);
+      expect(stats.byStatus.completed).toBe(2);
     });
   });
 });
