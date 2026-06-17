@@ -1,100 +1,302 @@
-import { describe, it, expect } from 'vitest';
-import {
-  createWorkflow,
-  addStep,
-  removeStep,
-  startExecution,
-  updateStepResult,
-  completeExecution,
-  shouldTriggerWorkflow,
-  getWorkflowStats
-} from './workflow-automation';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { WorkflowAutomation, WorkflowConfig, WorkflowRun } from './workflow-automation';
 
-describe('workflow-automation', () => {
-  describe('createWorkflow', () => {
-    it('should create a workflow', () => {
-      const workflow = createWorkflow(
-        'Test Workflow',
-        'A test workflow',
-        [{ name: 'Step 1', type: 'check' as const, config: {} }],
-        [{ type: 'push' as const }]
-      );
-      expect(workflow.name).toBe('Test Workflow');
-      expect(workflow.steps).toHaveLength(1);
-      expect(workflow.enabled).toBe(true);
+describe('WorkflowAutomation', () => {
+  let automation: WorkflowAutomation;
+
+  beforeEach(() => {
+    automation = new WorkflowAutomation();
+  });
+
+  describe('registerWorkflow', () => {
+    it('should register a valid workflow', () => {
+      const config: WorkflowConfig = {
+        name: 'Test Workflow',
+        trigger: ['push'],
+        jobs: [
+          {
+            name: 'test',
+            runsOn: 'ubuntu-latest',
+            steps: [{ name: 'Run tests', run: 'npm test' }],
+          },
+        ],
+      };
+
+      automation.registerWorkflow(config);
+      expect(automation.getWorkflow('Test Workflow')).toBeDefined();
+    });
+
+    it('should throw error for workflow without name', () => {
+      const config = {
+        name: '',
+        trigger: ['push'],
+        jobs: [
+          {
+            name: 'test',
+            runsOn: 'ubuntu-latest',
+            steps: [{ name: 'Run tests', run: 'npm test' }],
+          },
+        ],
+      };
+
+      expect(() => automation.registerWorkflow(config)).toThrow();
+    });
+
+    it('should throw error for workflow without jobs', () => {
+      const config = {
+        name: 'Test',
+        trigger: ['push'],
+        jobs: [],
+      };
+
+      expect(() => automation.registerWorkflow(config)).toThrow();
     });
   });
 
-  describe('addStep', () => {
-    it('should add a step to workflow', () => {
-      const workflow = createWorkflow('Test', '', [], []);
-      const updated = addStep(workflow, { name: 'New Step', type: 'action' as const, config: {} });
-      expect(updated.steps).toHaveLength(1);
+  describe('getWorkflow', () => {
+    it('should return registered workflow', () => {
+      const config: WorkflowConfig = {
+        name: 'My Workflow',
+        trigger: ['push', 'pull_request'],
+        jobs: [
+          {
+            name: 'build',
+            runsOn: 'ubuntu-latest',
+            steps: [{ name: 'Build', run: 'npm run build' }],
+          },
+        ],
+      };
+
+      automation.registerWorkflow(config);
+      const result = automation.getWorkflow('My Workflow');
+      expect(result).toBeDefined();
+      expect(result?.name).toBe('My Workflow');
+    });
+
+    it('should return undefined for non-existent workflow', () => {
+      expect(automation.getWorkflow('NonExistent')).toBeUndefined();
     });
   });
 
-  describe('removeStep', () => {
-    it('should remove a step from workflow', () => {
-      const workflow = createWorkflow('Test', '', [
-        { name: 'Step 1', type: 'check' as const, config: {} },
-        { name: 'Step 2', type: 'action' as const, config: {} }
-      ], []);
-      const updated = removeStep(workflow, 'step-0');
-      expect(updated.steps).toHaveLength(1);
+  describe('listWorkflows', () => {
+    it('should list all registered workflows', () => {
+      automation.registerWorkflow({
+        name: 'Workflow 1',
+        trigger: ['push'],
+        jobs: [{ name: 'test', runsOn: 'ubuntu-latest', steps: [] }],
+      });
+      automation.registerWorkflow({
+        name: 'Workflow 2',
+        trigger: ['push'],
+        jobs: [{ name: 'test', runsOn: 'ubuntu-latest', steps: [] }],
+      });
+
+      const workflows = automation.listWorkflows();
+      expect(workflows.length).toBe(2);
+      expect(workflows).toContain('Workflow 1');
+      expect(workflows).toContain('Workflow 2');
     });
   });
 
-  describe('startExecution', () => {
-    it('should start workflow execution', () => {
-      const workflow = createWorkflow('Test', '', [
-        { name: 'Step 1', type: 'check' as const, config: {} }
-      ], []);
-      const exec = startExecution(workflow);
-      expect(exec.status).toBe('pending');
-      expect(exec.stepResults).toHaveLength(1);
+  describe('generateNodeCIWorkflow', () => {
+    it('should generate Node.js CI workflow with defaults', () => {
+      const workflow = automation.generateNodeCIWorkflow();
+
+      expect(workflow.name).toBe('CI');
+      expect(workflow.trigger).toContain('push');
+      expect(workflow.trigger).toContain('pull_request');
+      expect(workflow.jobs.length).toBe(3);
+      expect(workflow.jobs.map(j => j.name)).toContain('lint');
+      expect(workflow.jobs.map(j => j.name)).toContain('test');
+      expect(workflow.jobs.map(j => j.name)).toContain('build');
+    });
+
+    it('should generate workflow with custom options', () => {
+      const workflow = automation.generateNodeCIWorkflow({
+        nodeVersion: '18.x',
+        testCommand: 'jest',
+        coverageThreshold: 90,
+      });
+
+      expect(workflow.jobs[1].steps.some(s => s.run?.includes('jest'))).toBeTruthy();
+    });
+
+    it('should include npm caching in setup steps', () => {
+      const workflow = automation.generateNodeCIWorkflow();
+      const setupStep = workflow.jobs[1].steps.find(s => s.uses?.includes('setup-node'));
+      
+      expect(setupStep?.with?.cache).toBe('npm');
     });
   });
 
-  describe('updateStepResult', () => {
-    it('should update step result', () => {
-      const workflow = createWorkflow('Test', '', [
-        { name: 'Step 1', type: 'check' as const, config: {} }
-      ], []);
-      const exec = startExecution(workflow);
-      const updated = updateStepResult(exec, 'step-0', { status: 'completed' as const, output: 'OK' });
-      expect(updated.stepResults[0].status).toBe('completed');
-      expect(updated.stepResults[0].output).toBe('OK');
+  describe('generateReleaseWorkflow', () => {
+    it('should generate release workflow', () => {
+      const workflow = automation.generateReleaseWorkflow();
+
+      expect(workflow.name).toBe('Release');
+      expect(workflow.jobs.length).toBe(1);
+      expect(workflow.jobs[0].name).toBe('release');
+    });
+
+    it('should include tag trigger condition', () => {
+      const workflow = automation.generateReleaseWorkflow();
+      
+      expect(workflow.jobs[0].if).toContain('startsWith');
+      expect(workflow.jobs[0].if).toContain('refs/tags/');
     });
   });
 
-  describe('completeExecution', () => {
-    it('should complete execution', () => {
-      const workflow = createWorkflow('Test', '', [], []);
-      const exec = startExecution(workflow);
-      const completed = completeExecution(exec, 'completed');
-      expect(completed.status).toBe('completed');
-      expect(completed.completedAt).toBeDefined();
+  describe('generateSecurityWorkflow', () => {
+    it('should generate security workflow with SAST', () => {
+      const workflow = automation.generateSecurityWorkflow();
+
+      expect(workflow.name).toBe('Security');
+      expect(workflow.jobs.some(j => j.name === 'sast')).toBeTruthy();
+      expect(workflow.jobs.some(j => j.name === 'dependency-check')).toBeTruthy();
+    });
+
+    it('should include CodeQL action', () => {
+      const workflow = automation.generateSecurityWorkflow();
+      const sastJob = workflow.jobs.find(j => j.name === 'sast');
+      
+      expect(sastJob?.steps.some(s => s.uses?.includes('codeql-action'))).toBeTruthy();
     });
   });
 
-  describe('shouldTriggerWorkflow', () => {
-    it('should match trigger conditions', () => {
-      const workflow = createWorkflow('Test', '', [], [{ type: 'push', conditions: { branch: 'main' } }]);
-      expect(shouldTriggerWorkflow(workflow, { type: 'push', payload: { branch: 'main' } })).toBe(true);
-      expect(shouldTriggerWorkflow(workflow, { type: 'push', payload: { branch: 'dev' } })).toBe(false);
+  describe('simulateRun', () => {
+    it('should create a workflow run', async () => {
+      const run = automation.simulateRun('CI');
+
+      expect(run).toBeDefined();
+      expect(run.name).toBe('CI');
+      expect(run.status).toBe('in_progress');
+      expect(run.runNumber).toBe(1);
+    });
+
+    it('should track run history', () => {
+      automation.simulateRun('CI');
+      automation.simulateRun('CI');
+      automation.simulateRun('Release');
+
+      const history = automation.getRunHistory();
+      expect(history.length).toBe(3);
     });
   });
 
-  describe('getWorkflowStats', () => {
-    it('should calculate workflow statistics', () => {
-      const executions = [
-        { id: '1', workflowId: 'w1', status: 'completed' as const, startedAt: new Date(), completedAt: new Date() },
-        { id: '2', workflowId: 'w1', status: 'failed' as const, startedAt: new Date(), completedAt: new Date() }
-      ];
-      const stats = getWorkflowStats(executions);
-      expect(stats.total).toBe(2);
-      expect(stats.completed).toBe(1);
-      expect(stats.failed).toBe(1);
+  describe('calculateMetrics', () => {
+    it('should calculate success rate', async () => {
+      automation.simulateRun('CI');
+      
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      const metrics = automation.calculateMetrics('CI');
+      expect(metrics.totalRuns).toBeGreaterThan(0);
+    });
+
+    it('should calculate metrics for specific workflow', () => {
+      automation.simulateRun('CI');
+      automation.simulateRun('Release');
+
+      const ciMetrics = automation.calculateMetrics('CI');
+      expect(ciMetrics.totalRuns).toBe(1);
+    });
+  });
+
+  describe('optimizeWorkflow', () => {
+    it('should add caching to workflow', () => {
+      automation.registerWorkflow({
+        name: 'Test Workflow',
+        trigger: ['push'],
+        jobs: [
+          {
+            name: 'build',
+            runsOn: 'ubuntu-latest',
+            steps: [
+              { name: 'Checkout', uses: 'actions/checkout@v4' },
+              { name: 'Setup Node', uses: 'actions/setup-node@v4' },
+            ],
+          },
+        ],
+      });
+
+      const optimized = automation.optimizeWorkflow('Test Workflow');
+      expect(optimized).toBeDefined();
+      
+      const setupStep = optimized?.jobs[0].steps.find(s => s.uses?.includes('setup-node'));
+      expect(setupStep?.with?.cache).toBe('npm');
+    });
+
+    it('should return undefined for non-existent workflow', () => {
+      const optimized = automation.optimizeWorkflow('NonExistent');
+      expect(optimized).toBeUndefined();
+    });
+  });
+
+  describe('exportAsYaml', () => {
+    it('should export workflow as YAML', () => {
+      automation.registerWorkflow({
+        name: 'Test Workflow',
+        trigger: ['push'],
+        jobs: [
+          {
+            name: 'test',
+            runsOn: 'ubuntu-latest',
+            steps: [
+              { name: 'Run tests', run: 'npm test' },
+            ],
+          },
+        ],
+      });
+
+      const yaml = automation.exportAsYaml('Test Workflow');
+      
+      expect(yaml).toContain('name: Test Workflow');
+      expect(yaml).toContain('on: push');
+      expect(yaml).toContain('jobs:');
+      expect(yaml).toContain('test:');
+      expect(yaml).toContain('runs-on: ubuntu-latest');
+    });
+
+    it('should export workflow with environment variables', () => {
+      automation.registerWorkflow({
+        name: 'CI',
+        trigger: ['push'],
+        env: { NODE_ENV: 'test' },
+        jobs: [
+          {
+            name: 'test',
+            runsOn: 'ubuntu-latest',
+            steps: [],
+          },
+        ],
+      });
+
+      const yaml = automation.exportAsYaml('CI');
+      expect(yaml).toContain('env:');
+      expect(yaml).toContain('NODE_ENV: test');
+    });
+
+    it('should export workflow with job dependencies', () => {
+      automation.registerWorkflow({
+        name: 'Build',
+        trigger: ['push'],
+        jobs: [
+          {
+            name: 'build',
+            runsOn: 'ubuntu-latest',
+            steps: [],
+          },
+          {
+            name: 'deploy',
+            runsOn: 'ubuntu-latest',
+            needs: ['build'],
+            steps: [],
+          },
+        ],
+      });
+
+      const yaml = automation.exportAsYaml('Build');
+      expect(yaml).toContain('needs: build');
     });
   });
 });

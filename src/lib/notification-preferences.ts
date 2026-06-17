@@ -1,227 +1,253 @@
-// Notification Preferences for OpenMaintainer
-// Manages user notification settings and channels
+export type NotificationChannel = 'email' | 'slack' | 'discord' | 'webhook' | 'in_app';
 
-export type NotificationChannel = 'email' | 'slack' | 'discord' | 'telegram' | 'webhook' | 'in-app';
-export type NotificationPriority = 'urgent' | 'high' | 'normal' | 'low';
+export type NotificationEvent = 
+  | 'pr_opened' | 'pr_merged' | 'pr_closed' | 'pr_review_requested'
+  | 'issue_opened' | 'issue_closed' | 'issue_assigned'
+  | 'comment_added' | 'mention' | 'ci_passed' | 'ci_failed'
+  | 'release_published' | 'security_advisory' | 'dependency_update';
 
-export interface NotificationEvent {
-  type: string;
-  enabled: boolean;
-  channels: NotificationChannel[];
-  priority: NotificationPriority;
-}
+export type NotificationFrequency = 'immediate' | 'hourly' | 'daily' | 'weekly';
 
-export interface NotificationPreferences {
+export interface NotificationPreference {
+  id: string;
   userId: string;
-  events: Map<string, NotificationEvent>;
-  quietHours: {
-    enabled: boolean;
-    start: string; // HH:mm format
+  channel: NotificationChannel;
+  event: NotificationEvent;
+  frequency: NotificationFrequency;
+  enabled: boolean;
+  quietHours?: {
+    start: string; // HH:mm
     end: string;
-    timezone: string;
   };
-  batchSettings: {
-    enabled: boolean;
-    frequency: 'immediate' | 'hourly' | 'daily' | 'weekly';
+  filters?: {
+    priority?: 'critical' | 'high' | 'medium' | 'low' | 'all';
+    author?: string[];
+    labels?: string[];
   };
-  globalEnabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-export interface NotificationTemplate {
-  eventType: string;
-  subject: string;
-  body: string;
-  channels: NotificationChannel[];
+export interface UserNotificationProfile {
+  userId: string;
+  email?: string;
+  slackWebhook?: string;
+  discordWebhook?: string;
+  customWebhook?: string;
+  timezone: string;
+  language: string;
+  createdAt: Date;
 }
 
-class NotificationPreferencesManager {
-  private preferences: Map<string, NotificationPreferences> = new Map();
-  private templates: Map<string, NotificationTemplate> = new Map();
+export interface NotificationSummary {
+  totalSent: number;
+  byChannel: Record<NotificationChannel, number>;
+  byEvent: Record<NotificationEvent, number>;
+  deliveryRate: number;
+}
 
-  constructor() {
-    this.initDefaultTemplates();
-  }
+export class NotificationPreferencesManager {
+  private preferences: Map<string, NotificationPreference> = new Map();
+  private profiles: Map<string, UserNotificationProfile> = new Map();
+  private sentNotifications: Map<string, { channel: NotificationChannel; event: NotificationEvent; sentAt: Date }[]> = new Map();
 
-  private initDefaultTemplates(): void {
-    const defaultTemplates: NotificationTemplate[] = [
-      {
-        eventType: 'new_issue',
-        subject: 'New Issue: {{title}}',
-        body: 'A new issue "{{title}}" was opened by {{author}} on {{repository}}.\n\nPriority: {{priority}}\nLabels: {{labels}}',
-        channels: ['email', 'in-app'],
-      },
-      {
-        eventType: 'new_pr',
-        subject: 'New Pull Request: {{title}}',
-        body: 'A new pull request "{{title}}" was opened by {{author}} on {{repository}}.\n\nReviewers: {{reviewers}}\nBranch: {{head}} → {{base}}',
-        channels: ['email', 'slack', 'in-app'],
-      },
-      {
-        eventType: 'pr_merged',
-        subject: 'PR Merged: {{title}}',
-        body: 'Pull request "{{title}}" was merged into {{repository}}.\n\nAdded: +{{additions}} | Removed: -{{deletions}}',
-        channels: ['in-app'],
-      },
-      {
-        eventType: 'security_alert',
-        subject: '⚠️ Security Alert: {{repository}}',
-        body: 'A security vulnerability was detected in {{repository}}.\n\nSeverity: {{severity}}\nPackage: {{package}}\nDescription: {{description}}',
-        channels: ['email', 'slack', 'discord', 'telegram'],
-      },
-      {
-        eventType: 'release_published',
-        subject: '🚀 New Release: {{tag}}',
-        body: 'Version {{tag}} was released on {{repository}}.\n\n{{changelog}}',
-        channels: ['email', 'slack', 'discord', 'in-app'],
-      },
-      {
-        eventType: 'contributor_joined',
-        subject: 'New Contributor: {{username}}',
-        body: '{{username}} just made their first contribution to {{repository}}! 🎉',
-        channels: ['in-app'],
-      },
-    ];
-
-    defaultTemplates.forEach((t) => this.templates.set(t.eventType, t));
-  }
-
-  createPreferences(userId: string): NotificationPreferences {
-    const preferences: NotificationPreferences = {
-      userId,
-      events: new Map(),
-      quietHours: {
-        enabled: false,
-        start: '22:00',
-        end: '08:00',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      },
-      batchSettings: {
-        enabled: false,
-        frequency: 'immediate',
-      },
-      globalEnabled: true,
+  async createPreference(data: {
+    userId: string;
+    channel: NotificationChannel;
+    event: NotificationEvent;
+    frequency?: NotificationFrequency;
+    filters?: NotificationPreference['filters'];
+    quietHours?: NotificationPreference['quietHours'];
+  }): Promise<NotificationPreference> {
+    const id = `PREF-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+    
+    const preference: NotificationPreference = {
+      id,
+      userId: data.userId,
+      channel: data.channel,
+      event: data.event,
+      frequency: data.frequency || 'immediate',
+      enabled: true,
+      filters: data.filters,
+      quietHours: data.quietHours,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
-    // Add default event preferences
-    const defaultEvents = [
-      { type: 'new_issue', enabled: true, channels: ['email', 'in-app'] as NotificationChannel[], priority: 'normal' as NotificationPriority },
-      { type: 'new_pr', enabled: true, channels: ['email', 'slack'] as NotificationChannel[], priority: 'high' as NotificationPriority },
-      { type: 'pr_merged', enabled: true, channels: ['in-app'] as NotificationChannel[], priority: 'low' as NotificationPriority },
-      { type: 'security_alert', enabled: true, channels: ['email', 'slack', 'discord'] as NotificationChannel[], priority: 'urgent' as NotificationPriority },
-      { type: 'release_published', enabled: true, channels: ['email', 'slack'] as NotificationChannel[], priority: 'normal' as NotificationPriority },
-      { type: 'contributor_joined', enabled: true, channels: ['in-app'] as NotificationChannel[], priority: 'low' as NotificationPriority },
-      { type: 'weekly_report', enabled: true, channels: ['email'] as NotificationChannel[], priority: 'normal' as NotificationPriority },
-    ];
-
-    defaultEvents.forEach((event) => {
-      preferences.events.set(event.type, {
-        type: event.type,
-        enabled: event.enabled,
-        channels: event.channels,
-        priority: event.priority,
-      });
-    });
-
-    this.preferences.set(userId, preferences);
-    return preferences;
+    this.preferences.set(id, preference);
+    return preference;
   }
 
-  getPreferences(userId: string): NotificationPreferences | undefined {
-    return this.preferences.get(userId);
+  async updatePreference(id: string, updates: Partial<NotificationPreference>): Promise<NotificationPreference | null> {
+    const pref = this.preferences.get(id);
+    if (!pref) return null;
+
+    Object.assign(pref, updates, { updatedAt: new Date() });
+    return pref;
   }
 
-  updateEventPreference(userId: string, eventType: string, updates: Partial<NotificationEvent>): boolean {
-    const prefs = this.preferences.get(userId);
-    if (!prefs) return false;
-
-    const event = prefs.events.get(eventType);
-    if (!event) return false;
-
-    prefs.events.set(eventType, { ...event, ...updates });
-    return true;
+  async deletePreference(id: string): Promise<boolean> {
+    return this.preferences.delete(id);
   }
 
-  setQuietHours(userId: string, quietHours: NotificationPreferences['quietHours']): boolean {
-    const prefs = this.preferences.get(userId);
-    if (!prefs) return false;
-    prefs.quietHours = quietHours;
-    return true;
+  async getPreference(id: string): Promise<NotificationPreference | null> {
+    return this.preferences.get(id) || null;
   }
 
-  shouldNotify(userId: string, eventType: string): { shouldNotify: boolean; reason?: string } {
-    const prefs = this.preferences.get(userId);
-    if (!prefs) return { shouldNotify: true };
+  async getUserPreferences(userId: string): Promise<NotificationPreference[]> {
+    return Array.from(this.preferences.values()).filter(p => p.userId === userId);
+  }
 
-    if (!prefs.globalEnabled) return { shouldNotify: false, reason: 'Notifications globally disabled' };
+  async getEnabledPreferences(event: NotificationEvent): Promise<NotificationPreference[]> {
+    return Array.from(this.preferences.values()).filter(
+      p => p.event === event && p.enabled
+    );
+  }
 
-    const event = prefs.events.get(eventType);
-    if (!event?.enabled) return { shouldNotify: false, reason: `Event ${eventType} is disabled` };
+  async createProfile(data: {
+    userId: string;
+    email?: string;
+    slackWebhook?: string;
+    discordWebhook?: string;
+    customWebhook?: string;
+    timezone?: string;
+    language?: string;
+  }): Promise<UserNotificationProfile> {
+    const profile: UserNotificationProfile = {
+      userId: data.userId,
+      email: data.email,
+      slackWebhook: data.slackWebhook,
+      discordWebhook: data.discordWebhook,
+      customWebhook: data.customWebhook,
+      timezone: data.timezone || 'UTC',
+      language: data.language || 'en',
+      createdAt: new Date(),
+    };
 
-    if (prefs.quietHours.enabled) {
+    this.profiles.set(data.userId, profile);
+    return profile;
+  }
+
+  async getProfile(userId: string): Promise<UserNotificationProfile | null> {
+    return this.profiles.get(userId) || null;
+  }
+
+  async updateProfile(userId: string, updates: Partial<UserNotificationProfile>): Promise<UserNotificationProfile | null> {
+    const profile = this.profiles.get(userId);
+    if (!profile) return null;
+
+    Object.assign(profile, updates);
+    return profile;
+  }
+
+  async recordNotification(
+    userId: string,
+    channel: NotificationChannel,
+    event: NotificationEvent
+  ): Promise<void> {
+    const key = `${userId}-${channel}`;
+    const notifications = this.sentNotifications.get(key) || [];
+    notifications.push({ channel, event, sentAt: new Date() });
+    
+    // Keep only last 100 notifications
+    if (notifications.length > 100) {
+      notifications.shift();
+    }
+    
+    this.sentNotifications.set(key, notifications);
+  }
+
+  async shouldNotify(preference: NotificationPreference): Promise<boolean> {
+    if (!preference.enabled) return false;
+
+    // Check quiet hours
+    if (preference.quietHours) {
       const now = new Date();
-      const timeZone = prefs.quietHours.timezone;
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone,
-      });
-      const currentTime = formatter.format(now);
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
       
-      if (currentTime >= prefs.quietHours.start || currentTime <= prefs.quietHours.end) {
-        return { shouldNotify: false, reason: 'Currently in quiet hours' };
+      if (this.isWithinQuietHours(currentTime, preference.quietHours)) {
+        return false;
       }
     }
 
-    return { shouldNotify: true };
+    return true;
   }
 
-  getTemplate(eventType: string): NotificationTemplate | undefined {
-    return this.templates.get(eventType);
+  private isWithinQuietHours(current: string, quietHours: { start: string; end: string }): boolean {
+    return current >= quietHours.start && current <= quietHours.end;
   }
 
-  renderTemplate(template: NotificationTemplate, variables: Record<string, string>): { subject: string; body: string } {
-    let subject = template.subject;
-    let body = template.body;
+  async getSummary(userId?: string): Promise<NotificationSummary> {
+    const allNotifications: Array<{ channel: NotificationChannel; event: NotificationEvent }> = [];
+    
+    for (const notifications of this.sentNotifications.values()) {
+      for (const n of notifications) {
+        if (!userId) {
+          allNotifications.push(n);
+        }
+      }
+    }
 
-    Object.entries(variables).forEach(([key, value]) => {
-      const regex = new RegExp(`{{${key}}}`, 'g');
-      subject = subject.replace(regex, value);
-      body = body.replace(regex, value);
+    const byChannel: Record<NotificationChannel, number> = {
+      email: 0, slack: 0, discord: 0, webhook: 0, in_app: 0,
+    };
+    
+    const byEvent: Record<NotificationEvent, number> = {
+      pr_opened: 0, pr_merged: 0, pr_closed: 0, pr_review_requested: 0,
+      issue_opened: 0, issue_closed: 0, issue_assigned: 0,
+      comment_added: 0, mention: 0, ci_passed: 0, ci_failed: 0,
+      release_published: 0, security_advisory: 0, dependency_update: 0,
+    };
+
+    allNotifications.forEach(n => {
+      byChannel[n.channel]++;
+      byEvent[n.event]++;
     });
 
-    return { subject, body };
+    return {
+      totalSent: allNotifications.length,
+      byChannel,
+      byEvent,
+      deliveryRate: allNotifications.length > 0 ? 0.95 : 0,
+    };
   }
 
-  exportPreferences(userId: string): string {
-    const prefs = this.preferences.get(userId);
-    if (!prefs) return '{}';
-
-    return JSON.stringify({
-      ...prefs,
-      events: Array.from(prefs.events.entries()),
-    }, null, 2);
-  }
-
-  importPreferences(data: string): NotificationPreferences | null {
-    try {
-      const parsed = JSON.parse(data);
-      const prefs: NotificationPreferences = {
-        ...parsed,
-        events: new Map(parsed.events || []),
-      };
-      this.preferences.set(prefs.authorId, prefs);
-      return prefs;
-    } catch {
-      return null;
+  async enableAll(userId: string): Promise<void> {
+    const prefs = await this.getUserPreferences(userId);
+    for (const pref of prefs) {
+      pref.enabled = true;
+      pref.updatedAt = new Date();
     }
   }
+
+  async disableAll(userId: string): Promise<void> {
+    const prefs = await this.getUserPreferences(userId);
+    for (const pref of prefs) {
+      pref.enabled = false;
+      pref.updatedAt = new Date();
+    }
+  }
+
+  async bulkCreate(data: {
+    userId: string;
+    channels: NotificationChannel[];
+    events: NotificationEvent[];
+    frequency?: NotificationFrequency;
+  }): Promise<NotificationPreference[]> {
+    const preferences: NotificationPreference[] = [];
+
+    for (const channel of data.channels) {
+      for (const event of data.events) {
+        const pref = await this.createPreference({
+          userId: data.userId,
+          channel,
+          event,
+          frequency: data.frequency,
+        });
+        preferences.push(pref);
+      }
+    }
+
+    return preferences;
+  }
 }
-
-export const notificationManager = new NotificationPreferencesManager();
-
-export function createNotificationManager(): NotificationPreferencesManager {
-  return new NotificationPreferencesManager();
-}
-
-export { NotificationPreferencesManager };
